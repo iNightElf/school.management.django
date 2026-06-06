@@ -1,0 +1,33 @@
+from rest_framework import serializers
+from .models import Result
+
+
+SUBJECT_KEY_MAP = {
+    'General knowledge': 'General Knowledge',
+    'Religion & Quran Learning': 'Religion and Quran Learning',
+    'Quran Learning': 'Religion and Quran Learning',
+}
+
+
+class ResultSerializer(serializers.ModelSerializer):
+    studentName = serializers.CharField(source='student.name', read_only=True)
+    studentRoll = serializers.CharField(source='student.roll', read_only=True)
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    studentId = serializers.UUIDField(source='student.id', read_only=True)
+    marks = serializers.JSONField()
+
+    class Meta:
+        model = Result
+        fields = ['id', 'student', 'studentId', 'session', 'term', 'marks', 'attendance',
+                   'comment', 'studentName', 'studentRoll', 'createdAt']
+        read_only_fields = ['id', 'createdAt', 'studentId']
+
+    def validate_marks(self, value):
+        if not isinstance(value, dict):
+            return value
+        normalized = {}
+        for key, val in value.items():
+            canonical = SUBJECT_KEY_MAP.get(key, key)
+            if canonical not in normalized:
+                normalized[canonical] = val
+        return normalized
