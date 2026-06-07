@@ -2,16 +2,17 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useSchoolStore, api } from '../store';
 import { X, Shield, Search } from 'lucide-react';
 import { toast } from '../components/Toast';
+import type { FeeWaiver, SchoolClass } from '../lib/types';
 
 const StudentWaiversTab = () => {
   const { classes, students, feeSchedules: schedules, fetchClasses, fetchStudents, fetchFeeSchedules } = useSchoolStore();
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedStudent, setSelectedStudent] = useState('');
-  const [waivers, setWaivers] = useState<any[]>([]);
+  const [waivers, setWaivers] = useState<FeeWaiver[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [history, setHistory] = useState<any[]>([]);
-  const [activeWaivers, setActiveWaivers] = useState<any[]>([]);
+  const [history, setHistory] = useState<FeeWaiver[]>([]);
+  const [activeWaivers, setActiveWaivers] = useState<FeeWaiver[]>([]);
   const [activeLoading, setActiveLoading] = useState(true);
   const [selectedScheduleId, setSelectedScheduleId] = useState('');
   const [expectedAmount, setExpectedAmount] = useState('');
@@ -30,7 +31,7 @@ const StudentWaiversTab = () => {
   const loadActiveWaivers = useCallback(async () => {
     setActiveLoading(true);
     try {
-      const res = await api.get('/finance/fee-waivers', { params: { active: 'true' } });
+      const res = await api.get('/finance/fee-waivers/', { params: { active: 'true' } });
       setActiveWaivers(res.data.results || res.data.data || res.data);
     } catch { /* silent */ }
     finally { setActiveLoading(false); }
@@ -47,8 +48,8 @@ const StudentWaiversTab = () => {
     setLoading(true);
     try {
       const [waiverRes, historyRes] = await Promise.all([
-        api.get('/finance/fee-waivers', { params: { studentId: selectedStudent } }),
-        api.get('/finance/fee-waivers', { params: { studentId: selectedStudent, active: 'false' } }),
+        api.get('/finance/fee-waivers/', { params: { studentId: selectedStudent } }),
+        api.get('/finance/fee-waivers/', { params: { studentId: selectedStudent, active: 'false' } }),
       ]);
       setWaivers(waiverRes.data.results || waiverRes.data.data || waiverRes.data);
       setHistory(historyRes.data.results || historyRes.data.data || historyRes.data);
@@ -67,9 +68,9 @@ const StudentWaiversTab = () => {
   const filteredActiveWaivers = useMemo(() => {
     if (!waiverSearch) return activeWaivers;
     const q = waiverSearch.toLowerCase();
-    return activeWaivers.filter((w: any) => (w.student?.name || '').toLowerCase().includes(q));
+    return activeWaivers.filter((w) => (w.studentName || '').toLowerCase().includes(q));
   }, [activeWaivers, waiverSearch]);
-  const getWaiver = (feeScheduleId: string) => waivers.find(w => w.feeScheduleId === feeScheduleId);
+  const getWaiver = (feeScheduleId: string) => waivers.find(w => w.feeSchedule === feeScheduleId);
 
   const handleScheduleChange = (id: string) => {
     setSelectedScheduleId(id);
@@ -84,9 +85,9 @@ const StudentWaiversTab = () => {
     setSaving(true);
     try {
       await api.post('/finance/fee-waivers/', {
-        studentId: selectedStudent, feeScheduleId: selectedScheduleId, value: Number(expectedAmount), reason, approvedBy,
+        student: selectedStudent, feeSchedule: selectedScheduleId, value: Number(expectedAmount), reason, approvedBy,
       });
-      toast('Waiver saved ✓', 'success');
+      toast('Waiver saved', 'success');
       await loadData();
       await loadActiveWaivers();
     } catch (e: any) { toast(e?.response?.data?.error || 'Failed to save waiver', 'error'); }
@@ -102,7 +103,7 @@ const StudentWaiversTab = () => {
     } catch { toast('Failed to remove', 'error'); }
   };
 
-  const editWaiver = (w: any) => {
+  const editWaiver = (w: FeeWaiver) => {
     setEditingId(w.id);
     setEditExpected(String(w.value));
     setEditReason(w.reason || '');
@@ -116,15 +117,14 @@ const StudentWaiversTab = () => {
     setEditApprovedBy('');
   };
 
-  const saveInline = async (w: any) => {
+  const saveInline = async (w: FeeWaiver) => {
     if (!editExpected) { toast('Enter expected amount', 'error'); return; }
     try {
-      // Immutable: deactivate old, create new
       await api.post(`/finance/fee-waivers/${w.id}/deactivate/`, {});
       await api.post('/finance/fee-waivers/', {
-        studentId: w.studentId, feeScheduleId: w.feeScheduleId, value: Number(editExpected), reason: editReason || w.reason, approvedBy: editApprovedBy || w.approvedBy,
+        student: w.student, feeSchedule: w.feeSchedule, value: Number(editExpected), reason: editReason || w.reason, approvedBy: editApprovedBy || w.approvedBy,
       });
-      toast('Waiver updated ✓', 'success');
+      toast('Waiver updated', 'success');
       setEditingId(null);
       setEditExpected('');
       setEditReason('');
@@ -175,8 +175,6 @@ const StudentWaiversTab = () => {
                 <thead className="bg-school-paper/50 text-[10px] uppercase tracking-widest text-school-muted font-bold">
                   <tr>
                     <th className="px-4 py-3 text-left">Student</th>
-                    <th className="px-4 py-3 text-left">Class</th>
-                    <th className="px-4 py-3 text-left">Roll</th>
                     <th className="px-4 py-3 text-left">Fee</th>
                     <th className="px-4 py-3 text-right">Full Fee</th>
                     <th className="px-4 py-3 text-right">Student Pays</th>
@@ -186,27 +184,25 @@ const StudentWaiversTab = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-school-border/50">
-                  {filteredActiveWaivers.map((w: any) => {
-                  const fullFee = Number(w.feeSchedule?.amount || 0);
+                  {filteredActiveWaivers.map((w) => {
+                  const fullFee = Number(w.feeScheduleAmount || 0);
                   const expected = Number(w.value);
                   const waiverVal = Math.max(0, fullFee - expected);
                   const isEditing = editingId === w.id;
                   return (
                     <tr key={w.id} className={`hover:bg-school-paper/30 transition-colors ${isEditing ? 'bg-blue-50/50' : ''}`}>
-                      <td data-label="Student" className="px-4 py-2.5 font-bold text-xs">{w.student?.name}</td>
-                      <td data-label="Class" className="px-4 py-2.5 text-xs">{w.student?.class || '—'}</td>
-                      <td data-label="Roll" className="px-4 py-2.5 text-xs">{w.student?.roll || '—'}</td>
-                      <td data-label="Fee" className="px-4 py-2.5 text-xs">{w.feeSchedule?.category || '—'}</td>
-                      <td data-label="Full Fee" className="px-4 py-2.5 text-right font-mono text-xs">৳{fullFee}</td>
+                      <td data-label="Student" className="px-4 py-2.5 font-bold text-xs">{w.studentName}</td>
+                      <td data-label="Fee" className="px-4 py-2.5 text-xs">{w.feeCategory}</td>
+                      <td data-label="Full Fee" className="px-4 py-2.5 text-right font-mono text-xs">{fullFee.toLocaleString()}</td>
                       <td data-label="Student Pays" className="px-4 py-2.5 text-right font-mono text-xs font-bold text-emerald-600">
                         {isEditing ? (
                           <input type="number" min="0" value={editExpected} autoFocus
                             onChange={e => setEditExpected(e.target.value)}
                             className="w-24 text-right border border-blue-300 rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-blue-500"
                             onKeyDown={e => { if (e.key === 'Enter') saveInline(w); if (e.key === 'Escape') cancelEdit(); }} />
-                        ) : '৳' + expected}
+                        ) : expected.toLocaleString()}
                       </td>
-                      <td data-label="Waived Amount" className="px-4 py-2.5 text-right font-mono text-xs text-rose-500">−৳{waiverVal}</td>
+                      <td data-label="Waived Amount" className="px-4 py-2.5 text-right font-mono text-xs text-rose-500">{waiverVal.toLocaleString()}</td>
                       <td data-label="Reason" className="px-4 py-2.5 text-xs text-school-muted">
                         {isEditing ? (
                           <input type="text" value={editReason} onChange={e => setEditReason(e.target.value)}
@@ -306,7 +302,7 @@ const StudentWaiversTab = () => {
                 className="w-full border border-school-border rounded-xl px-3 py-2 text-sm bg-white">
                 <option value="">— Select Fee Category —</option>
                 {activeSchedules.map((sched: any) => (
-                  <option key={sched.id} value={sched.id}>{sched.category} — ৳{sched.amount} ({sched.frequency}){sched.classRel?.name ? ` — ${sched.classRel.name}` : ''}</option>
+                  <option key={sched.id} value={sched.id}>{sched.category} — {Number(sched.amount).toLocaleString()} ({sched.frequency}){sched.classRel?.name ? ` — ${sched.classRel.name}` : ''}</option>
                 ))}
               </select>
             </div>
@@ -316,7 +312,7 @@ const StudentWaiversTab = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="font-bold text-sm">{selectedSched.category}</span>
-                    <span className="ml-2 text-xs text-school-muted">Full fee: ৳{baseAmt}</span>
+                    <span className="ml-2 text-xs text-school-muted">Full fee: {baseAmt.toLocaleString()}</span>
                   </div>
                   {existingWaiver?.active && (
                     <button onClick={() => deactivateWaiver(existingWaiver.id)}
@@ -328,7 +324,7 @@ const StudentWaiversTab = () => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[10px] font-bold uppercase text-school-muted mb-1 block">Student Pays (৳)</label>
+                    <label className="text-[10px] font-bold uppercase text-school-muted mb-1 block">Student Pays</label>
                     <input type="number" min="0" value={expectedAmount} onChange={e => setExpectedAmount(e.target.value)}
                       placeholder="e.g. 500" className="w-full border border-school-border rounded-lg px-3 py-2 text-sm" />
                   </div>
@@ -345,9 +341,9 @@ const StudentWaiversTab = () => {
                   <div className="flex items-end pb-2">
                     {expectedVal > 0 && (
                       <div className="text-sm space-y-0.5">
-                        <p>Full fee: <span className="font-mono">৳{baseAmt}</span></p>
-                        <p>Student Pays: <span className="font-mono text-emerald-600 font-bold">৳{expectedVal}</span></p>
-                        <p>Waived Amount: <span className="font-mono text-rose-500">−৳{waiverAmt}</span></p>
+                        <p>Full fee: <span className="font-mono">{baseAmt.toLocaleString()}</span></p>
+                        <p>Student Pays: <span className="font-mono text-emerald-600 font-bold">{expectedVal.toLocaleString()}</span></p>
+                        <p>Waived Amount: <span className="font-mono text-rose-500">{waiverAmt.toLocaleString()}</span></p>
                       </div>
                     )}
                   </div>
@@ -377,10 +373,10 @@ const StudentWaiversTab = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {history.map((w: FeeWaiver) => (
+                  {history.map((w) => (
                     <tr key={w.id} className="border-b border-school-border/50 text-school-muted">
-                      <td className="py-2 pr-3">{w.feeSchedule?.category}</td>
-                      <td className="py-2 pr-3 font-mono">৳{Number(w.value)}</td>
+                      <td className="py-2 pr-3">{w.feeCategory}</td>
+                      <td className="py-2 pr-3 font-mono">{Number(w.value).toLocaleString()}</td>
                       <td className="py-2 pr-3">{w.reason || '—'}</td>
                       <td className="py-2 pr-3">{w.approvedBy || '—'}</td>
                       <td className="py-2 pr-3">{new Date(w.createdAt).toLocaleDateString()}</td>

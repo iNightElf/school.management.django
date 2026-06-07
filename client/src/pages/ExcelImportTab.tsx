@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { toast } from '../components/Toast';
 import { Upload, Trash2, Edit2, Check, X, Download, Loader } from 'lucide-react';
 import { useSchoolStore, api } from '../store';
+import type { FeeWaiver, FeeSchedule, Student } from '../lib/types';
 
 
 
@@ -65,13 +66,24 @@ function parseFeeMonth(val: any): string {
   return `${year}-${String(mi + 1).padStart(2, '0')}`;
 }
 
-function validateRow(row: ImportRow, feeCats: string[], feeSchedules: any[], waivers: any[]): { errors: string[]; fieldErrors: Record<string, string> } {
+function validateRow(row: ImportRow, feeCats: string[], feeSchedules: any[], waivers: any[], paidMonths?: Set<string>, usedTokens?: Set<string>): { errors: string[]; fieldErrors: Record<string, string> } {
   const fieldErrors: Record<string, string> = {};
   const errors: string[] = [];
   if (!row.date) { errors.push('Date is required'); fieldErrors.date = 'required'; }
   if (!row.amount || isNaN(parseFloat(row.amount)) || parseFloat(row.amount) <= 0) { errors.push('Amount must be > 0'); fieldErrors.amount = 'must be > 0'; }
   if (!row.category) { errors.push('Category is required'); fieldErrors.category = 'required'; }
   if (row.type === 'income' && !row.feeMonth) { errors.push('Fee Month is required for income'); fieldErrors.feeMonth = 'required'; }
+  if (row.token && usedTokens && usedTokens.has(row.token)) {
+    errors.push(`Token ${row.token} already exists in ledger`);
+    fieldErrors.token = 'duplicate';
+  }
+  if (row.studentId && row.feeMonth && row.type === 'income' && paidMonths) {
+    const key = `${row.studentId}|${row.feeMonth}|${row.category}`;
+    if (paidMonths.has(key)) {
+      errors.push(`Fee month ${row.feeMonth} already paid for this student in ${row.category}`);
+      fieldErrors.feeMonth = 'already paid';
+    }
+  }
   if (isStudentCategory(row.category, feeCats)) {
     if (!row.roll) { errors.push('Roll required for student fees'); fieldErrors.roll = 'required'; }
     if (row.roll && !row.studentId) { errors.push('Student not found for this Roll'); fieldErrors.roll = 'not found'; }
@@ -112,13 +124,36 @@ export default function ExcelImportTab() {
   const [editData, setEditData] = useState<Partial<ImportRow>>({});
   const [importing, setImporting] = useState(false);
   const [waivers, setWaivers] = useState<FeeWaiver[]>([]);
+  const [paidMonths, setPaidMonths] = useState<Set<string>>(new Set());
+  const [usedTokens, setUsedTokens] = useState<Set<string>>(new Set());
 
   const feeScheduleCategories = useMemo(() => [...new Set(feeSchedules.map((fs: FeeSchedule) => fs.category))], [feeSchedules]);
   const incomeCategories = useMemo(() => [...feeScheduleCategories, 'Other Fee'], [feeScheduleCategories]);
   const [fallbackCats] = useState<string[]>(['Salary', 'Rent', 'Bills', 'Supplies', 'Other Expense']);
   const cats = expenseCategories.length > 0 ? expenseCategories : fallbackCats;
 
-  useEffect(() => { fetchExpenseCategories(); fetchFeeSchedules(); api.get('/finance/fee-waivers', { params: { active: 'true' } }).then(r => setWaivers(r.data.results || r.data.data || r.data)).catch(() => {}); }, []);
+  useEffect(() => {
+    fetchExpenseCategories();
+    fetchFeeSchedules();
+    api.get('/finance/fee-waivers', { params: { active: 'true' } }).then(r => setWaivers(r.data.results || r.data.data || r.data)).catch(() => {});
+    api.get('/finance/transactions/', { params: { limit: '9999' } }).then(r => {
+      const txns = r.data?.data || r.data?.results || r.data || [];
+      const pSet = new Set<string>();
+      const tSet = new Set<string>();
+      txns.forEach((t: any) => {
+        const sid = t.studentId || t.student_id || t.student;
+        const fm = t.feeMonth || t.fee_month;
+        const cat = t.category;
+        if (sid && fm && cat && !t.isCancelled && !t.is_cancelled) {
+          pSet.add(`${sid}|${fm}|${cat}`);
+        }
+        const tok = t.tokenNumber || t.token_number;
+        if (tok != null) tSet.add(String(tok));
+      });
+      setPaidMonths(pSet);
+      setUsedTokens(tSet);
+    }).catch(() => {});
+  }, []);
 
   const rollMapRef = React.useRef<Record<string, Student>>({});
 
@@ -157,7 +192,7 @@ export default function ExcelImportTab() {
       const { studentId, studentName, resolvedClass } = resolveStudent(row.className, row.roll);
       if (!studentId) return row;
       const updated = { ...row, studentId, studentName, className: resolvedClass || row.className };
-      const v = validateRow(updated, feeScheduleCategories, feeSchedules, waivers);
+      const v = validateRow(updated, feeScheduleCategories, feeSchedules, waivers, paidMonths, usedTokens);
       updated._errors = v.errors;
       updated._fieldErrors = v.fieldErrors;
       return updated;
@@ -233,13 +268,31 @@ export default function ExcelImportTab() {
             _errors: [],
             _fieldErrors: {},
           };
-          const v = validateRow(row, latestFeeCats, latestFeeSchedules, latestWaivers);
+          const v = validateRow(row, latestFeeCats, latestFeeSchedules, latestWaivers, paidMonths, usedTokens);
           row._errors = v.errors;
           row._fieldErrors = v.fieldErrors;
           return row;
         });
 
         setRows(parsed);
+
+        const takenTokens = new Set<string>(usedTokens);
+        parsed.forEach(r => { if (r.token) takenTokens.add(r.token); });
+        let nextToken = 1;
+        const assignNext = () => {
+          while (takenTokens.has(String(nextToken))) nextToken++;
+          const t = String(nextToken);
+          takenTokens.add(t);
+          nextToken++;
+          return t;
+        };
+        setRows(prev => prev.map(r => {
+          if (!r.token) {
+            return { ...r, token: assignNext() };
+          }
+          return r;
+        }));
+
         const studentRows = parsed.filter(r => isStudentCategory(r.category, latestFeeCats));
         const resolved = studentRows.filter(r => r.studentId).length;
         const amountErrors = parsed.filter(r => r._fieldErrors.amount).length;
@@ -285,7 +338,7 @@ export default function ExcelImportTab() {
         updated.className = resolved.resolvedClass || cn;
         updated.roll = rl;
       }
-      const v = validateRow(updated, feeScheduleCategories, feeSchedules, waivers);
+      const v = validateRow(updated, feeScheduleCategories, feeSchedules, waivers, paidMonths, usedTokens);
       updated._errors = v.errors;
       updated._fieldErrors = v.fieldErrors;
       return updated;
@@ -316,9 +369,17 @@ export default function ExcelImportTab() {
         className: row.className || undefined,
       }));
 
-      await api.post('/finance/transactions/bulk/', payload);
+      const res = await api.post('/finance/transactions/bulk/', payload);
       
-      toast(`Successfully imported ${selected.length} transactions`, 'success');
+      const skipped = res.data?.skipped || [];
+      const created = res.data?.created || res.data || [];
+      const createdCount = Array.isArray(created) ? created.length : selected.length;
+      if (skipped.length > 0) {
+        const msgs = skipped.map((s: any) => s.error).join('; ');
+        toast(`Imported ${createdCount}, skipped ${skipped.length}: ${msgs}`, 'info');
+      } else {
+        toast(`Successfully imported ${createdCount} transactions`, 'success');
+      }
       setRows([]);
       fetchTransactions();
       const store = useSchoolStore.getState();

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date
 from decimal import Decimal
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -9,7 +9,8 @@ from django.utils import timezone
 
 from finance.models import (
     Transaction, FeeSchedule, FeeWaiver, PaymentAllocation, 
-    ReceiptCounter, BankAccount, AccountBalance
+    ReceiptCounter, BankAccount, AccountBalance, StudentFeeAssignment,
+    OpeningBalance,
 )
 from students.models import Student
 from finance.serializers import (
@@ -94,6 +95,24 @@ class TransactionViewSet(PeriodClosedMixin, viewsets.ModelViewSet):
                     fs = fee_map[str(fs_id)]
                     alloc_amount = Decimal(str(alloc.get('amount', 0)))
 
+                    if fs.applicability == 'ASSIGNED_ONLY':
+                        assignment = StudentFeeAssignment.objects.filter(
+                            student=tx.student, fee_schedule=fs, active=True,
+                        ).first()
+                        if not assignment:
+                            raise ValidationError({
+                                'allocations': f'You are not assigned to fee "{fs.category}".'
+                            })
+                        if fee_month:
+                            if assignment.starts_at and fee_month < assignment.starts_at:
+                                raise ValidationError({
+                                    'allocations': f'Fee "{fs.category}" is not yet active. Starts on {assignment.starts_at}.'
+                                })
+                            if assignment.ends_at and fee_month > assignment.ends_at:
+                                raise ValidationError({
+                                    'allocations': f'Fee "{fs.category}" has expired. Ended on {assignment.ends_at}.'
+                                })
+
                     waiver = FeeWaiver.objects.filter(
                         student=tx.student, fee_schedule=fs, active=True,
                     ).first()
@@ -134,35 +153,58 @@ class TransactionViewSet(PeriodClosedMixin, viewsets.ModelViewSet):
                         raise ValidationError({
                             'amount': f'Amount {tx.amount} does not match expected fee amount {expected}{f" (waiver applied)" if waiver else ""} for "{fs.category}".'
                         })
+                    fee_month = self.request.data.get('feeMonth') or self.request.data.get('fee_month') or serializer.validated_data.get('fee_month')
+                    PaymentAllocation.objects.create(
+                        transaction=tx,
+                        fee_schedule=fs,
+                        student=tx.student,
+                        period=fee_month or '',
+                        amount=tx.amount,
+                    )
 
             if tx_type == 'INCOME' and tx.destination_account and tx.destination_account.name in _internal_accounts():
                 tx.affects_income_ledger = True
-                fy = tx.fiscal_year or datetime.now().year
+                fy = tx.fiscal_year or _fiscal_year_from_date(tx.transaction_date)
                 counter, _ = ReceiptCounter.objects.select_for_update().get_or_create(
                     fiscal_year=fy,
-                    receipt_type='INCOME',
+                    receipt_type='RCPT',
                     defaults={'next_sequence': 1}
                 )
                 tx.receipt_sequence = counter.next_sequence
-                tx.reference_id = f"RCP-{fy}-{counter.next_sequence:06d}"
+                tx.reference_id = f"RCPT-{fy}-{counter.next_sequence:04d}"
                 counter.next_sequence += 1
                 counter.save(update_fields=['next_sequence'])
 
             if tx_type == 'EXPENSE' and tx.source_account and tx.source_account.name in _internal_accounts():
                 tx.affects_expense_ledger = True
-                fy = tx.fiscal_year or datetime.now().year
+                fy = tx.fiscal_year or _fiscal_year_from_date(tx.transaction_date)
                 counter, _ = ReceiptCounter.objects.select_for_update().get_or_create(
                     fiscal_year=fy,
-                    receipt_type='EXPENSE',
+                    receipt_type='PV',
                     defaults={'next_sequence': 1}
                 )
                 tx.receipt_sequence = counter.next_sequence
-                tx.reference_id = f"VCH-{fy}-{counter.next_sequence:06d}"
+                tx.reference_id = f"PV-{fy}-{counter.next_sequence:04d}"
                 counter.next_sequence += 1
                 counter.save(update_fields=['next_sequence'])
 
+            if tx_type == 'INTERNAL_TRANSFER' and tx.source_account and tx.destination_account:
+                src_internal = tx.source_account.name in _internal_accounts()
+                dst_internal = tx.destination_account.name in _internal_accounts()
+                if src_internal and dst_internal:
+                    fy = tx.fiscal_year or _fiscal_year_from_date(tx.transaction_date)
+                    counter, _ = ReceiptCounter.objects.select_for_update().get_or_create(
+                        fiscal_year=fy,
+                        receipt_type='TV',
+                        defaults={'next_sequence': 1}
+                    )
+                    tx.receipt_sequence = counter.next_sequence
+                    tx.reference_id = f"TV-{fy}-{counter.next_sequence:04d}"
+                    counter.next_sequence += 1
+                    counter.save(update_fields=['next_sequence'])
+
             if not tx.token_number and tx_type in ('INCOME', 'EXPENSE'):
-                fy = tx.fiscal_year or datetime.now().year
+                fy = tx.fiscal_year or _fiscal_year_from_date(tx.transaction_date)
                 token_counter, _ = ReceiptCounter.objects.select_for_update().get_or_create(
                     fiscal_year=fy,
                     receipt_type='TOKEN',
@@ -179,14 +221,35 @@ class TransactionViewSet(PeriodClosedMixin, viewsets.ModelViewSet):
     def bulk(self, request):
         with db_transaction.atomic():
             results = []
-            for item in request.data:
+            errors = []
+            seen_paid = set()
+
+            for idx, item in enumerate(request.data):
                 serializer = self.get_serializer(data=item)
                 serializer.is_valid(raise_exception=True)
-                
+
                 fiscal_year = serializer.validated_data.get('fiscal_year')
                 if fiscal_year:
                     _check_period_open(fiscal_year)
-                
+
+                student = serializer.validated_data.get('student')
+                fee_month = serializer.validated_data.get('fee_month')
+                category = serializer.validated_data.get('category')
+
+                if student and fee_month and category:
+                    dup_key = (str(student.id), fee_month, category)
+                    if dup_key in seen_paid:
+                        errors.append({'index': idx, 'student': str(student.id), 'feeMonth': fee_month, 'category': category, 'error': f'Fee month {fee_month} already imported for this student in {category}'})
+                        continue
+                    exists = Transaction.objects.filter(
+                        student=student, fee_month=fee_month, category=category,
+                        is_cancelled=False,
+                    ).exists()
+                    if exists:
+                        errors.append({'index': idx, 'student': str(student.id), 'feeMonth': fee_month, 'category': category, 'error': f'Fee month {fee_month} already paid for {student.name} in {category}'})
+                        continue
+                    seen_paid.add(dup_key)
+
                 tx_date = serializer.validated_data.get('transaction_date') or datetime.now().date()
                 tx = serializer.save(
                     created_by=str(self.request.user.id),
@@ -194,6 +257,11 @@ class TransactionViewSet(PeriodClosedMixin, viewsets.ModelViewSet):
                 )
                 _account_balances_update(tx)
                 results.append(TransactionSerializer(tx).data)
+
+            if errors and not results:
+                return Response({'error': 'All rows have duplicate fee months', 'details': errors}, status=status.HTTP_400_BAD_REQUEST)
+            if errors:
+                return Response({'created': results, 'skipped': errors}, status=status.HTTP_201_CREATED)
             return Response(results, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'])
@@ -217,8 +285,8 @@ class TransactionViewSet(PeriodClosedMixin, viewsets.ModelViewSet):
 
             reversal = Transaction.objects.create(
                 transaction_date=tx.transaction_date,
-                transaction_type='INTERNAL_TRANSFER' if tx.transaction_type == 'INTERNAL_TRANSFER'
-                else tx.transaction_type,
+                entry_date=date.today(),
+                transaction_type=tx.transaction_type,
                 source_account=tx.destination_account,
                 destination_account=tx.source_account,
                 amount=tx.amount,
@@ -236,7 +304,25 @@ class TransactionViewSet(PeriodClosedMixin, viewsets.ModelViewSet):
             elif tx.transaction_type == 'EXPENSE':
                 reversal.transaction_type = 'INCOME'
                 reversal.affects_income_ledger = True
+
+            # Generate voucher for reversal
+            if reversal.transaction_type == 'INCOME':
+                reversal_type = 'RCPT'
+            elif reversal.transaction_type == 'EXPENSE':
+                reversal_type = 'PV'
+            else:
+                reversal_type = 'TV'
+            fy = reversal.fiscal_year or _fiscal_year_from_date(reversal.transaction_date)
+            counter, _ = ReceiptCounter.objects.select_for_update().get_or_create(
+                fiscal_year=fy, receipt_type=reversal_type,
+                defaults={'next_sequence': 1},
+            )
+            seq = counter.next_sequence
+            counter.next_sequence = seq + 1
+            counter.save(update_fields=['next_sequence'])
+            reversal.reference_id = f"{reversal_type}-{fy}-{seq:04d}"
             reversal.save()
+
             _account_balances_update(reversal)
 
         return Response(TransactionSerializer(tx).data)
@@ -292,36 +378,47 @@ class TransactionViewSet(PeriodClosedMixin, viewsets.ModelViewSet):
 
         date_from = _param(request, 'date_from', 'dateFrom')
         date_to = _param(request, 'date_to', 'dateTo')
+        search = _param(request, 'search')
 
         account_filter = Q(source_account__name=account_name) | Q(destination_account__name=account_name)
 
+        # STEP 1: FILTER FULL DATASET (include cancelled for ledger display)
         all_txs = Transaction.objects.filter(
-            account_filter, is_cancelled=False,
-        ).select_related('student', 'source_account', 'destination_account').order_by('transaction_date', 'created_at')
+            account_filter,
+        ).select_related('student', 'source_account', 'destination_account').order_by('transaction_date', 'created_at', 'id')
 
-        # Compute pre-range opening balance from AccountBalance cache
+        # Search filter
+        if search:
+            search_q = (
+                Q(reference_id__icontains=search) |
+                Q(description__icontains=search) |
+                Q(category__icontains=search) |
+                Q(student__name__icontains=search) |
+                Q(class_name__icontains=search)
+            )
+            try:
+                search_q |= Q(token_number=int(search))
+            except (ValueError, TypeError):
+                pass
+            all_txs = all_txs.filter(search_q)
+
+        # STEP 2: COMPUTE OPENING BALANCE (fiscal opening + all movements before dateFrom)
         opening_balance = Decimal('0')
+
+        # Add fiscal opening balance
         if date_from:
             from_date = datetime.strptime(date_from, '%Y-%m-%d').date()
-            fy = from_date.year
-            if from_date.month >= 9:
-                fy = from_date.year + 1
-            prev_month = from_date.month - 1 or 12
-            prev_fy = fy - 1 if prev_month == 12 else fy
+            fy = _fiscal_year_from_date(from_date)
             try:
-                account_obj = BankAccount.objects.get(name=account_name)
-                bal = AccountBalance.objects.filter(
-                    account=account_obj,
-                    fiscal_year=prev_fy,
-                    month=prev_month,
-                ).first()
-                if bal:
-                    opening_balance = bal.closing_balance
-            except BankAccount.DoesNotExist:
+                ob = OpeningBalance.objects.get(
+                    account__name=account_name, fiscal_year=fy
+                )
+                opening_balance = ob.amount
+            except (OpeningBalance.DoesNotExist, Exception):
                 pass
 
-        # Fallback: compute opening balance from prior transactions before date_from
-        if date_from and opening_balance == 0:
+        # Add all movements before dateFrom (effective: exclude cancelled)
+        if date_from:
             agg = Transaction.objects.filter(
                 account_filter,
                 is_cancelled=False,
@@ -330,7 +427,7 @@ class TransactionViewSet(PeriodClosedMixin, viewsets.ModelViewSet):
                 total_in=Sum('amount', filter=Q(destination_account__name=account_name)),
                 total_out=Sum('amount', filter=Q(source_account__name=account_name)),
             )
-            opening_balance = (agg['total_in'] or Decimal('0')) - (agg['total_out'] or Decimal('0'))
+            opening_balance += (agg['total_in'] or Decimal('0')) - (agg['total_out'] or Decimal('0'))
 
         # Filter to date range for display
         if date_from:
@@ -338,21 +435,32 @@ class TransactionViewSet(PeriodClosedMixin, viewsets.ModelViewSet):
         if date_to:
             all_txs = all_txs.filter(transaction_date__lte=date_to)
 
-        # Compute running balances and totals
+        # STEP 3: COMPUTE FULL RUNNING BALANCE + TOTALS on ALL filtered rows
         running = opening_balance
-        data = []
-        total_debits = Decimal('0')
-        total_credits = Decimal('0')
+        full_data = []
+        total_debit = Decimal('0')
+        total_credit = Decimal('0')
+
         for tx in all_txs:
             is_incoming = tx.destination_account and tx.destination_account.name == account_name
             is_outgoing = tx.source_account and tx.source_account.name == account_name
             debit = tx.amount if is_incoming else Decimal('0')
             credit = tx.amount if is_outgoing else Decimal('0')
-            if is_outgoing:
-                running -= tx.amount
-            if is_incoming:
-                running += tx.amount
 
+            # Only count effective (non-cancelled) for running balance
+            if not tx.is_cancelled:
+                if is_outgoing:
+                    running -= tx.amount
+                if is_incoming:
+                    running += tx.amount
+
+            # Totals: only active transactions
+            if not tx.is_cancelled and not tx.reversal_of_id:
+                total_debit += debit
+                total_credit += credit
+
+            # Voucher type display
+            voucher = tx.reference_id or ''
             display_type = tx.transaction_type
             if tx.transaction_type == 'INTERNAL_TRANSFER' and tx.source_account and tx.destination_account:
                 src = tx.source_account.name
@@ -361,16 +469,18 @@ class TransactionViewSet(PeriodClosedMixin, viewsets.ModelViewSet):
                     display_type = 'INCOME'
                 elif src == 'AL_RAWA_BANK' and dst == 'GLOBAL_FORUM_BANK':
                     display_type = 'EXPENSE'
-            total_debits += debit
-            total_credits += credit
-            data.append({
+
+            status = 'Cancelled' if tx.is_cancelled else ('Reversal' if tx.reversal_of_id else 'Active')
+
+            full_data.append({
                 'id': str(tx.id),
+                'voucher': voucher,
                 'transactionDate': tx.transaction_date.isoformat(),
-                'createdAt': tx.created_at.isoformat(),
+                'entryDate': tx.entry_date.isoformat() if tx.entry_date else tx.created_at.date().isoformat(),
                 'transactionType': display_type,
                 'amount': float(tx.amount),
-                'debit': float(debit),
-                'credit': float(credit),
+                'debit': float(debit) if not tx.is_cancelled else 0,
+                'credit': float(credit) if not tx.is_cancelled else 0,
                 'runningBalance': float(running),
                 'description': tx.description or (
                     tx.destination_account.name
@@ -384,30 +494,40 @@ class TransactionViewSet(PeriodClosedMixin, viewsets.ModelViewSet):
                 'studentName': tx.student.name if tx.student else None,
                 'className': tx.class_name,
                 'feeMonth': tx.fee_month,
-                'fiscalYear': tx.fiscal_year,
-                'receiptSequence': tx.receipt_sequence,
                 'tokenNumber': tx.token_number,
                 'referenceId': tx.reference_id,
                 'isCancelled': tx.is_cancelled,
+                'cancelledAt': tx.cancelled_at.isoformat() if tx.cancelled_at else None,
+                'cancelledBy': tx.cancelled_by,
+                'cancelReason': tx.cancel_reason,
                 'reversalOfId': str(tx.reversal_of_id) if tx.reversal_of_id else None,
+                'status': status,
+                'createdBy': tx.created_by,
+                'createdAt': tx.created_at.isoformat(),
             })
 
-        # Manual pagination for computed results
-        page_size = int(self.request.query_params.get('limit', 50))
-        page_num = int(self.request.query_params.get('page', 1))
+        # Closing balance = opening + total debit - total credit (from effective transactions)
+        closing_balance = opening_balance + total_debit - total_credit
+        total_rows = len(full_data)
+
+        # STEP 4: APPLY PAGINATION AFTER balance is computed
+        page_size = min(int(request.query_params.get('limit', 25)), 200)
+        page_num = max(int(request.query_params.get('page', 1)), 1)
         start = (page_num - 1) * page_size
         end = start + page_size
-        page_data = data[start:end]
-        total_pages = max(1, (len(data) + page_size - 1) // page_size)
+        page_data = full_data[start:end]
+        total_pages = max(1, (total_rows + page_size - 1) // page_size)
 
         return Response({
             'data': page_data,
-            'total': len(data),
+            'page': page_num,
+            'pageSize': page_size,
             'totalPages': total_pages,
+            'totalRows': total_rows,
             'openingBalance': float(opening_balance),
-            'closingBalance': float(running),
-            'totalDebits': float(total_debits),
-            'totalCredits': float(total_credits),
+            'closingBalance': float(closing_balance),
+            'totalDebit': float(total_debit),
+            'totalCredit': float(total_credit),
         })
 
     @action(detail=False, methods=['get'])
@@ -424,37 +544,175 @@ class TransactionViewSet(PeriodClosedMixin, viewsets.ModelViewSet):
         except Student.DoesNotExist:
             return Response({'error': 'Student not found'}, status=404)
 
-        # Find fee schedules for this student's class (or All Classes)
+        def _months_in_range(start, end):
+            months = []
+            parts = start.split('-')
+            y, m = int(parts[0]), int(parts[1])
+            e_parts = end.split('-')
+            ey, em = int(e_parts[0]), int(e_parts[1])
+            while y < ey or (y == ey and m <= em):
+                months.append(f"{y}-{m:02d}")
+                m += 1
+                if m > 12:
+                    m = 1
+                    y += 1
+            return months
+
+        # 1. Get all fee schedules that apply to this student (AUTO for their class + global)
         class_id = student.school_class_id
-        schedule_filter = Q(school_class_id=class_id) | Q(school_class_id__isnull=True)
-        schedules = FeeSchedule.objects.filter(schedule_filter).order_by('category')
+        schedules = FeeSchedule.objects.filter(
+            Q(school_class_id=class_id) | Q(school_class_id__isnull=True)
+        ).order_by('category')
 
-        # Build paid lookup: (fee_schedule_id, month) -> paid
-        tx_filter = Q(student_id=student_id, transaction_type='INCOME', is_cancelled=False)
-        if fee_month:
-            tx_filter &= Q(fee_month__gte=fee_month)
-        if fee_month_to:
-            tx_filter &= Q(fee_month__lte=fee_month_to)
-
-        paid_txs = Transaction.objects.filter(tx_filter).values('fee_month', 'category').annotate(
-            total=Sum('amount')
-        )
-        paid_by_category = {}
-        for pt in paid_txs:
-            key = pt['category']
-            paid_by_category[key] = paid_by_category.get(key, Decimal('0')) + pt['total']
-
-        result = []
+        # 2. Separate AUTO vs ASSIGNED_ONLY
+        auto_schedules = []
+        assigned_only_schedules = []
         for s in schedules:
-            total_paid = paid_by_category.get(s.category, Decimal('0'))
-            result.append({
-                'feeScheduleId': str(s.id),
+            if s.applicability == 'AUTO':
+                auto_schedules.append(s)
+            else:
+                assigned_only_schedules.append(s)
+
+        # 3. For ASSIGNED_ONLY: find which ones the student is assigned to
+        assignment_dates = {}
+        matching_assigned_ids = set()
+
+        if assigned_only_schedules:
+            query_start = fee_month or date.today().strftime('%Y-%m')
+            query_end = fee_month_to or query_start
+
+            try:
+                assignments = StudentFeeAssignment.objects.filter(
+                    student=student,
+                    fee_schedule_id__in=[s.id for s in assigned_only_schedules],
+                    active=True,
+                    starts_at__lte=query_end,
+                    ends_at__gte=query_start,
+                )
+                for a in assignments:
+                    matching_assigned_ids.add(a.fee_schedule_id)
+                    assignment_dates[str(a.fee_schedule_id)] = {
+                        'assignmentStart': a.starts_at,
+                        'assignmentEnd': a.ends_at,
+                    }
+            except Exception:
+                pass
+
+        # 4. Final schedule list: all AUTO + matched ASSIGNED_ONLY
+        final_schedules = auto_schedules + [
+            s for s in assigned_only_schedules if s.id in matching_assigned_ids
+        ]
+
+        # 5. Build paid lookup: PaymentAllocation per fee_schedule per period
+        paid_by_schedule_period: dict[str, dict[str, Decimal]] = {}
+        if final_schedules:
+            alloc_filter = Q(
+                student=student,
+                transaction__transaction_type='INCOME',
+                transaction__is_cancelled=False,
+                fee_schedule_id__in=[s.id for s in final_schedules],
+            )
+            if fee_month:
+                alloc_filter &= Q(period__gte=fee_month)
+            if fee_month_to:
+                alloc_filter &= Q(period__lte=fee_month_to)
+
+            for pa in PaymentAllocation.objects.filter(alloc_filter).values(
+                'fee_schedule_id', 'period'
+            ).annotate(total=Sum('amount')):
+                fs_id = str(pa['fee_schedule_id'])
+                if fs_id not in paid_by_schedule_period:
+                    paid_by_schedule_period[fs_id] = {}
+                paid_by_schedule_period[fs_id][pa['period']] = pa['total']
+
+        # 6. Fallback paid lookup: Transaction.category + fee_month (for legacy data)
+        paid_by_category_month: dict[str, dict[str, Decimal]] = {}
+        if final_schedules:
+            tx_filter = Q(
+                student_id=student_id,
+                transaction_type='INCOME',
+                is_cancelled=False,
+            )
+            if fee_month:
+                tx_filter &= Q(fee_month__gte=fee_month)
+            if fee_month_to:
+                tx_filter &= Q(fee_month__lte=fee_month_to)
+
+            for pt in Transaction.objects.filter(tx_filter).values(
+                'category', 'fee_month'
+            ).annotate(total=Sum('amount')):
+                cat = pt['category']
+                month = pt['fee_month'] or ''
+                if cat not in paid_by_category_month:
+                    paid_by_category_month[cat] = {}
+                paid_by_category_month[cat][month] = pt['total']
+
+        # 7. Build result
+        result = []
+        for s in final_schedules:
+            fs_id = str(s.id)
+            a_start = assignment_dates.get(fs_id, {}).get('assignmentStart')
+            a_end = assignment_dates.get(fs_id, {}).get('assignmentEnd')
+
+            # Determine valid months for this fee
+            if s.frequency == 'MONTHLY' and fee_month and fee_month_to:
+                all_months = _months_in_range(fee_month, fee_month_to)
+                valid_months = []
+                for m in all_months:
+                    if a_start and m < a_start:
+                        continue
+                    if a_end and m > a_end:
+                        continue
+                    valid_months.append(m)
+            elif s.frequency == 'MONTHLY' and fee_month:
+                if (a_start and fee_month < a_start) or (a_end and fee_month > a_end):
+                    valid_months = []
+                else:
+                    valid_months = [fee_month]
+            else:
+                valid_months = [fee_month or '']
+
+            num_valid_months = len(valid_months)
+
+            # Calculate paid per month
+            unpaid_months = []
+            schedule_paid = paid_by_schedule_period.get(fs_id, {})
+            has_allocations = bool(schedule_paid)
+
+            waiver = FeeWaiver.objects.filter(
+                student=student, fee_schedule=s, active=True,
+            ).first()
+            expected_per_month = float(waiver.value) if waiver else float(s.amount)
+            expected_total = expected_per_month * num_valid_months
+
+            for month in valid_months:
+                if has_allocations:
+                    month_paid = schedule_paid.get(month, Decimal('0'))
+                else:
+                    month_paid = paid_by_category_month.get(s.category, {}).get(month, Decimal('0'))
+
+                if float(month_paid) < expected_per_month:
+                    unpaid_months.append(month)
+
+            is_paid = len(unpaid_months) == 0 and num_valid_months > 0
+
+            item = {
+                'feeScheduleId': fs_id,
                 'category': s.category,
-                'amount': float(s.amount),
+                'feeScheduleAmount': float(s.amount),
+                'amount': expected_per_month,
                 'frequency': s.frequency,
                 'applicability': s.applicability,
-                'paid': float(total_paid) >= float(s.amount),
-            })
+                'paid': is_paid,
+                'numMonths': num_valid_months,
+                'expectedTotal': expected_total,
+                'unpaidMonths': unpaid_months,
+            }
+            if a_start:
+                item['assignmentStart'] = a_start
+            if a_end:
+                item['assignmentEnd'] = a_end
+            result.append(item)
 
         return Response(result)
 
@@ -519,26 +777,30 @@ class TransactionViewSet(PeriodClosedMixin, viewsets.ModelViewSet):
 
         assigned = set()
         if monthly_schedules and student_ids:
-            assn = StudentFeeAssignment.objects.filter(
+            assn_filter = Q(
                 student_id__in=student_ids,
                 fee_schedule__in=monthly_schedules,
                 active=True,
-            ).values_list('student_id', 'fee_schedule_id')
+            )
+            if month_from and month_to:
+                assn_filter &= Q(starts_at__lte=month_to) & Q(ends_at__gte=month_from)
+            assn = StudentFeeAssignment.objects.filter(assn_filter).values_list('student_id', 'fee_schedule_id')
             assigned = {(s, fs) for s, fs in assn}
-            print(f"[DEBUG] Monthly assigned set: {assigned}")
 
         # Fetch assigned only
         yearly_assigned = set()
         assigned_only_yearly = [fs for fs in yearly_schedules if fs.applicability == 'ASSIGNED_ONLY']
         if assigned_only_yearly and student_ids:
-            yearly_assigned = set(
-                StudentFeeAssignment.objects.filter(
-                    student_id__in=student_ids,
-                    fee_schedule__in=assigned_only_yearly,
-                    active=True,
-                ).values_list('student_id', 'fee_schedule_id')
+            ya_filter = Q(
+                student_id__in=student_ids,
+                fee_schedule__in=assigned_only_yearly,
+                active=True,
             )
-        print(f"[DEBUG] Assigned-only yearly set: {yearly_assigned}")
+            if month_from and month_to:
+                ya_filter &= Q(starts_at__lte=month_to) & Q(ends_at__gte=month_from)
+            yearly_assigned = set(
+                StudentFeeAssignment.objects.filter(ya_filter).values_list('student_id', 'fee_schedule_id')
+            )
 
         paid_allocations = PaymentAllocation.objects.filter(
             student_id__in=student_ids,
@@ -548,6 +810,13 @@ class TransactionViewSet(PeriodClosedMixin, viewsets.ModelViewSet):
         for pa in paid_allocations:
             key = (pa['student_id'], pa['fee_schedule_id'], pa['period'] or '')
             paid_map[key] = float(pa['total'])
+
+        waiver_map = {}
+        waivers = FeeWaiver.objects.filter(
+            student_id__in=student_ids, active=True,
+        ).values('student_id', 'fee_schedule_id', 'value')
+        for w in waivers:
+            waiver_map[(w['student_id'], w['fee_schedule_id'])] = float(w['value'])
 
         result = []
         for student in students:
@@ -565,7 +834,7 @@ class TransactionViewSet(PeriodClosedMixin, viewsets.ModelViewSet):
                     if (sid, fs.id) not in yearly_assigned:
                         continue
 
-                amt = float(fs.amount)
+                amt = waiver_map.get((sid, fs.id), float(fs.amount))
                 paid_amt = paid_map.get((sid, fs.id, ''), 0)
 
                 fees.append({
@@ -600,7 +869,7 @@ class TransactionViewSet(PeriodClosedMixin, viewsets.ModelViewSet):
                                 m = 1
                                 y += 1
 
-                amt = float(fs.amount)
+                amt = waiver_map.get((sid, fs.id), float(fs.amount))
                 for month_label in months_to_check:
                     paid_amt = paid_map.get((sid, fs.id, month_label), 0)
                     months_list.append({

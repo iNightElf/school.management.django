@@ -14,12 +14,6 @@ import PeriodCloseTab from './PeriodCloseTab';
 import ReconciliationTab from './ReconciliationTab';
 import { FISCAL_YEAR_START_MONTH } from '../lib/config';
 
-function monthDiff(from: string, to: string): number {
-  const [y1, m1] = from.split('-').map(Number);
-  const [y2, m2] = to.split('-').map(Number);
-  return (y2 - y1) * 12 + (m2 - m1);
-}
-
 function getMonthsInRange(from: string, to: string): string[] {
   const months: string[] = [];
   let [y, m] = from.split('-').map(Number);
@@ -30,6 +24,15 @@ function getMonthsInRange(from: string, to: string): string[] {
     if (m > 12) { m = 1; y++; }
   }
   return months;
+}
+
+function filterMonthsByAssignment(months: string[], assignmentStart?: string | null, assignmentEnd?: string | null): string[] {
+  if (!assignmentStart && !assignmentEnd) return months;
+  return months.filter(m => {
+    if (assignmentStart && m < assignmentStart.substring(0, 7)) return false;
+    if (assignmentEnd && m > assignmentEnd.substring(0, 7)) return false;
+    return true;
+  });
 }
 
 const ACCOUNTS = [
@@ -56,48 +59,51 @@ function Ledger({ fmt, fetchFinance, fetchFeeSchedules, fetchDashboardSummary, r
   const [ledgerAccount, setLedgerAccount] = useState<'AL_RAWA_BANK' | 'CASH_IN_HAND'>('CASH_IN_HAND');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [cancelId, setCancelId] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
 
   const [data, setData] = useState<any[]>([]);
-  const [total, setTotal] = useState(0);
+  const [totalRows, setTotalRows] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [openingBalance, setOpeningBalance] = useState(0);
   const [closingBalance, setClosingBalance] = useState(0);
-  const [totalDebits, setTotalDebits] = useState(0);
-  const [totalCredits, setTotalCredits] = useState(0);
+  const [totalDebit, setTotalDebit] = useState(0);
+  const [totalCredit, setTotalCredit] = useState(0);
   const [loading, setLoading] = useState(false);
 
   const fetchData = useCallback(async (p: number) => {
     setLoading(true);
     try {
-      const params: Record<string, string> = { account: ledgerAccount };
+      const params: Record<string, string> = { account: ledgerAccount, limit: String(PAGE_SIZE) };
       if (dateFrom) params.dateFrom = dateFrom;
       if (dateTo) params.dateTo = dateTo;
+      if (search) params.search = search;
       params.page = String(p);
-      params.limit = String(PAGE_SIZE);
-      const res = await api.get('/finance/ledger', { params });
+      const res = await api.get('/finance/ledger/', { params });
       if (res.data?.data) {
         setData(res.data.data);
-        setTotal(res.data.total);
+        setTotalRows(res.data.totalRows);
         setTotalPages(res.data.totalPages);
         setOpeningBalance(res.data.openingBalance);
         setClosingBalance(res.data.closingBalance);
-        setTotalDebits(res.data.totalDebits);
-        setTotalCredits(res.data.totalCredits);
+        setTotalDebit(res.data.totalDebit);
+        setTotalCredit(res.data.totalCredit);
       }
     } catch { /* silent */ }
     finally { setLoading(false); }
-  }, [ledgerAccount, dateFrom, dateTo]);
+  }, [ledgerAccount, dateFrom, dateTo, search]);
 
   useEffect(() => { 
     fetchFinance(); 
     fetchFeeSchedules();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   
-  useEffect(() => { setPage(1); fetchData(1); }, [ledgerAccount, dateFrom, dateTo, refreshKey]);
+  useEffect(() => { setPage(1); fetchData(1); }, [ledgerAccount, dateFrom, dateTo, search, refreshKey]);
+
+  useEffect(() => { fetchData(page); }, [page]);
 
   const handleCancel = async () => {
     if (!cancelId || !canWrite) return;
@@ -125,26 +131,30 @@ function Ledger({ fmt, fetchFinance, fetchFeeSchedules, fetchDashboardSummary, r
 
   const handleDownloadPdf = async () => {
     try {
-      const params: Record<string, string> = { account: ledgerAccount };
+      const params: Record<string, string> = { account: ledgerAccount, limit: '9999' };
       if (dateFrom) params.dateFrom = dateFrom;
       if (dateTo) params.dateTo = dateTo;
-      const res = await api.get('/finance/ledger', { params });
+      if (search) params.search = search;
+      params.page = '1';
+      const res = await api.get('/finance/ledger/', { params });
       const allEntries = res.data?.data || [];
       const { pdfLedger } = await import('../lib/financeReportPdf');
-      pdfLedger(allEntries, ledgerAccount, dateFrom, dateTo, res.data.openingBalance, res.data.closingBalance);
-      toast('PDF downloaded ✓', 'success');
+      pdfLedger(allEntries, ledgerAccount, dateFrom, dateTo, res.data.openingBalance, res.data.closingBalance, res.data.totalDebit, res.data.totalCredit);
+      toast('PDF downloaded', 'success');
     } catch { toast('PDF generation failed', 'error'); }
   };
 
   const handlePrint = async () => {
     try {
-      const params: Record<string, string> = { account: ledgerAccount };
+      const params: Record<string, string> = { account: ledgerAccount, limit: '9999' };
       if (dateFrom) params.dateFrom = dateFrom;
       if (dateTo) params.dateTo = dateTo;
-      const res = await api.get('/finance/ledger', { params });
+      if (search) params.search = search;
+      params.page = '1';
+      const res = await api.get('/finance/ledger/', { params });
       const allEntries = res.data?.data || [];
       const { buildLedgerPrintHtml } = await import('../lib/financeReportPdf');
-      const html = buildLedgerPrintHtml(allEntries, ledgerAccount, dateFrom, dateTo, res.data.openingBalance, res.data.closingBalance, fmt);
+      const html = buildLedgerPrintHtml(allEntries, ledgerAccount, dateFrom, dateTo, res.data.openingBalance, res.data.closingBalance, fmt, res.data.totalDebit, res.data.totalCredit);
       const w = window.open('', '_blank');
       if (!w) { toast('Please allow pop-ups for printing', 'error'); return; }
       w.document.write(html);
@@ -161,7 +171,7 @@ function Ledger({ fmt, fetchFinance, fetchFeeSchedules, fetchDashboardSummary, r
         <div className="flex items-center gap-2">
           <Clock size={18} className="text-school-muted" />
           <h4 className="font-serif text-sm text-school-primary">{accLabel} Ledger</h4>
-          {!loading && <span className="text-[10px] text-school-muted">({total} rows{totalPages > 1 ? `, p.${page}/${totalPages}` : ''})</span>}
+          {!loading && <span className="text-[10px] text-school-muted">({totalRows} rows{totalPages > 1 ? `, p.${page}/${totalPages}` : ''})</span>}
           {loading && <span className="text-[10px] text-school-muted animate-pulse">Loading...</span>}
         </div>
         <div className="flex gap-1 bg-school-paper/50 rounded-lg p-0.5">
@@ -178,8 +188,13 @@ function Ledger({ fmt, fetchFinance, fetchFeeSchedules, fetchDashboardSummary, r
       <div className="px-5 py-3 border-b border-school-border flex flex-wrap gap-3 items-end">
         <DatePicker type="date" value={dateFrom} onChange={setDateFrom} label="From" />
         <DatePicker type="date" value={dateTo} onChange={setDateTo} label="To" />
-        {(dateFrom || dateTo) && (
-          <button onClick={() => { setDateFrom(''); setDateTo(''); }} className="text-xs text-school-accent hover:underline">Clear</button>
+        <div>
+          <label className="text-[10px] font-bold uppercase text-school-muted mb-1 block">Search</label>
+          <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Voucher, student, amount..."
+            className="border border-school-border rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-school-accent w-48" />
+        </div>
+        {(dateFrom || dateTo || search) && (
+          <button onClick={() => { setDateFrom(''); setDateTo(''); setSearch(''); }} className="text-xs text-school-accent hover:underline">Clear</button>
         )}
         <div className="flex-1" />
         <button onClick={handleDownloadPdf} disabled={loading} className="px-3 py-1.5 border border-school-border rounded-lg text-[10px] font-bold uppercase tracking-wider text-school-primary hover:bg-school-paper disabled:opacity-40 flex items-center gap-1.5">
@@ -197,49 +212,55 @@ function Ledger({ fmt, fetchFinance, fetchFeeSchedules, fetchDashboardSummary, r
         <table className="w-full text-sm">
           <thead className="bg-school-paper/50 text-[10px] uppercase tracking-widest text-school-muted font-bold">
             <tr>
-              <th className="px-4 py-3 text-left w-[110px]">Transaction Date</th>
-              <th className="px-4 py-3 text-left w-[100px]">Created Date</th>
-              <th className="px-4 py-3 text-left w-[90px]">Token No</th>
-              <th className="px-4 py-3 text-left w-[60px]">Type</th>
-              <th className="px-4 py-3 text-left">Description</th>
-              <th className="px-4 py-3 text-left w-[120px]">Student</th>
-              <th className="px-4 py-3 text-left w-[80px]">Class</th>
-              <th className="px-4 py-3 text-right w-[100px]">Debit (৳)</th>
-              <th className="px-4 py-3 text-right w-[100px]">Credit (৳)</th>
-              <th className="px-4 py-3 text-right w-[110px]">Balance (৳)</th>
-              {canWrite && <th className="px-4 py-3 text-center w-10"></th>}
+              <th className="px-3 py-3 text-left w-[90px]">Voucher</th>
+              <th className="px-3 py-3 text-left w-[90px]">Txn Date</th>
+              <th className="px-3 py-3 text-left w-[90px]">Entry Date</th>
+              <th className="px-3 py-3 text-left w-[60px]">Type</th>
+              <th className="px-3 py-3 text-left w-[100px]">Category</th>
+              <th className="px-3 py-3 text-left">Description</th>
+              <th className="px-3 py-3 text-left w-[100px]">Student</th>
+              <th className="px-3 py-3 text-left w-[70px]">Class</th>
+              <th className="px-3 py-3 text-right w-[100px]">Debit</th>
+              <th className="px-3 py-3 text-right w-[100px]">Credit</th>
+              <th className="px-3 py-3 text-right w-[110px]">Balance</th>
+              <th className="px-3 py-3 text-center w-[60px]">Status</th>
+              {canWrite && <th className="px-3 py-3 text-center w-10"></th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-school-border/50">
             <tr className="bg-school-paper/30 text-xs font-bold text-school-muted">
-              <td className="px-4 py-2" colSpan={7}>Opening Balance</td>
-              <td className="px-4 py-2 text-right" colSpan={canWrite ? 4 : 3}>{fmt(openingBalance)}</td>
+              <td className="px-3 py-2" colSpan={8}>Opening Balance</td>
+              <td className="px-3 py-2 text-right" colSpan={canWrite ? 4 : 3}>{fmt(openingBalance)}</td>
             </tr>
               {data.length > 0 ? data.map((entry: any) => {
                 return (
-              <tr key={entry.id} className={`hover:bg-school-paper/30 text-xs ${entry.isCancelled || entry.reversalOfId ? 'line-through opacity-50 bg-rose-50/30' : ''}`}>
-                <td className="px-4 py-2.5 whitespace-nowrap font-mono font-bold">{entry.transactionDate ? new Date(entry.transactionDate + 'T00:00:00').toLocaleDateString() : '—'}</td>
-                <td className="px-4 py-2.5 whitespace-nowrap text-[10px] text-school-muted">{entry.createdAt ? new Date(entry.createdAt).toLocaleDateString() : '—'}</td>
-                <td className="px-4 py-2.5 whitespace-nowrap font-mono text-[10px] text-school-muted">{entry.tokenNumber || '—'}</td>
-                <td className="px-4 py-2.5">
-                  {entry.reversalOfId ? (
-                    <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-purple-100 text-purple-700">
-                      Reversal
-                    </span>
+              <tr key={entry.id} className={`hover:bg-school-paper/30 text-xs ${entry.status === 'Cancelled' ? 'line-through opacity-50 bg-rose-50/30' : entry.status === 'Reversal' ? 'bg-purple-50/30' : ''}`}>
+                <td className="px-3 py-2.5 whitespace-nowrap font-mono text-[10px] text-school-accent font-bold">{entry.voucher || entry.referenceId || '—'}</td>
+                <td className="px-3 py-2.5 whitespace-nowrap font-mono font-bold">{entry.transactionDate ? new Date(entry.transactionDate + 'T00:00:00').toLocaleDateString() : '—'}</td>
+                <td className="px-3 py-2.5 whitespace-nowrap text-[10px] text-school-muted">{entry.entryDate || '—'}</td>
+                <td className="px-3 py-2.5">
+                  {entry.status === 'Reversal' ? (
+                    <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-purple-100 text-purple-700">Rev</span>
                   ) : (
-                  <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${entry.isCancelled ? 'bg-rose-100 text-rose-500' : entry.transactionType === 'INCOME' ? 'bg-emerald-50 text-emerald-700' : entry.transactionType === 'EXPENSE' ? 'bg-rose-50 text-rose-700' : 'bg-blue-50 text-blue-700'}`}>
-                    {entry.isCancelled ? 'Cancelled' : entry.transactionType === 'INTERNAL_TRANSFER' ? 'Transfer' : entry.transactionType}
+                  <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${entry.status === 'Cancelled' ? 'bg-rose-100 text-rose-500' : entry.transactionType === 'INCOME' ? 'bg-emerald-50 text-emerald-700' : entry.transactionType === 'EXPENSE' ? 'bg-rose-50 text-rose-700' : 'bg-blue-50 text-blue-700'}`}>
+                    {entry.status === 'Cancelled' ? 'Canc' : entry.transactionType === 'INTERNAL_TRANSFER' ? 'Xfer' : entry.transactionType}
                   </span>
                   )}
                 </td>
-                <td className={`px-4 py-2.5 max-w-[200px] truncate ${entry.isCancelled || entry.reversalOfId ? 'text-rose-400' : 'text-school-muted'}`}>{entry.description}</td>
-                <td className="px-4 py-2.5 whitespace-nowrap text-xs font-medium">{entry.studentName || '—'}</td>
-                <td className="px-4 py-2.5 whitespace-nowrap text-xs text-school-muted">{entry.className || '—'}</td>
-                <td className="px-4 py-2.5 text-right font-bold text-emerald-600">{entry.debit ? fmt(entry.debit) : '—'}</td>
-                <td className="px-4 py-2.5 text-right font-bold text-rose-600">{entry.credit ? fmt(entry.credit) : '—'}</td>
-                <td className="px-4 py-2.5 text-right font-bold font-mono">{fmt(entry.runningBalance)}</td>
-                {canWrite && <td className="px-4 py-2.5 text-center">
-                  {!entry.isCancelled && !entry.reversalOfId ? (
+                <td className="px-3 py-2.5 whitespace-nowrap text-xs text-school-muted">{entry.category || '—'}</td>
+                <td className={`px-3 py-2.5 max-w-[180px] truncate ${entry.status !== 'Active' ? 'text-rose-400' : 'text-school-muted'}`}>{entry.description}</td>
+                <td className="px-3 py-2.5 whitespace-nowrap text-xs font-medium">{entry.studentName || '—'}</td>
+                <td className="px-3 py-2.5 whitespace-nowrap text-xs text-school-muted">{entry.className || '—'}</td>
+                <td className="px-3 py-2.5 text-right font-bold text-emerald-600">{entry.debit ? fmt(entry.debit) : '—'}</td>
+                <td className="px-3 py-2.5 text-right font-bold text-rose-600">{entry.credit ? fmt(entry.credit) : '—'}</td>
+                <td className="px-3 py-2.5 text-right font-bold font-mono">{fmt(entry.runningBalance)}</td>
+                <td className="px-3 py-2.5 text-center">
+                  <span className={`text-[9px] font-bold ${entry.status === 'Active' ? 'text-emerald-600' : entry.status === 'Cancelled' ? 'text-rose-500' : 'text-purple-600'}`}>
+                    {entry.status === 'Active' ? 'OK' : entry.status === 'Cancelled' ? 'X' : 'R'}
+                  </span>
+                </td>
+                {canWrite && <td className="px-3 py-2.5 text-center">
+                  {entry.status === 'Active' ? (
                     <button onClick={() => setCancelId(entry.id)} title="Cancel transaction"
                       className="p-1 rounded-lg text-school-muted hover:text-red-600 hover:bg-red-50 transition-all">
                       <Ban size={14} />
@@ -249,19 +270,20 @@ function Ledger({ fmt, fetchFinance, fetchFeeSchedules, fetchDashboardSummary, r
               </tr>
                 );
               }) : (
-              <tr><td colSpan={canWrite ? 11 : 10} className="px-4 py-12 text-center text-sm text-school-muted italic">
-                {loading ? 'Loading...' : total > 0 ? 'No entries match filters.' : 'No entries yet.'}
+              <tr><td colSpan={canWrite ? 12 : 11} className="px-4 py-12 text-center text-sm text-school-muted italic">
+                {loading ? 'Loading...' : totalRows > 0 ? 'No entries match filters.' : 'No entries yet.'}
               </td></tr>
               )}
             <tr className="bg-school-primary/5 text-xs font-bold border-t-2 border-school-primary/20">
-              <td className="px-4 py-2.5" colSpan={7}>
-                <span className="text-school-muted font-normal">Total Dr:</span> {fmt(totalDebits)}
-                <span className="mx-2 text-school-muted">│</span>
-                <span className="text-school-muted font-normal">Total Cr:</span> {fmt(totalCredits)}
+              <td className="px-3 py-2.5" colSpan={7}>
+                <span className="text-school-muted font-normal">Total Dr:</span> {fmt(totalDebit)}
+                <span className="mx-2 text-school-muted">|</span>
+                <span className="text-school-muted font-normal">Total Cr:</span> {fmt(totalCredit)}
               </td>
-              <td className="px-4 py-2.5 text-right"></td>
-              <td className="px-4 py-2.5 text-right"></td>
-              <td className="px-4 py-2.5 text-right font-bold text-school-primary">{fmt(closingBalance)}<br/><span className="text-[9px] font-normal text-school-muted">Closing</span></td>
+              <td className="px-3 py-2.5 text-right"></td>
+              <td className="px-3 py-2.5 text-right"></td>
+              <td className="px-3 py-2.5 text-right font-bold text-school-primary">{fmt(closingBalance)}<br/><span className="text-[9px] font-normal text-school-muted">Closing</span></td>
+              <td className="px-3 py-2.5 text-center"></td>
               {canWrite && <td></td>}
             </tr>
           </tbody>
@@ -272,9 +294,10 @@ function Ledger({ fmt, fetchFinance, fetchFeeSchedules, fetchDashboardSummary, r
       {totalPages > 1 && (
         <div className="px-5 py-3 border-t border-school-border flex items-center justify-between">
           <span className="text-xs text-school-muted">
-            Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of {total}
+            Showing {totalRows > 0 ? `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, totalRows)} of ${totalRows}` : '0 rows'}
           </span>
           <div className="flex items-center gap-2">
+            <button onClick={() => setPage(1)} disabled={page === 1} className="px-2 py-1 rounded-lg border border-school-border text-[10px] hover:bg-school-paper disabled:opacity-30">First</button>
             <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="p-1.5 rounded-lg border border-school-border hover:bg-school-paper disabled:opacity-30" aria-label="Previous page">
               <ChevronLeft size={14} />
             </button>
@@ -282,6 +305,7 @@ function Ledger({ fmt, fetchFinance, fetchFeeSchedules, fetchDashboardSummary, r
             <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="p-1.5 rounded-lg border border-school-border hover:bg-school-paper disabled:opacity-30" aria-label="Next page">
               <ChevronRight size={14} />
             </button>
+            <button onClick={() => setPage(totalPages)} disabled={page === totalPages} className="px-2 py-1 rounded-lg border border-school-border text-[10px] hover:bg-school-paper disabled:opacity-30">Last</button>
           </div>
         </div>
       )}
@@ -291,7 +315,7 @@ function Ledger({ fmt, fetchFinance, fetchFeeSchedules, fetchDashboardSummary, r
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setCancelId(null)}>
           <div className="bg-white rounded-xl border border-school-border p-6 w-full max-w-md space-y-4" onClick={e => e.stopPropagation()}>
             <h4 className="font-serif text-sm text-school-primary">Cancel Transaction</h4>
-            <p className="text-xs text-school-muted">This will cancel the transaction and return the money to the original account. The cancelled row will remain in the ledger with a strikethrough.</p>
+            <p className="text-xs text-school-muted">This will cancel the transaction and create a reversal. The cancelled row will remain in the ledger with a strikethrough.</p>
             <div>
               <label className="text-[10px] font-bold uppercase text-school-muted mb-1 block">Reason (required)</label>
               <textarea value={cancelReason} onChange={e => setCancelReason(e.target.value)} rows={3} required placeholder="Why is this being cancelled?" className="w-full border border-school-border rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-school-accent resize-none" />
@@ -421,17 +445,15 @@ const FinanceSection = () => {
   // Auto-fill amount from checked allocations
   useEffect(() => {
     const selectedFeeIds = Object.keys(selectedAllocations).filter(k => selectedAllocations[k]);
-    if (selectedFeeIds.length > 0 && feeStatusList.length > 0 && feeMonth && feeMonthTo) {
-      const months = monthDiff(feeMonth, feeMonthTo) + 1;
+    if (selectedFeeIds.length > 0 && feeStatusList.length > 0 && feeMonth) {
       const total = selectedFeeIds.reduce((s, id) => {
         const f = feeStatusList.find((fs: any) => fs.feeScheduleId === id);
         if (!f) return s;
-        const isMonthly = f.frequency === 'MONTHLY';
-        return s + Number(f.amount) * (isMonthly ? months : 1);
+        return s + Number(f.amount) * (f.numMonths || 1);
       }, 0);
       setAmount(String(total));
     }
-  }, [selectedAllocations, feeStatusList, feeMonth, feeMonthTo]);
+  }, [selectedAllocations, feeStatusList, feeMonth]);
 
   const availableStudents = useMemo(() => {
     const classStudents = students.filter((s: any) => s.class === selectedClass);
@@ -509,7 +531,8 @@ const FinanceSection = () => {
           const fs = feeStatusList.find((f: any) => f.feeScheduleId === id);
           if (!fs) continue;
           if (fs.frequency === 'MONTHLY') {
-            const months = feeMonth && feeMonthTo ? getMonthsInRange(feeMonth, feeMonthTo) : [feeMonth || ''];
+            const allMonths = feeMonth && feeMonthTo ? getMonthsInRange(feeMonth, feeMonthTo) : [feeMonth || ''];
+            const months = filterMonthsByAssignment(allMonths, fs.assignmentStart, fs.assignmentEnd);
             for (const period of months) {
               body.allocations.push({ feeScheduleId: id, amount: Number(fs.amount), period });
             }
@@ -719,7 +742,7 @@ const FinanceSection = () => {
                               {feeStatusList.map((f: any) => {
                                 const checked = selectedAllocations[f.feeScheduleId] || false;
                                 const isMonthly = f.frequency === 'MONTHLY';
-                                const months = isMonthly && feeMonth && feeMonthTo ? monthDiff(feeMonth, feeMonthTo) + 1 : 1;
+                                const months = f.numMonths || 1;
                                 const totalAmount = Number(f.amount) * months;
                                 return (
                                   <tr key={f.feeScheduleId} className={`hover:bg-school-paper/30 ${f.paid ? 'opacity-40' : ''}`}>
@@ -733,7 +756,7 @@ const FinanceSection = () => {
                                       <div className="flex items-center gap-1.5 flex-wrap">
                                         <span className="font-medium text-school-primary">{f.category}</span>
                                         <span className="text-[10px] text-school-muted uppercase">({f.frequency})</span>
-                                        {f.paid && !f.unpaidMonths && <span className="text-[10px] text-emerald-600 font-bold">PAID</span>}
+                                        {f.paid && <span className="text-[10px] text-emerald-600 font-bold">PAID</span>}
                                       </div>
                                       {f.unpaidMonths && f.unpaidMonths.length > 0 && (
                                         <div className="mt-1 text-[11px] text-amber-700 font-medium">
@@ -759,8 +782,7 @@ const FinanceSection = () => {
                                   {feeStatusList
                                     .filter(f => selectedAllocations[f.feeScheduleId])
                                     .reduce((s, f) => {
-                                      const isMonthly = f.frequency === 'MONTHLY';
-                                      const months = isMonthly && feeMonth && feeMonthTo ? monthDiff(feeMonth, feeMonthTo) + 1 : 1;
+                                      const months = f.numMonths || 1;
                                       return s + Number(f.amount) * months;
                                     }, 0)
                                     .toLocaleString()}

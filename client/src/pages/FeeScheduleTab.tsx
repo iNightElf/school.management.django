@@ -4,7 +4,7 @@ import { Plus, Save, Trash2, BookOpen, ChevronDown, ChevronRight, Pencil, Calend
 import { toast } from '../components/Toast';
 import PromoteModal from '../components/PromoteModal';
 
-const FREQUENCIES = ['MONTHLY', 'YEARLY', 'ONETIME'];
+const FREQUENCIES = ['MONTHLY', 'YEARLY', 'ONE_TIME'];
 const APPLICABILITIES = ['AUTO', 'ASSIGNED_ONLY'];
 
 const FeeScheduleTab = () => {

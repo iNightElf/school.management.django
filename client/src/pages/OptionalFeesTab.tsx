@@ -3,7 +3,6 @@ import { useSchoolStore, api } from '../store';
 import { toast } from '../components/Toast';
 import { Search, CheckSquare, Square } from 'lucide-react';
 
-
 interface StudentFeeAssignment {
   id: string;
   studentId: string;
@@ -14,6 +13,13 @@ interface StudentFeeAssignment {
   note: string | null;
 }
 
+const normalizeMonth = (v: string | null | undefined): string => {
+  if (!v) return '';
+  if (/^\d{4}-\d{2}$/.test(v)) return v;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v.slice(0, 7);
+  return '';
+};
+
 const OptionalFeesTab = () => {
   const { classes, students, feeSchedules, fetchClasses, fetchStudents } = useSchoolStore();
   const [assignments, setAssignments] = useState<StudentFeeAssignment[]>([]);
@@ -22,6 +28,8 @@ const OptionalFeesTab = () => {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [dateEdits, setDateEdits] = useState<Record<string, { startsAt: string; endsAt: string }>>({});
+  const [bulkStartsAt, setBulkStartsAt] = useState('');
+  const [bulkEndsAt, setBulkEndsAt] = useState('');
 
   const dateKey = (studentId: string) => `${studentId}_${selectedScheduleId}`;
 
@@ -29,16 +37,13 @@ const OptionalFeesTab = () => {
     setLoading(true);
     try {
       const params = { feeScheduleId: selectedScheduleId };
-      console.log("[DEBUG] Fetching assignments with params:", params);
       const asRes = selectedScheduleId
-        ? await api.get('/finance/student-fee-assignments', { params })
+        ? await api.get('/finance/student-fee-assignments/', { params })
         : { data: [] };
       const data = asRes.data.results || asRes.data.data || asRes.data;
-      console.log("[DEBUG] Loaded assignments:", data);
       setAssignments(data);
-    } catch (e) {
-      console.error("[DEBUG] Failed to load assignments:", e);
-      toast('Failed to load data', 'error'); 
+    } catch {
+      toast('Failed to load data', 'error');
     }
     finally { setLoading(false); }
   };
@@ -54,59 +59,64 @@ const OptionalFeesTab = () => {
     .filter((s: any) => !search || s.name.toLowerCase().includes(search.toLowerCase()) || (s.fatherName || '').toLowerCase().includes(search.toLowerCase()));
 
   const getAssignment = (studentId: string) => {
-    console.log(`[DEBUG] Looking for assignment for student: ${studentId}`);
-    if (assignments.length > 0) console.log("[DEBUG] Sample assignment object:", assignments[0]);
-    const found = assignments.find(a => {
-        // Log to debug why lookup fails
-        const assignmentStudentId = (a as any).studentId || (a as any).student;
-        const match = String(assignmentStudentId) === String(studentId);
-        return match;
+    return assignments.find(a => {
+      const assignmentStudentId = (a as any).studentId || (a as any).student;
+      return String(assignmentStudentId) === String(studentId);
     });
-    if (!found) console.log(`[DEBUG] No assignment found for student: ${studentId} in assignments:`, assignments);
-    return found;
   };
 
   const toggleStudent = async (studentId: string) => {
-    console.log(`[DEBUG] toggleStudent clicked for student: ${studentId}`);
-    if (!selectedScheduleId) {
-      console.log("[DEBUG] No selectedScheduleId");
-      return;
-    }
+    if (!selectedScheduleId) return;
     const assignment = getAssignment(studentId);
     const newActiveStatus = !assignment?.active;
-    console.log(`[DEBUG] Current assignment:`, assignment, `New status: ${newActiveStatus}`);
     const edits = dateEdits[dateKey(studentId)];
+
+    const startsAt = normalizeMonth(edits?.startsAt) || normalizeMonth(assignment?.startsAt);
+    const endsAt = normalizeMonth(edits?.endsAt) || normalizeMonth(assignment?.endsAt);
+
+    if (newActiveStatus && (!startsAt || !endsAt)) {
+      toast('Start month and end month are required to activate an assignment', 'error');
+      return;
+    }
+    if (newActiveStatus && startsAt && endsAt && startsAt > endsAt) {
+      toast('End month must be on or after start month', 'error');
+      return;
+    }
+
     try {
       const payload = {
-          studentId,
-          feeScheduleId: selectedScheduleId,
-          active: newActiveStatus,
-          ...(edits?.startsAt ? { startsAt: edits.startsAt } : {}),
-          ...(edits?.endsAt ? { endsAt: edits.endsAt } : {}),
-        };
-      console.log("[DEBUG] Sending toggle payload:", payload);
+        studentId,
+        feeScheduleId: selectedScheduleId,
+        active: newActiveStatus,
+        ...(startsAt ? { startsAt } : {}),
+        ...(endsAt ? { endsAt } : {}),
+      };
       await api.post('/finance/student-fee-assignments/toggle/', payload);
       toast('Updated', 'success');
       load();
-    } catch (e) { 
-      console.error("[DEBUG] Toggle failed:", e);
-      toast('Failed to update', 'error'); 
+    } catch {
+      toast('Failed to update', 'error');
     }
   };
 
-  const [bulkStartsAt, setBulkStartsAt] = useState('');
-  const [bulkEndsAt, setBulkEndsAt] = useState('');
-
   const bulkToggle = async (active: boolean) => {
     if (!selectedScheduleId || !classStudents.length) return;
+    if (active && (!bulkStartsAt || !bulkEndsAt)) {
+      toast('Start month and end month are required for bulk assignment', 'error');
+      return;
+    }
+    if (active && bulkStartsAt && bulkEndsAt && bulkStartsAt > bulkEndsAt) {
+      toast('End month must be on or after start month', 'error');
+      return;
+    }
     try {
       await api.post('/finance/student-fee-assignments/bulk/',
-        { 
-          classId: selectedClass || students[0]?.classId, // Need a valid class ID
-          feeScheduleId: selectedScheduleId, 
-          active, 
-          startsAt: bulkStartsAt || undefined, 
-          endsAt: bulkEndsAt || undefined 
+        {
+          classId: selectedClass || students[0]?.classId,
+          feeScheduleId: selectedScheduleId,
+          active,
+          startsAt: bulkStartsAt || undefined,
+          endsAt: bulkEndsAt || undefined
         });
       toast(`Assigned to ${classStudents.length} students`, 'success');
       load();
@@ -166,12 +176,12 @@ const OptionalFeesTab = () => {
           <div className="flex gap-2 items-end ml-auto">
             <div>
               <label className="text-[9px] font-bold uppercase text-school-muted mb-0.5 block">Bulk Start</label>
-              <input type="date" value={bulkStartsAt} onChange={e => setBulkStartsAt(e.target.value)}
+              <input type="month" value={bulkStartsAt} onChange={e => setBulkStartsAt(e.target.value)}
                 className="border border-school-border rounded-lg px-2 py-1 text-[11px] w-[140px] focus:outline-none focus:border-school-accent" />
             </div>
             <div>
               <label className="text-[9px] font-bold uppercase text-school-muted mb-0.5 block">Bulk End</label>
-              <input type="date" value={bulkEndsAt} onChange={e => setBulkEndsAt(e.target.value)}
+              <input type="month" value={bulkEndsAt} onChange={e => setBulkEndsAt(e.target.value)}
                 className="border border-school-border rounded-lg px-2 py-1 text-[11px] w-[140px] focus:outline-none focus:border-school-accent" />
             </div>
           </div>
@@ -211,7 +221,7 @@ const OptionalFeesTab = () => {
               const assignment = getAssignment(s.id);
               const isActive = !!assignment?.active;
               const dk = dateKey(s.id);
-              const editDates = dateEdits[dk] ?? { startsAt: assignment?.startsAt?.split('T')[0] ?? '', endsAt: assignment?.endsAt?.split('T')[0] ?? '' };
+              const editDates = dateEdits[dk] ?? { startsAt: assignment?.startsAt ?? '', endsAt: assignment?.endsAt ?? '' };
               return (
                 <tr key={s.id} className="hover:bg-school-paper/30 transition-colors">
                   <td data-label="Student" className="px-4 py-2">
@@ -220,16 +230,16 @@ const OptionalFeesTab = () => {
                   </td>
                   <td data-label="Class" className="px-4 py-2 text-xs hidden sm:table-cell">{s.class}{s.roll ? ` - ${s.roll}` : ''}</td>
                   <td data-label="Starts" className="px-4 py-2 text-center">
-                    <input type="date" value={editDates.startsAt}
+                    <input type="month" value={normalizeMonth(editDates.startsAt)}
                       onChange={e => setDateEdits(prev => ({ ...prev, [dk]: { ...prev[dk] ?? editDates, startsAt: e.target.value } }))}
                       className="w-[130px] border border-school-border rounded-lg px-2 py-1 text-[11px] focus:outline-none focus:border-school-accent"
-                      aria-label="Start date" />
+                      aria-label="Start month" />
                   </td>
                   <td data-label="Ends" className="px-4 py-2 text-center">
-                    <input type="date" value={editDates.endsAt}
+                    <input type="month" value={normalizeMonth(editDates.endsAt)}
                       onChange={e => setDateEdits(prev => ({ ...prev, [dk]: { ...prev[dk] ?? editDates, endsAt: e.target.value } }))}
                       className="w-[130px] border border-school-border rounded-lg px-2 py-1 text-[11px] focus:outline-none focus:border-school-accent"
-                      aria-label="End date" />
+                      aria-label="End month" />
                   </td>
                   <td data-label="Assigned" className="px-4 py-2 text-center">
                     <button onClick={() => toggleStudent(s.id)}

@@ -107,28 +107,41 @@ class StudentFeeAssignmentViewSet(PeriodClosedMixin, viewsets.ModelViewSet):
         serializer = StudentFeeAssignmentToggleSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
-        print(f"[DEBUG] Toggling assignment for student: {data['student_id']}, fee: {data['fee_schedule_id']}, active: {data['active']}")
-        
+
         assignment, created = StudentFeeAssignment.objects.select_related(
             'student', 'fee_schedule'
         ).get_or_create(
             student_id=data['student_id'],
             fee_schedule_id=data['fee_schedule_id'],
-            defaults={'active': data['active']},
+            defaults={
+                'active': data['active'],
+                'starts_at': data.get('startsAt'),
+                'ends_at': data.get('endsAt'),
+            },
         )
-        print(f"[DEBUG] Assignment fetched/created: {assignment.id}, created: {created}, previous active: {assignment.active}")
-        
+
         if created:
-            # If newly created, ensure it matches requested active status (if False, explicitly set)
             if assignment.active != data['active']:
+                update_fields = ['active']
                 assignment.active = data['active']
-                assignment.save(update_fields=['active'])
-                print(f"[DEBUG] New assignment updated to active: {assignment.active}")
+                if data.get('startsAt'):
+                    assignment.starts_at = data['startsAt']
+                    update_fields.append('starts_at')
+                if data.get('endsAt'):
+                    assignment.ends_at = data['endsAt']
+                    update_fields.append('ends_at')
+                assignment.save(update_fields=update_fields)
         else:
+            update_fields = ['active']
             assignment.active = data['active']
-            assignment.save(update_fields=['active'])
-            print(f"[DEBUG] Existing assignment updated to active: {assignment.active}")
-            
+            if data.get('startsAt'):
+                assignment.starts_at = data['startsAt']
+                update_fields.append('starts_at')
+            if data.get('endsAt'):
+                assignment.ends_at = data['endsAt']
+                update_fields.append('ends_at')
+            assignment.save(update_fields=update_fields)
+
         return Response(StudentFeeAssignmentSerializer(assignment).data)
 
     @action(detail=False, methods=['post'])

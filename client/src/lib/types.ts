@@ -77,9 +77,27 @@ export interface FeeSchedule {
   classRel?: { name: string } | null;
 }
 
+export interface FeeWaiver {
+  id: string;
+  student: string;
+  feeSchedule: string;
+  type: string;
+  value: number;
+  reason: string | null;
+  approvedBy: string | null;
+  active: boolean;
+  startsAt: string | null;
+  endsAt: string | null;
+  createdAt: string;
+  studentName: string;
+  feeCategory: string;
+  feeScheduleAmount: number;
+}
+
 export interface Transaction {
   id: string;
-  date: string;
+  transactionDate: string;
+  entryDate: string;
   transactionType: 'INCOME' | 'EXPENSE' | 'INTERNAL_TRANSFER';
   description: string;
   category: string | null;
@@ -87,15 +105,63 @@ export interface Transaction {
   sourceAccount: string | null;
   destinationAccount: string | null;
   studentId: string | null;
-  student?: { name: string } | null;
-  className?: string | null;
+  studentName: string | null;
+  className: string | null;
   feeMonth: string | null;
-  feeScheduleId: string | null;
   affectsIncomeLedger?: boolean;
   affectsExpenseLedger?: boolean;
   isCancelled?: boolean;
+  cancelledAt: string | null;
+  cancelledBy: string | null;
+  cancelReason: string | null;
   reversalOfId: string | null;
+  referenceId: string | null;
+  tokenNumber: number | null;
+  createdBy: string | null;
   createdAt: string;
+  status: string;
+}
+
+export interface LedgerEntry {
+  id: string;
+  voucher: string;
+  transactionDate: string;
+  entryDate: string;
+  transactionType: string;
+  amount: number;
+  debit: number;
+  credit: number;
+  runningBalance: number;
+  description: string;
+  category: string | null;
+  sourceAccount: string | null;
+  destinationAccount: string | null;
+  studentId: string | null;
+  studentName: string | null;
+  className: string | null;
+  feeMonth: string | null;
+  tokenNumber: number | null;
+  referenceId: string | null;
+  isCancelled: boolean;
+  cancelledAt: string | null;
+  cancelledBy: string | null;
+  cancelReason: string | null;
+  reversalOfId: string | null;
+  status: string;
+  createdBy: string | null;
+  createdAt: string;
+}
+
+export interface LedgerResponse {
+  data: LedgerEntry[];
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  totalRows: number;
+  openingBalance: number;
+  closingBalance: number;
+  totalDebit: number;
+  totalCredit: number;
 }
 
 export interface Balance {

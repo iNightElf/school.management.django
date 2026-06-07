@@ -24,6 +24,7 @@ class Transaction(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     transaction_date = models.DateField(default=datetime.date.today)
+    entry_date = models.DateField(default=datetime.date.today, help_text='When entered into system')
     transaction_type = models.CharField(max_length=50, choices=TRANSACTION_TYPES)
     source_account = models.ForeignKey(
         BankAccount, on_delete=models.PROTECT,
@@ -56,6 +57,8 @@ class Transaction(models.Model):
     cancel_reason = models.TextField(blank=True, null=True)
     reversal_of_id = models.UUIDField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_by = models.CharField(max_length=100, blank=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         indexes = [
@@ -162,8 +165,8 @@ class StudentFeeAssignment(models.Model):
         related_name='student_assignments'
     )
     active = models.BooleanField(default=True)
-    starts_at = models.DateField(blank=True, null=True)
-    ends_at = models.DateField(blank=True, null=True)
+    starts_at = models.CharField(max_length=7, blank=True, null=True, help_text='Month string YYYY-MM')
+    ends_at = models.CharField(max_length=7, blank=True, null=True, help_text='Month string YYYY-MM')
     note = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

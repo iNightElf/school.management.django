@@ -425,26 +425,33 @@ export function pdfYearlyAGM(
   doc.save(`AGM_Report_${fyLabel.replace('-', '_')}.pdf`);
 }
 
-export function pdfLedger(entries: any[], account: string, dateFrom: string, dateTo: string, openingBalance: number, closingBalance: number) {
-  const doc = new jsPDF({ format: 'a4', unit: 'mm' });
+export function pdfLedger(entries: any[], account: string, dateFrom: string, dateTo: string, openingBalance: number, closingBalance: number, totalDebit?: number, totalCredit?: number) {
+  const doc = new jsPDF({ orientation: 'landscape', format: 'a4', unit: 'mm' });
   const accLabel = account === 'AL_RAWA_BANK' ? 'AL RAWA Bank' : 'Cash in Hand';
   const rangeStr = dateFrom || dateTo ? `${dateFrom || 'earliest'} — ${dateTo || 'latest'}` : 'All dates';
   let y = addHeader(doc, `${accLabel} Ledger`, rangeStr, 10);
 
-  const M = 12, PW = 186;
-  const dateW = 28, typeW = 20, debitW = 38, creditW = 38, balW = 0;
+  const M = 10, PW = 277;
+  const colW = { voucher: 28, txnDate: 20, entryDate: 20, type: 14, cat: 26, desc: 70, student: 32, class: 22, debit: 24, credit: 24, balance: 28, status: 12 };
   const headerH = 7, rowH = 5;
 
   function drawTableHeader() {
     doc.setFillColor(26, 26, 46);
     doc.rect(M, y, PW, headerH, 'F');
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(6); doc.setTextColor(255, 255, 255);
-    doc.text('Date', M + 2, y + 4.5);
-    doc.text('Type', M + dateW + 2, y + 4.5);
-    doc.text('Description', M + dateW + typeW + 2, y + 4.5);
-    doc.text('Debit', M + PW - debitW - creditW - balW - 2, y + 4.5, { align: 'right' });
-    doc.text('Credit', M + PW - creditW - balW - 2, y + 4.5, { align: 'right' });
-    doc.text('Balance', M + PW - balW - 2, y + 4.5, { align: 'right' });
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(5.5); doc.setTextColor(255, 255, 255);
+    let cx = M + 2;
+    doc.text('Voucher', cx, y + 4.5); cx += colW.voucher;
+    doc.text('Txn Date', cx, y + 4.5); cx += colW.txnDate;
+    doc.text('Entry Date', cx, y + 4.5); cx += colW.entryDate;
+    doc.text('Type', cx, y + 4.5); cx += colW.type;
+    doc.text('Category', cx, y + 4.5); cx += colW.cat;
+    doc.text('Description', cx, y + 4.5); cx += colW.desc;
+    doc.text('Student', cx, y + 4.5); cx += colW.student;
+    doc.text('Class', cx, y + 4.5); cx += colW.class;
+    doc.text('Debit', cx + colW.debit - 2, y + 4.5, { align: 'right' }); cx += colW.debit;
+    doc.text('Credit', cx + colW.credit - 2, y + 4.5, { align: 'right' }); cx += colW.credit;
+    doc.text('Balance', cx + colW.balance - 2, y + 4.5, { align: 'right' }); cx += colW.balance;
+    doc.text('St', cx + 2, y + 4.5);
     y += headerH;
   }
 
@@ -454,8 +461,6 @@ export function pdfLedger(entries: any[], account: string, dateFrom: string, dat
     doc.save(`${accLabel.replace(/\s+/g, '_')}_Ledger_${dateFrom || 'all'}_to_${dateTo || 'all'}.pdf`);
     return;
   }
-
-  let totalDebits = 0, totalCredits = 0;
 
   function drawOpeningRow() {
     doc.setFillColor(244, 244, 244);
@@ -470,90 +475,138 @@ export function pdfLedger(entries: any[], account: string, dateFrom: string, dat
   drawOpeningRow();
 
   entries.forEach((e: any, i: number) => {
-    if (y > 270) { doc.addPage(); y = 14; drawTableHeader(); drawOpeningRow(); }
-    if (i % 2 === 0) { doc.setFillColor(255, 253, 247); doc.rect(M, y, PW, rowH, 'F'); }
+    if (y > 195) { doc.addPage(); y = 14; drawTableHeader(); drawOpeningRow(); }
 
-    const dateStr = new Date(e.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-    const typeLabel = e.transactionType === 'INTERNAL_TRANSFER' ? 'Transfer' : e.transactionType;
+    const isCancelled = e.status === 'Cancelled';
+    const isReversal = e.status === 'Reversal';
+
+    if (isCancelled) {
+      doc.setFillColor(254, 226, 226); doc.rect(M, y, PW, rowH, 'F');
+    } else if (isReversal) {
+      doc.setFillColor(243, 232, 255); doc.rect(M, y, PW, rowH, 'F');
+    } else if (i % 2 === 0) {
+      doc.setFillColor(255, 253, 247); doc.rect(M, y, PW, rowH, 'F');
+    }
+
+    const txnDateStr = e.transactionDate ? new Date(e.transactionDate + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+    const entryDateStr = e.entryDate || '—';
+    const typeLabel = e.transactionType === 'INTERNAL_TRANSFER' ? 'Xfer' : e.transactionType;
     const debit = e.debit || 0;
     const credit = e.credit || 0;
-    totalDebits += debit;
-    totalCredits += credit;
+    const statusChar = e.status === 'Active' ? 'OK' : e.status === 'Cancelled' ? 'X' : 'R';
+    const textColor: [number, number, number] = isCancelled ? [180, 80, 80] : [26, 26, 46];
 
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(6.5);
-    doc.setTextColor(80, 80, 80);
-    doc.text(dateStr, M + 2, y + 3.5);
-    doc.setTextColor(26, 26, 46);
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(6);
-    doc.text(typeLabel, M + dateW + 2, y + 3.5);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(6);
-    doc.setTextColor(130, 124, 114);
-    doc.text((e.description || '').substring(0, 42), M + dateW + typeW + 2, y + 3.5);
+    let cx = M + 2;
+    doc.setFont('helvetica', isCancelled ? 'normal' : 'bold'); doc.setFontSize(5.5); doc.setTextColor(...textColor);
+    doc.text((e.voucher || '—').substring(0, 18), cx, y + 3.5); cx += colW.voucher;
+
+    doc.setFont('helvetica', 'normal');
+    doc.text(txnDateStr, cx, y + 3.5); cx += colW.txnDate;
+    doc.text(entryDateStr, cx, y + 3.5); cx += colW.entryDate;
+
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(5);
+    const typeColor: [number, number, number] = e.transactionType === 'INCOME' ? [22, 101, 52] : e.transactionType === 'EXPENSE' ? [185, 28, 28] : [30, 64, 175];
+    doc.setTextColor(...typeColor);
+    doc.text(typeLabel, cx, y + 3.5); cx += colW.type;
+
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(5); doc.setTextColor(130, 124, 114);
+    doc.text((e.category || '—').substring(0, 16), cx, y + 3.5); cx += colW.cat;
+    doc.text((e.description || '—').substring(0, 44), cx, y + 3.5); cx += colW.desc;
+    doc.text((e.studentName || '—').substring(0, 20), cx, y + 3.5); cx += colW.student;
+    doc.text((e.className || '—').substring(0, 14), cx, y + 3.5); cx += colW.class;
+
     if (debit) {
-      doc.setTextColor(22, 101, 52); doc.setFont('helvetica', 'bold');
-      doc.text(fmt(debit) + ' /-', M + PW - debitW - creditW - balW - 2, y + 3.5, { align: 'right' });
+      doc.setTextColor(22, 101, 52); doc.setFont('helvetica', 'bold'); doc.setFontSize(5.5);
+      doc.text(fmt(debit) + ' /-', cx + colW.debit - 2, y + 3.5, { align: 'right' });
     }
+    cx += colW.debit;
     if (credit) {
-      doc.setTextColor(185, 28, 28); doc.setFont('helvetica', 'bold');
-      doc.text(fmt(credit) + ' /-', M + PW - creditW - balW - 2, y + 3.5, { align: 'right' });
+      doc.setTextColor(185, 28, 28); doc.setFont('helvetica', 'bold'); doc.setFontSize(5.5);
+      doc.text(fmt(credit) + ' /-', cx + colW.credit - 2, y + 3.5, { align: 'right' });
     }
-    doc.setTextColor(26, 26, 46); doc.setFont('helvetica', 'bold');
-    doc.text(fmt(e.runningBalance) + ' /-', M + PW - 2, y + 3.5, { align: 'right' });
+    cx += colW.credit;
+
+    doc.setTextColor(26, 26, 46); doc.setFont('helvetica', 'bold'); doc.setFontSize(5.5);
+    doc.text(fmt(e.runningBalance) + ' /-', cx + colW.balance - 2, y + 3.5, { align: 'right' });
+    cx += colW.balance;
+
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(5.5);
+    const statusColor: [number, number, number] = e.status === 'Active' ? [22, 101, 52] : e.status === 'Cancelled' ? [185, 28, 28] : [126, 34, 206];
+    doc.setTextColor(...statusColor);
+    doc.text(statusChar, cx + 2, y + 3.5);
+
     y += rowH;
   });
 
-  if (y > 260) { doc.addPage(); y = 14; }
+  if (y > 185) { doc.addPage(); y = 14; }
+  const tDebit = totalDebit ?? entries.reduce((s: number, e: any) => s + (e.debit || 0), 0);
+  const tCredit = totalCredit ?? entries.reduce((s: number, e: any) => s + (e.credit || 0), 0);
   doc.setFillColor(26, 26, 46);
   doc.rect(M, y, PW, 8, 'F');
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(255, 255, 255);
-  doc.text(`Total Dr: ${fmt(totalDebits)}  /  Total Cr: ${fmt(totalCredits)}`, M + 2, y + 5.5);
-  doc.text(`Closing: ${fmt(closingBalance)} /-`, M + PW - 2, y + 5.5, { align: 'right' });
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(255, 255, 255);
+  doc.text(`Total Dr: ${fmt(tDebit)}  /  Total Cr: ${fmt(tCredit)}  /  Closing: ${fmt(closingBalance)} /-`, M + 2, y + 5.5);
 
   doc.save(`${accLabel.replace(/\s+/g, '_')}_Ledger_${dateFrom || 'all'}_to_${dateTo || 'all'}.pdf`);
 }
 
-export function buildLedgerPrintHtml(entries: any[], account: string, dateFrom: string, dateTo: string, openingBalance: number, closingBalance: number, fmt: (n: number) => string) {
+export function buildLedgerPrintHtml(entries: any[], account: string, dateFrom: string, dateTo: string, openingBalance: number, closingBalance: number, fmt: (n: number) => string, totalDebit?: number, totalCredit?: number) {
   const accLabel = account === 'AL_RAWA_BANK' ? 'AL RAWA Bank' : 'Cash in Hand';
   const rangeStr = dateFrom || dateTo ? `${dateFrom || 'earliest'} — ${dateTo || 'latest'}` : 'All dates';
+
   const rows = entries.map((e: any) => {
-    const typeLabel = e.transactionType === 'INTERNAL_TRANSFER' ? 'Transfer' : e.transactionType;
+    const txnDateStr = e.transactionDate ? new Date(e.transactionDate + 'T00:00:00').toLocaleDateString() : '—';
+    const typeLabel = e.transactionType === 'INTERNAL_TRANSFER' ? 'Xfer' : e.transactionType;
     const debit = e.debit || 0;
     const credit = e.credit || 0;
-    return `<tr>
-      <td>${new Date(e.date).toLocaleDateString()}</td>
-      <td><span class="type-${e.transactionType.toLowerCase()}">${typeLabel}</span></td>
+    const rowClass = e.status === 'Cancelled' ? 'cancelled' : e.status === 'Reversal' ? 'reversal' : '';
+    const statusChar = e.status === 'Active' ? 'OK' : e.status === 'Cancelled' ? 'X' : 'R';
+    const typeClass = `type-${(e.transactionType || '').toLowerCase()}`;
+    return `<tr class="${rowClass}">
+      <td class="mono">${e.voucher || '—'}</td>
+      <td>${txnDateStr}</td>
+      <td>${e.entryDate || '—'}</td>
+      <td><span class="${typeClass}">${typeLabel}</span></td>
+      <td>${e.category || '—'}</td>
       <td>${e.description || '—'}</td>
-      <td class="debit">${debit ? fmt(debit) : '—'}</td>
-      <td class="credit">${credit ? fmt(credit) : '—'}</td>
+      <td>${e.studentName || '—'}</td>
+      <td>${e.className || '—'}</td>
+      <td class="debit">${debit ? fmt(debit) : ''}</td>
+      <td class="credit">${credit ? fmt(credit) : ''}</td>
       <td class="balance">${fmt(e.runningBalance)}</td>
+      <td class="status status-${(e.status || '').toLowerCase()}">${statusChar}</td>
     </tr>`;
   }).join('');
-  const totalDebits = entries.reduce((s: number, e: any) => s + (e.debit || 0), 0);
-  const totalCredits = entries.reduce((s: number, e: any) => s + (e.credit || 0), 0);
+
+  const tDebit = totalDebit ?? entries.reduce((s: number, e: any) => s + (e.debit || 0), 0);
+  const tCredit = totalCredit ?? entries.reduce((s: number, e: any) => s + (e.credit || 0), 0);
+
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${accLabel} Ledger</title>
 <style>
-  body{font-family:system-ui,sans-serif;padding:30px;color:#1a1a2e;font-size:12px;max-width:1200px;margin:auto}
-  h1{font-size:18px;margin:0 0 2px}h2{font-size:12px;margin:0 0 16px;color:#827c72;font-weight:normal}
-  table{width:100%;border-collapse:collapse}
-  th{padding:8px 10px;border:1px solid #d7d2c8;background:#1a1a2e;color:#fff;font-size:9px;text-transform:uppercase;text-align:left}
-  td{padding:6px 10px;border:1px solid #d7d2c8;font-size:11px}
-  .opening{background:#f0f0f0;font-weight:bold;color:#666}
-  .opening td{font-size:11px}
-  .debit{color:#166634;font-weight:bold;text-align:right}.credit{color:#b91c1c;font-weight:bold;text-align:right}.balance{font-weight:bold;text-align:right}
-  .type-income{color:#166634;font-weight:bold;font-size:10px}.type-expense{color:#b91c1c;font-weight:bold;font-size:10px}.type-internal_transfer{color:#1e40af;font-weight:bold;font-size:10px}
-  .summary td{background:#1a1a2e;color:#fff;font-weight:bold;font-size:11px;padding:8px 10px}
-  .summary .right{text-align:right}
-  @media print{body{padding:15px}@page{size:landscape;margin:10mm}}
+  body{font-family:system-ui,sans-serif;padding:20px;color:#1a1a2e;font-size:11px;margin:auto}
+  h1{font-size:16px;margin:0 0 2px}h2{font-size:11px;margin:0 0 14px;color:#827c72;font-weight:normal}
+  table{width:100%;border-collapse:collapse;font-size:10px}
+  th{padding:6px 8px;border:1px solid #d7d2c8;background:#1a1a2e;color:#fff;font-size:8px;text-transform:uppercase;text-align:left;white-space:nowrap}
+  td{padding:5px 8px;border:1px solid #d7d2c8}
+  .mono{font-family:monospace;font-size:9px;font-weight:bold}
+  .opening td{background:#f0f0f0;font-weight:bold;color:#666}
+  .debit{color:#166634;font-weight:bold;text-align:right}.credit{color:#b91c1c;font-weight:bold;text-align:right}.balance{font-weight:bold;text-align:right;font-family:monospace}
+  .type-income{color:#166634;font-weight:bold}.type-expense{color:#b91c1c;font-weight:bold}.type-internal_transfer,.type-xfer{color:#1e40af;font-weight:bold}
+  .cancelled{background:#fef2f2;color:#b91c1c;text-decoration:line-through;opacity:0.7}
+  .reversal{background:#f5f3ff;color:#7e22ce}
+  .status{font-weight:bold;text-align:center;font-size:9px}
+  .status-active{color:#166634}.status-cancelled{color:#b91c1c}.status-reversal{color:#7e22ce}
+  .summary td{background:#1a1a2e;color:#fff;font-weight:bold;font-size:10px;padding:7px 8px}
+  @media print{body{padding:10px}@page{size:landscape;margin:8mm}}
 </style></head><body>
   <h1>AL RAWA English School</h1>
   <h2>${accLabel} Ledger — ${rangeStr}</h2>
   <table><thead><tr>
-    <th>Date</th><th>Type</th><th>Description</th><th style="text-align:right">Debit</th><th style="text-align:right">Credit</th><th style="text-align:right">Balance</th>
+    <th>Voucher</th><th>Txn Date</th><th>Entry Date</th><th>Type</th><th>Category</th><th>Description</th><th>Student</th><th>Class</th><th style="text-align:right">Debit</th><th style="text-align:right">Credit</th><th style="text-align:right">Balance</th><th>St</th>
   </tr></thead><tbody>
-    <tr class="opening"><td colspan="3">Opening Balance</td><td colspan="3" style="text-align:right">${fmt(openingBalance)}</td></tr>
+    <tr class="opening"><td colspan="10">Opening Balance</td><td colspan="2" style="text-align:right">${fmt(openingBalance)}</td></tr>
     ${rows}
   </tbody><tfoot>
-    <tr class="summary"><td colspan="3">Total Dr: ${fmt(totalDebits)}  |  Total Cr: ${fmt(totalCredits)}</td><td class="right" colspan="3">Closing: ${fmt(closingBalance)}</td></tr>
+    <tr class="summary"><td colspan="8">Total Dr: ${fmt(tDebit)}  |  Total Cr: ${fmt(tCredit)}</td><td colspan="2" style="text-align:right">Closing: ${fmt(closingBalance)}</td><td colspan="2"></td></tr>
   </tfoot></table>
 </body></html>`;
 }

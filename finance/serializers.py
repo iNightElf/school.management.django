@@ -64,6 +64,9 @@ class FeeScheduleCopySerializer(serializers.Serializer):
 class FeeWaiverSerializer(CamelCaseModelSerializer):
     studentName = serializers.CharField(source='student.name', read_only=True)
     feeCategory = serializers.CharField(source='fee_schedule.category', read_only=True)
+    feeScheduleAmount = serializers.DecimalField(
+        source='fee_schedule.amount', max_digits=12, decimal_places=2, read_only=True
+    )
 
     class Meta:
         model = FeeWaiver
@@ -86,13 +89,36 @@ class StudentFeeAssignmentToggleSerializer(serializers.Serializer):
     studentId = serializers.UUIDField(source='student_id')
     feeScheduleId = serializers.UUIDField(source='fee_schedule_id')
     active = serializers.BooleanField(default=True)
+    startsAt = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    endsAt = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
+    def validate(self, data):
+        if data.get('active'):
+            if not data.get('startsAt'):
+                raise serializers.ValidationError({'startsAt': 'Start month is required when activating an assignment.'})
+            if not data.get('endsAt'):
+                raise serializers.ValidationError({'endsAt': 'End month is required when activating an assignment.'})
+            if data.get('startsAt') and data.get('endsAt') and data['startsAt'] > data['endsAt']:
+                raise serializers.ValidationError({'endsAt': 'End month must be on or after start month.'})
+        return data
 
 
 class BulkAssignSerializer(serializers.Serializer):
     classId = serializers.UUIDField(source='class_id')
     feeScheduleId = serializers.UUIDField(source='fee_schedule_id')
-    startsAt = serializers.DateField(required=False, allow_null=True)
-    endsAt = serializers.DateField(required=False, allow_null=True)
+    active = serializers.BooleanField(default=True)
+    startsAt = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    endsAt = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
+    def validate(self, data):
+        if data.get('active', True):
+            if not data.get('startsAt'):
+                raise serializers.ValidationError({'startsAt': 'Start month is required when activating assignments.'})
+            if not data.get('endsAt'):
+                raise serializers.ValidationError({'endsAt': 'End month is required when activating assignments.'})
+            if data.get('startsAt') and data.get('endsAt') and data['startsAt'] > data['endsAt']:
+                raise serializers.ValidationError({'endsAt': 'End month must be on or after start month.'})
+        return data
 
 
 class OpeningBalanceSerializer(CamelCaseModelSerializer):

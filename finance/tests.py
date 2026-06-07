@@ -178,9 +178,44 @@ class FinanceTests(TestCase):
             'studentId': str(self.student.id),
             'feeScheduleId': str(fs2.id),
             'active': True,
-        })
+            'startsAt': '2026-01',
+            'endsAt': '2026-12',
+        }, format='json')
         self.assertEqual(res.status_code, 200)
         self.assertEqual(StudentFeeAssignment.objects.count(), 1)
+        a = StudentFeeAssignment.objects.first()
+        self.assertEqual(a.starts_at, '2026-01')
+        self.assertEqual(a.ends_at, '2026-12')
+
+    def test_toggle_assignment_requires_dates(self):
+        fs2 = FeeSchedule.objects.create(
+            academic_year=self.year, category='Lab', amount=300,
+            frequency='MONTHLY', applicability='ASSIGNED_ONLY'
+        )
+        res = self.client.post('/api/finance/student-fee-assignments/toggle/', {
+            'studentId': str(self.student.id),
+            'feeScheduleId': str(fs2.id),
+            'active': True,
+        }, format='json')
+        self.assertEqual(res.status_code, 400)
+
+    def test_toggle_assignment_deactivate_no_dates_needed(self):
+        fs2 = FeeSchedule.objects.create(
+            academic_year=self.year, category='Lab', amount=300,
+            frequency='MONTHLY', applicability='ASSIGNED_ONLY'
+        )
+        StudentFeeAssignment.objects.create(
+            student=self.student, fee_schedule=fs2, active=True,
+            starts_at='2026-01', ends_at='2026-12'
+        )
+        res = self.client.post('/api/finance/student-fee-assignments/toggle/', {
+            'studentId': str(self.student.id),
+            'feeScheduleId': str(fs2.id),
+            'active': False,
+        }, format='json')
+        self.assertEqual(res.status_code, 200)
+        a = StudentFeeAssignment.objects.first()
+        self.assertFalse(a.active)
 
     def test_bulk_assign(self):
         fs2 = FeeSchedule.objects.create(
@@ -190,9 +225,100 @@ class FinanceTests(TestCase):
         res = self.client.post('/api/finance/student-fee-assignments/bulk/', {
             'classId': str(self.klass.id),
             'feeScheduleId': str(fs2.id),
-        })
+            'startsAt': '2026-01',
+            'endsAt': '2026-12',
+        }, format='json')
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.data['assigned'], 1)
+
+    def test_bulk_assign_requires_dates(self):
+        fs2 = FeeSchedule.objects.create(
+            academic_year=self.year, school_class=self.klass, category='Lab', amount=300,
+            frequency='MONTHLY', applicability='ASSIGNED_ONLY'
+        )
+        res = self.client.post('/api/finance/student-fee-assignments/bulk/', {
+            'classId': str(self.klass.id),
+            'feeScheduleId': str(fs2.id),
+        }, format='json')
+        self.assertEqual(res.status_code, 400)
+
+    def test_payment_rejected_for_expired_assignment(self):
+        fs2 = FeeSchedule.objects.create(
+            academic_year=self.year, school_class=self.klass, category='Lab Fee', amount=300,
+            frequency='MONTHLY', applicability='ASSIGNED_ONLY'
+        )
+        StudentFeeAssignment.objects.create(
+            student=self.student, fee_schedule=fs2, active=True,
+            starts_at='2026-01', ends_at='2026-03'
+        )
+        res = self.client.post('/api/finance/transactions/', {
+            'transaction_date': '2026-06-01',
+            'transaction_type': 'INCOME',
+            'amount': 300,
+            'description': 'Expired payment',
+            'student': str(self.student.id),
+            'class_name': 'Class 5',
+            'destination_account': 'AL_RAWA_BANK',
+            'fee_month': '2026-06',
+            'allocations': [{'feeScheduleId': str(fs2.id), 'amount': 300, 'period': '2026-06'}],
+        }, format='json')
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(Transaction.objects.count(), 0)
+
+    def test_payment_rejected_for_unassigned_fee(self):
+        fs2 = FeeSchedule.objects.create(
+            academic_year=self.year, school_class=self.klass, category='Lab Fee', amount=300,
+            frequency='MONTHLY', applicability='ASSIGNED_ONLY'
+        )
+        res = self.client.post('/api/finance/transactions/', {
+            'transaction_date': '2026-06-01',
+            'transaction_type': 'INCOME',
+            'amount': 300,
+            'description': 'Unassigned payment',
+            'student': str(self.student.id),
+            'class_name': 'Class 5',
+            'destination_account': 'AL_RAWA_BANK',
+            'fee_month': '2026-06',
+            'allocations': [{'feeScheduleId': str(fs2.id), 'amount': 300, 'period': '2026-06'}],
+        }, format='json')
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(Transaction.objects.count(), 0)
+
+    def test_payment_checks_fee_month_not_transaction_date(self):
+        fs2 = FeeSchedule.objects.create(
+            academic_year=self.year, school_class=self.klass, category='Lab Fee', amount=300,
+            frequency='MONTHLY', applicability='ASSIGNED_ONLY'
+        )
+        StudentFeeAssignment.objects.create(
+            student=self.student, fee_schedule=fs2, active=True,
+            starts_at='2026-01', ends_at='2026-03'
+        )
+        res = self.client.post('/api/finance/transactions/', {
+            'transaction_date': '2025-12-15',
+            'transaction_type': 'INCOME',
+            'amount': 300,
+            'description': 'Tx date before range, fee_month in range',
+            'student': str(self.student.id),
+            'class_name': 'Class 5',
+            'destination_account': 'AL_RAWA_BANK',
+            'fee_month': '2026-02',
+            'allocations': [{'feeScheduleId': str(fs2.id), 'amount': 300, 'period': '2026-02'}],
+        }, format='json')
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual(Transaction.objects.count(), 1)
+
+        res2 = self.client.post('/api/finance/transactions/', {
+            'transaction_date': '2026-02-01',
+            'transaction_type': 'INCOME',
+            'amount': 300,
+            'description': 'Tx date in range, fee_month after range',
+            'student': str(self.student.id),
+            'class_name': 'Class 5',
+            'destination_account': 'AL_RAWA_BANK',
+            'fee_month': '2026-06',
+            'allocations': [{'feeScheduleId': str(fs2.id), 'amount': 300, 'period': '2026-06'}],
+        }, format='json')
+        self.assertEqual(res2.status_code, 400)
 
     # ── Fee Waivers ──
 
@@ -242,7 +368,8 @@ class FinanceTests(TestCase):
         OpeningBalance.objects.create(fiscal_year=2026, account=self.bank_ar, amount=5000)
         res = self.client.get('/api/finance/opening-balances/')
         self.assertEqual(res.status_code, 200)
-        accounts = [item['account'] for item in res.data]
+        results = res.data['results'] if isinstance(res.data, dict) and 'results' in res.data else res.data
+        accounts = [item['account'] for item in results]
         self.assertIn('AL_RAWA_BANK', accounts)
 
     def test_opening_balance_history(self):
@@ -299,6 +426,70 @@ class FinanceTests(TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertEqual(len(res.data), 1)
 
+    def test_fee_status_excludes_unassigned_only(self):
+        assigned_fs = FeeSchedule.objects.create(
+            academic_year=self.year, school_class=self.klass,
+            category='Lab Fee', amount=300, frequency='MONTHLY', applicability='ASSIGNED_ONLY'
+        )
+        res = self.client.get(f'/api/finance/fee-status/?student_id={self.student.id}')
+        self.assertEqual(res.status_code, 200)
+        categories = [item['category'] for item in res.data]
+        self.assertNotIn('Lab Fee', categories)
+
+        StudentFeeAssignment.objects.create(
+            student=self.student, fee_schedule=assigned_fs, active=True,
+            starts_at='2026-01', ends_at='2026-12'
+        )
+        res = self.client.get(f'/api/finance/fee-status/?student_id={self.student.id}')
+        self.assertEqual(res.status_code, 200)
+        categories = [item['category'] for item in res.data]
+        self.assertIn('Lab Fee', categories)
+
+    def test_fee_status_excludes_expired_assignment(self):
+        assigned_fs = FeeSchedule.objects.create(
+            academic_year=self.year, school_class=self.klass,
+            category='Lab Fee', amount=300, frequency='MONTHLY', applicability='ASSIGNED_ONLY'
+        )
+        StudentFeeAssignment.objects.create(
+            student=self.student, fee_schedule=assigned_fs, active=True,
+            starts_at='2026-01', ends_at='2026-03'
+        )
+        res = self.client.get(f'/api/finance/fee-status/?student_id={self.student.id}&feeMonth=2026-06')
+        self.assertEqual(res.status_code, 200)
+        categories = [item['category'] for item in res.data]
+        self.assertNotIn('Lab Fee', categories)
+
+    def test_fee_status_shows_fee_in_month_range(self):
+        assigned_fs = FeeSchedule.objects.create(
+            academic_year=self.year, school_class=self.klass,
+            category='Lab Fee', amount=300, frequency='MONTHLY', applicability='ASSIGNED_ONLY'
+        )
+        StudentFeeAssignment.objects.create(
+            student=self.student, fee_schedule=assigned_fs, active=True,
+            starts_at='2026-01', ends_at='2026-03'
+        )
+        res = self.client.get(f'/api/finance/fee-status/?student_id={self.student.id}&feeMonth=2026-02&feeMonthTo=2026-02')
+        self.assertEqual(res.status_code, 200)
+        categories = [item['category'] for item in res.data]
+        self.assertIn('Lab Fee', categories)
+
+    def test_defaulter_excludes_expired_assignment(self):
+        assigned_fs = FeeSchedule.objects.create(
+            academic_year=self.year, school_class=self.klass,
+            category='Lab Fee', amount=300, frequency='MONTHLY', applicability='ASSIGNED_ONLY'
+        )
+        StudentFeeAssignment.objects.create(
+            student=self.student, fee_schedule=assigned_fs, active=True,
+            starts_at='2026-01', ends_at='2026-03'
+        )
+        res = self.client.get('/api/finance/defaulter/?year=2026&monthFrom=2026-04&monthTo=2026-06')
+        self.assertEqual(res.status_code, 200)
+        data = res.data
+        if data:
+            fees = data[0].get('fees', [])
+            fee_names = [f['name'] for f in fees]
+            self.assertNotIn('Lab Fee', fee_names)
+
     def test_fee_waivers_with_camelcase_params(self):
         FeeWaiver.objects.create(
             student=self.student, fee_schedule=self.fs,
@@ -306,7 +497,8 @@ class FinanceTests(TestCase):
         )
         res = self.client.get(f'/api/finance/fee-waivers/?studentId={self.student.id}&feeScheduleId={self.fs.id}&active=true')
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(len(res.data), 1)
+        results = res.data['results'] if isinstance(res.data, dict) and 'results' in res.data else res.data
+        self.assertEqual(len(results), 1)
 
     def test_fee_waivers_with_snake_case_params(self):
         FeeWaiver.objects.create(
@@ -315,7 +507,8 @@ class FinanceTests(TestCase):
         )
         res = self.client.get(f'/api/finance/fee-waivers/?student_id={self.student.id}&fee_schedule_id={self.fs.id}')
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(len(res.data), 1)
+        results = res.data['results'] if isinstance(res.data, dict) and 'results' in res.data else res.data
+        self.assertEqual(len(results), 1)
 
     def test_student_fee_assignments_with_camelcase(self):
         fs2 = FeeSchedule.objects.create(
@@ -327,7 +520,8 @@ class FinanceTests(TestCase):
         )
         res = self.client.get(f'/api/finance/student-fee-assignments/?feeScheduleId={fs2.id}&active=true')
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(len(res.data), 1)
+        results = res.data['results'] if isinstance(res.data, dict) and 'results' in res.data else res.data
+        self.assertEqual(len(results), 1)
 
     def test_dashboard_summary_with_camelcase_fiscal_year(self):
         Transaction.objects.create(
@@ -348,7 +542,8 @@ class FinanceTests(TestCase):
         OpeningBalance.objects.create(fiscal_year=2026, account=self.bank_ar, amount=5000)
         res = self.client.get('/api/finance/opening-balances/?fiscalYear=2026')
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(len(res.data), 1)
+        results = res.data['results'] if isinstance(res.data, dict) and 'results' in res.data else res.data
+        self.assertEqual(len(results), 1)
 
     def test_opening_balances_history_with_camelcase_fiscal_year(self):
         ob = OpeningBalance.objects.create(fiscal_year=2026, account=self.bank_ar, amount=5000)
@@ -402,3 +597,169 @@ class FinanceTests(TestCase):
         self.assertIn('isCancelled', res.data)
         self.assertEqual(res.data['sourceAccount'], None)
         self.assertEqual(res.data['destinationAccount'], 'AL_RAWA_BANK')
+
+    # ── Fee Status: month range filtering for ASSIGNED_ONLY fees ──
+
+    def test_fee_status_excludes_before_assignment_start(self):
+        """fee_month before assignment start -> fee should NOT show."""
+        fs = FeeSchedule.objects.create(
+            academic_year=self.year, school_class=self.klass,
+            category='Lab Fee', amount=300, frequency='MONTHLY', applicability='ASSIGNED_ONLY'
+        )
+        StudentFeeAssignment.objects.create(
+            student=self.student, fee_schedule=fs, active=True,
+            starts_at='2026-06', ends_at='2026-12'
+        )
+        res = self.client.get(f'/api/finance/fee-status/?student_id={self.student.id}&feeMonth=2026-05')
+        self.assertEqual(res.status_code, 200)
+        categories = [item['category'] for item in res.data]
+        self.assertNotIn('Lab Fee', categories)
+
+    def test_fee_status_includes_within_assignment_range(self):
+        """fee_month within assignment range -> fee should show with numMonths=1."""
+        fs = FeeSchedule.objects.create(
+            academic_year=self.year, school_class=self.klass,
+            category='Lab Fee', amount=300, frequency='MONTHLY', applicability='ASSIGNED_ONLY'
+        )
+        StudentFeeAssignment.objects.create(
+            student=self.student, fee_schedule=fs, active=True,
+            starts_at='2026-06', ends_at='2026-12'
+        )
+        res = self.client.get(f'/api/finance/fee-status/?student_id={self.student.id}&feeMonth=2026-06')
+        self.assertEqual(res.status_code, 200)
+        items = [item for item in res.data if item['category'] == 'Lab Fee']
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]['numMonths'], 1)
+        self.assertEqual(items[0]['expectedTotal'], 300.0)
+        self.assertEqual(items[0]['assignmentStart'], '2026-06')
+        self.assertEqual(items[0]['assignmentEnd'], '2026-12')
+
+    def test_fee_status_range_partial_overlap(self):
+        """Range May-July with assignment June-Dec -> fee shows with numMonths=2 (June, July)."""
+        fs = FeeSchedule.objects.create(
+            academic_year=self.year, school_class=self.klass,
+            category='Lab Fee', amount=300, frequency='MONTHLY', applicability='ASSIGNED_ONLY'
+        )
+        StudentFeeAssignment.objects.create(
+            student=self.student, fee_schedule=fs, active=True,
+            starts_at='2026-06', ends_at='2026-12'
+        )
+        res = self.client.get(
+            f'/api/finance/fee-status/?student_id={self.student.id}&feeMonth=2026-05&feeMonthTo=2026-07'
+        )
+        self.assertEqual(res.status_code, 200)
+        items = [item for item in res.data if item['category'] == 'Lab Fee']
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]['numMonths'], 2)
+        self.assertEqual(items[0]['expectedTotal'], 600.0)
+
+    def test_fee_status_range_no_overlap(self):
+        """Range Jan-Mar with assignment Jun-Dec -> fee should NOT show (0 valid months)."""
+        fs = FeeSchedule.objects.create(
+            academic_year=self.year, school_class=self.klass,
+            category='Lab Fee', amount=300, frequency='MONTHLY', applicability='ASSIGNED_ONLY'
+        )
+        StudentFeeAssignment.objects.create(
+            student=self.student, fee_schedule=fs, active=True,
+            starts_at='2026-06', ends_at='2026-12'
+        )
+        res = self.client.get(
+            f'/api/finance/fee-status/?student_id={self.student.id}&feeMonth=2026-01&feeMonthTo=2026-03'
+        )
+        self.assertEqual(res.status_code, 200)
+        categories = [item['category'] for item in res.data]
+        self.assertNotIn('Lab Fee', categories)
+
+    def test_fee_status_paid_calculation_with_range(self):
+        """Paid status should consider total expected for the valid months in range."""
+        fs = FeeSchedule.objects.create(
+            academic_year=self.year, school_class=self.klass,
+            category='Lab Fee', amount=300, frequency='MONTHLY', applicability='ASSIGNED_ONLY'
+        )
+        StudentFeeAssignment.objects.create(
+            student=self.student, fee_schedule=fs, active=True,
+            starts_at='2026-06', ends_at='2026-12'
+        )
+        # Student paid 300 for June only
+        Transaction.objects.create(
+            transaction_date='2026-06-01', transaction_type='INCOME',
+            amount=300, description='June fee', student=self.student,
+            destination_account=self.bank_ar, fiscal_year=2026,
+            fee_month='2026-06', category='Lab Fee'
+        )
+        # Query range June-July (2 valid months, expected 600, paid 300 -> not fully paid)
+        res = self.client.get(
+            f'/api/finance/fee-status/?student_id={self.student.id}&feeMonth=2026-06&feeMonthTo=2026-07'
+        )
+        self.assertEqual(res.status_code, 200)
+        items = [item for item in res.data if item['category'] == 'Lab Fee']
+        self.assertEqual(len(items), 1)
+        self.assertFalse(items[0]['paid'])
+        self.assertEqual(items[0]['numMonths'], 2)
+        self.assertEqual(items[0]['expectedTotal'], 600.0)
+
+    def test_fee_status_paid_when_fully_paid_in_range(self):
+        """Fee shows as paid when total paid >= expected for valid months."""
+        fs = FeeSchedule.objects.create(
+            academic_year=self.year, school_class=self.klass,
+            category='Lab Fee', amount=300, frequency='MONTHLY', applicability='ASSIGNED_ONLY'
+        )
+        StudentFeeAssignment.objects.create(
+            student=self.student, fee_schedule=fs, active=True,
+            starts_at='2026-06', ends_at='2026-12'
+        )
+        # Student paid 600 for June and July
+        Transaction.objects.create(
+            transaction_date='2026-06-01', transaction_type='INCOME',
+            amount=300, description='June fee', student=self.student,
+            destination_account=self.bank_ar, fiscal_year=2026,
+            fee_month='2026-06', category='Lab Fee'
+        )
+        Transaction.objects.create(
+            transaction_date='2026-07-01', transaction_type='INCOME',
+            amount=300, description='July fee', student=self.student,
+            destination_account=self.bank_ar, fiscal_year=2026,
+            fee_month='2026-07', category='Lab Fee'
+        )
+        # Query range June-July (2 valid months, expected 600, paid 600 -> fully paid)
+        res = self.client.get(
+            f'/api/finance/fee-status/?student_id={self.student.id}&feeMonth=2026-06&feeMonthTo=2026-07'
+        )
+        self.assertEqual(res.status_code, 200)
+        items = [item for item in res.data if item['category'] == 'Lab Fee']
+        self.assertEqual(len(items), 1)
+        self.assertTrue(items[0]['paid'])
+
+    def test_fee_status_single_month_after_assignment_end(self):
+        """fee_month after assignment end -> fee should NOT show."""
+        fs = FeeSchedule.objects.create(
+            academic_year=self.year, school_class=self.klass,
+            category='Lab Fee', amount=300, frequency='MONTHLY', applicability='ASSIGNED_ONLY'
+        )
+        StudentFeeAssignment.objects.create(
+            student=self.student, fee_schedule=fs, active=True,
+            starts_at='2026-01', ends_at='2026-03'
+        )
+        res = self.client.get(f'/api/finance/fee-status/?student_id={self.student.id}&feeMonth=2026-06')
+        self.assertEqual(res.status_code, 200)
+        categories = [item['category'] for item in res.data]
+        self.assertNotIn('Lab Fee', categories)
+
+    def test_fee_status_range_spans_entire_assignment(self):
+        """Range Jan-Dec with assignment Jun-Dec -> numMonths=7 (Jun-Dec)."""
+        fs = FeeSchedule.objects.create(
+            academic_year=self.year, school_class=self.klass,
+            category='Lab Fee', amount=300, frequency='MONTHLY', applicability='ASSIGNED_ONLY'
+        )
+        StudentFeeAssignment.objects.create(
+            student=self.student, fee_schedule=fs, active=True,
+            starts_at='2026-06', ends_at='2026-12'
+        )
+        res = self.client.get(
+            f'/api/finance/fee-status/?student_id={self.student.id}&feeMonth=2026-01&feeMonthTo=2026-12'
+        )
+        self.assertEqual(res.status_code, 200)
+        items = [item for item in res.data if item['category'] == 'Lab Fee']
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]['numMonths'], 7)
+        self.assertEqual(items[0]['expectedTotal'], 2100.0)
