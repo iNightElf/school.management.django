@@ -436,6 +436,10 @@ class TransactionViewSet(PeriodClosedMixin, viewsets.ModelViewSet):
             all_txs = all_txs.filter(transaction_date__lte=date_to)
 
         # STEP 3: COMPUTE FULL RUNNING BALANCE + TOTALS on ALL filtered rows
+        cancelled_ids = {tx.cancelled_by for tx in all_txs if tx.cancelled_by}
+        from accounts.models import User
+        cancelled_by_names = {str(u.id): u.name for u in User.objects.filter(id__in=cancelled_ids)} if cancelled_ids else {}
+
         running = opening_balance
         full_data = []
         total_debit = Decimal('0')
@@ -499,6 +503,7 @@ class TransactionViewSet(PeriodClosedMixin, viewsets.ModelViewSet):
                 'isCancelled': tx.is_cancelled,
                 'cancelledAt': tx.cancelled_at.isoformat() if tx.cancelled_at else None,
                 'cancelledBy': tx.cancelled_by,
+                'cancelledByName': cancelled_by_names.get(tx.cancelled_by, tx.cancelled_by) if tx.cancelled_by else None,
                 'cancelReason': tx.cancel_reason,
                 'reversalOfId': str(tx.reversal_of_id) if tx.reversal_of_id else None,
                 'status': status,

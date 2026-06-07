@@ -511,7 +511,8 @@ export function pdfLedger(entries: any[], account: string, dateFrom: string, dat
 
     doc.setFont('helvetica', 'normal'); doc.setFontSize(5); doc.setTextColor(130, 124, 114);
     doc.text((e.category || '—').substring(0, 16), cx, y + 3.5); cx += colW.cat;
-    doc.text((e.description || '—').substring(0, 44), cx, y + 3.5); cx += colW.desc;
+    const descText = isCancelled && e.cancelledByName ? `${(e.description || '—').substring(0, 36)} [by ${e.cancelledByName}]` : (e.description || '—');
+    doc.text(descText.substring(0, 50), cx, y + 3.5); cx += colW.desc;
     doc.text((e.studentName || '—').substring(0, 20), cx, y + 3.5); cx += colW.student;
     doc.text((e.className || '—').substring(0, 14), cx, y + 3.5); cx += colW.class;
 
@@ -567,7 +568,7 @@ export function buildLedgerPrintHtml(entries: any[], account: string, dateFrom: 
       <td>${e.entryDate || '—'}</td>
       <td><span class="${typeClass}">${typeLabel}</span></td>
       <td>${e.category || '—'}</td>
-      <td>${e.description || '—'}</td>
+      <td>${e.status === 'Cancelled' && e.cancelledByName ? `${e.description || '—'} <span class="cancel-by">by ${e.cancelledByName}</span>` : (e.description || '—')}</td>
       <td>${e.studentName || '—'}</td>
       <td>${e.className || '—'}</td>
       <td class="debit">${debit ? fmt(debit) : ''}</td>
@@ -592,6 +593,7 @@ export function buildLedgerPrintHtml(entries: any[], account: string, dateFrom: 
   .debit{color:#166634;font-weight:bold;text-align:right}.credit{color:#b91c1c;font-weight:bold;text-align:right}.balance{font-weight:bold;text-align:right;font-family:monospace}
   .type-income{color:#166634;font-weight:bold}.type-expense{color:#b91c1c;font-weight:bold}.type-internal_transfer,.type-xfer{color:#1e40af;font-weight:bold}
   .cancelled{background:#fef2f2;color:#b91c1c;text-decoration:line-through;opacity:0.7}
+  .cancel-by{font-size:8px;color:#b91c1c;text-decoration:none;font-style:italic}
   .reversal{background:#f5f3ff;color:#7e22ce}
   .status{font-weight:bold;text-align:center;font-size:9px}
   .status-active{color:#166634}.status-cancelled{color:#b91c1c}.status-reversal{color:#7e22ce}

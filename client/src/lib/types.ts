@@ -145,6 +145,7 @@ export interface LedgerEntry {
   isCancelled: boolean;
   cancelledAt: string | null;
   cancelledBy: string | null;
+  cancelledByName: string | null;
   cancelReason: string | null;
   reversalOfId: string | null;
   status: string;

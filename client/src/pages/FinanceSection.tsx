@@ -258,6 +258,9 @@ function Ledger({ fmt, fetchFinance, fetchFeeSchedules, fetchDashboardSummary, r
                   <span className={`text-[9px] font-bold ${entry.status === 'Active' ? 'text-emerald-600' : entry.status === 'Cancelled' ? 'text-rose-500' : 'text-purple-600'}`}>
                     {entry.status === 'Active' ? 'OK' : entry.status === 'Cancelled' ? 'X' : 'R'}
                   </span>
+                  {entry.status === 'Cancelled' && entry.cancelledByName && (
+                    <div className="text-[8px] text-rose-400 mt-0.5" title={entry.cancelReason || ''}>by {entry.cancelledByName}</div>
+                  )}
                 </td>
                 {canWrite && <td className="px-3 py-2.5 text-center">
                   {entry.status === 'Active' ? (
