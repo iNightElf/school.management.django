@@ -1,0 +1,33 @@
+# Environment
+.env
+.env.*
+!.env.example
+pgpass.txt
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Django
+db.sqlite3
+media/
+
+# Node
+node_modules/
+client/.vite/
+client/dist/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
