@@ -12,6 +12,7 @@ from finance.models import (
     ReceiptCounter, BankAccount, AccountBalance, StudentFeeAssignment,
     OpeningBalance,
 )
+from core.models import AcademicYear
 from students.models import Student
 from finance.serializers import (
     TransactionSerializer, TransactionCancelSerializer
@@ -764,7 +765,17 @@ class TransactionViewSet(PeriodClosedMixin, viewsets.ModelViewSet):
         fee_category = _param(request, 'fee_category', 'feeCategory')
         month_from = _param(request, 'month_from', 'monthFrom')
         month_to = _param(request, 'month_to', 'monthTo')
-        year_str = _param(request, 'year') or str(timezone.now().year)
+        year_str = _param(request, 'year')
+        if year_str:
+            exact = AcademicYear.objects.filter(name=year_str).first()
+            if exact:
+                year_str = exact.name
+            else:
+                match = AcademicYear.objects.filter(name__icontains=year_str).first()
+                year_str = match.name if match else year_str
+        else:
+            active_year = AcademicYear.objects.filter(is_active=True).first()
+            year_str = active_year.name if active_year else str(timezone.now().year)
 
         students_qs = Student.objects.filter(deleted_at__isnull=True)
         if class_name:

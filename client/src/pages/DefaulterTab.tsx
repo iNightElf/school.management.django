@@ -4,22 +4,12 @@ import { toast } from '../components/Toast';
 import { AlertTriangle, Download, Printer, Check, X } from 'lucide-react';
 import { defaulterPDF } from '../lib/defaulterPdf';
 import { getMonthNameShort, fmt } from '../lib/financeReportPdf';
+import DatePicker from '../components/DatePicker';
 import type { DefaulterStudent, DefaulterFee } from '../lib/types';
 
 function shortName(s: string) {
   const p = s.trim().split(/\s+/);
   return p.length > 2 ? p.slice(0, 2).join(' ') : s;
-}
-
-function buildMonthOptions(): { value: string; label: string }[] {
-  const now = new Date();
-  const months: { value: string; label: string }[] = [];
-  for (let i = 0; i < 18; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const v = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    months.push({ value: v, label: `${getMonthNameShort(d.getMonth())} ${d.getFullYear()}` });
-  }
-  return months;
 }
 
 function buildMonthRange(from: string, to: string): string[] {
@@ -44,8 +34,6 @@ function findMonthlyFee(fees: DefaulterFee[], name: string, month: string) {
   return fee?.months?.find(m => m.month === month) || null;
 }
 
-const MONTH_OPTIONS = buildMonthOptions();
-
 export default function DefaulterTab() {
   const { classes, students, feeSchedules, fetchClasses, fetchStudents, fetchFeeSchedules } = useSchoolStore();
 
@@ -63,7 +51,6 @@ export default function DefaulterTab() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
-  const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
 
   useEffect(() => { fetchClasses(); fetchStudents(); fetchFeeSchedules(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -76,13 +63,13 @@ export default function DefaulterTab() {
     if (filterFee) params.feeCategory = filterFee;
     params.monthFrom = monthFrom;
     params.monthTo = monthTo;
-    params.year = yearFilter;
+    params.year = monthTo.split('-')[0];
     api.get('/finance/defaulter', { params, signal: controller.signal })
       .then(res => setData(res.data.results || res.data.data || res.data))
       .catch(() => { if (!controller.signal.aborted) toast('Failed to load defaulter data', 'error'); })
       .finally(() => setLoading(false));
     return () => controller.abort();
-  }, [filterClass, filterStudent, filterFee, monthFrom, monthTo, yearFilter]);
+  }, [filterClass, filterStudent, filterFee, monthFrom, monthTo]);
 
   const filtered = useMemo(() =>
     filterFee ? data.filter(r => r.fees.some(f => f.name === filterFee)) : data,
@@ -109,7 +96,7 @@ export default function DefaulterTab() {
 
   const colCount = 1 + yearlyFeeNames.length + (hasMonthly ? monthRange.length * monthlyFeeNames.length : 0) + 3;
 
-  const subtitle = `${getMonthNameShort(Number(monthFrom.split('-')[1]) - 1)} ${monthFrom.split('-')[0]} — ${getMonthNameShort(Number(monthTo.split('-')[1]) - 1)} ${monthTo.split('-')[0]}  |  Year ${yearFilter}`;
+  const subtitle = `${getMonthNameShort(Number(monthFrom.split('-')[1]) - 1)} ${monthFrom.split('-')[0]} — ${getMonthNameShort(Number(monthTo.split('-')[1]) - 1)} ${monthTo.split('-')[0]}`;
 
   function handlePrint() {
     const el = document.getElementById('defaulter-print-area');
@@ -205,18 +192,8 @@ export default function DefaulterTab() {
         </FilterSelect>
 
         <div className="border-l border-school-border pl-4 flex gap-3 items-end">
-          <FilterSelect label="Month From" value={monthFrom} onChange={setMonthFrom}>
-            {MONTH_OPTIONS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-          </FilterSelect>
-          <FilterSelect label="Month To" value={monthTo} onChange={setMonthTo}>
-            {MONTH_OPTIONS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-          </FilterSelect>
-          <FilterSelect label="Year" value={yearFilter} onChange={setYearFilter}>
-            {[0, 1, 2].map(i => {
-              const y = new Date().getFullYear() - i;
-              return <option key={y} value={y}>{y}</option>;
-            })}
-          </FilterSelect>
+          <DatePicker type="month" value={monthFrom} onChange={setMonthFrom} label="Month From" />
+          <DatePicker type="month" value={monthTo} onChange={setMonthTo} label="Month To" />
         </div>
 
         <div className="ml-auto flex gap-6 text-right">
