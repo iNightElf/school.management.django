@@ -44,42 +44,118 @@ function subtitleForRange(dateFrom: string, dateTo: string) {
   return `${getMonthName(Number(dateFrom.split('-')[1]) - 1)} ${dateFrom.split('-')[0]} — ${getMonthName(Number(dateTo.split('-')[1]) - 1)} ${dateTo.split('-')[0]}`;
 }
 
-export function pdfHeadwiseIncome(categories: { category: string; total: number; count: number; uniqueStudents: number }[], grandTotal: number, dateFrom: string, dateTo: string) {
+export function pdfIncomeReport(
+  hwData: { category: string; total: number; count: number; uniqueStudents: number }[],
+  grandTotal: number, data: any[], dateFrom: string, dateTo: string,
+) {
   const doc = new jsPDF({ format: 'a4', unit: 'mm' });
-  let y = addHeader(doc, 'HEADWISE INCOME REPORT', subtitleForRange(dateFrom, dateTo), 10);
+  let y = addHeader(doc, 'INCOME REPORT', subtitleForRange(dateFrom, dateTo), 10);
+
+  // ── SECTION 1: Headwise Summary ──
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(26, 26, 46);
+  doc.text('Income by Category', 12, y); y += 6;
 
   doc.setFillColor(26, 26, 46); doc.rect(12, y, 186, 7, 'F');
   doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(255, 255, 255);
-  doc.text('Category', 14, y + 4.5); doc.text('Amount', 120, y + 4.5, { align: 'right' }); doc.text('% Share', 160, y + 4.5, { align: 'right' }); doc.text('Count', 186, y + 4.5, { align: 'right' });
+  doc.text('Category', 14, y + 4.5); doc.text('Amount', 110, y + 4.5, { align: 'right' }); doc.text('% Share', 150, y + 4.5, { align: 'right' }); doc.text('Txns', 172, y + 4.5, { align: 'right' }); doc.text('Students', 186, y + 4.5, { align: 'right' });
   y += 7;
 
-  categories.forEach(({ category: cat, total: amt, count }, i) => {
+  hwData.forEach(({ category: cat, total: amt, count, uniqueStudents }, i) => {
     const pct = grandTotal > 0 ? ((amt / grandTotal) * 100).toFixed(1) : '0';
     if (i % 2 === 0) { doc.setFillColor(255, 253, 247); doc.rect(12, y, 186, 6, 'F'); }
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(26, 26, 46);
-    doc.text(cat, 14, y + 4); doc.text(fmt(amt), 120, y + 4, { align: 'right' });
-    doc.text(`${pct}%`, 160, y + 4, { align: 'right' }); doc.text(String(count), 186, y + 4, { align: 'right' });
+    doc.text(cat, 14, y + 4); doc.text(fmt(amt), 110, y + 4, { align: 'right' });
+    doc.text(`${pct}%`, 150, y + 4, { align: 'right' }); doc.text(String(count), 172, y + 4, { align: 'right' });
+    doc.text(String(uniqueStudents || '—'), 186, y + 4, { align: 'right' });
     y += 6;
   });
 
   doc.setFillColor(240, 235, 225); doc.rect(12, y, 186, 7, 'F');
   doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(26, 26, 46);
   doc.text(`TOTAL INCOME: ${fmt(grandTotal)} /-`, 14, y + 4.5);
-  doc.text(`${categories.length} categories`, 186, y + 4.5, { align: 'right' });
+  doc.text(`${hwData.length} categories  ·  ${data.length} transactions`, 186, y + 4.5, { align: 'right' });
+  y += 14;
 
-  doc.save(`Headwise_Income_${dateFrom}_to_${dateTo}.pdf`);
+  // ── SECTION 2: Monthly Detail ──
+  if (y > 200) { doc.addPage(); y = 14; }
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(26, 26, 46);
+  doc.text('Monthly Income Detail', 12, y); y += 6;
+
+  if (!data.length) {
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(130, 124, 114);
+    doc.text('No transactions for this period.', 12, y + 6);
+    doc.save(`Income_Report_${dateFrom}_to_${dateTo}.pdf`);
+    return;
+  }
+
+  const M = 12, PW = 186;
+  const dateW = 24, classW = 28, studentW = 38, catW = 32, amtW = 24, balW = 24;
+  const headerH = 7, rowH = 5;
+  const catX = M + dateW + classW + studentW;
+  const amtX = catX + catW;
+  const balX = amtX + amtW;
+
+  const sorted = [...data].sort((a, b) => new Date(a.transactionDate).getTime() - new Date(b.transactionDate).getTime());
+
+  let running = 0;
+
+  function drawDetailHeader() {
+    doc.setFillColor(26, 26, 46); doc.rect(M, y, PW, headerH, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(6.5); doc.setTextColor(255, 255, 255);
+    doc.text('Date', M + 2, y + 4.5);
+    doc.text('Class', M + dateW + 2, y + 4.5);
+    doc.text('Student', M + dateW + classW + 2, y + 4.5);
+    doc.text('Category', catX + 2, y + 4.5);
+    doc.text('Amount', amtX + amtW - 2, y + 4.5, { align: 'right' });
+    doc.text('Running', balX + balW - 2, y + 4.5, { align: 'right' });
+    y += headerH;
+  }
+
+  drawDetailHeader();
+
+  sorted.forEach((t, i) => {
+    if (y > 270) { doc.addPage(); y = 14; drawDetailHeader(); }
+    if (i % 2 === 0) { doc.setFillColor(255, 253, 247); doc.rect(M, y, PW, rowH, 'F'); }
+
+    const dateStr = new Date(t.transactionDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    running += Number(t.amount);
+
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(6.5);
+    doc.setTextColor(80, 80, 80); doc.text(dateStr, M + 2, y + 3.5);
+    doc.setTextColor(26, 26, 46); doc.text((t.className || '—').substring(0, 16), M + dateW + 2, y + 3.5);
+    doc.setTextColor(26, 26, 46); doc.text((t.studentName || '—').substring(0, 24), M + dateW + classW + 2, y + 3.5);
+    doc.setTextColor(130, 124, 114); doc.text((t.category || 'Uncategorized').substring(0, 18), catX + 2, y + 3.5);
+    doc.setTextColor(22, 101, 52); doc.text(fmt(Number(t.amount)) + ' /-', amtX + amtW - 2, y + 3.5, { align: 'right' });
+    doc.setTextColor(130, 124, 114); doc.text(fmt(running) + ' /-', balX + balW - 2, y + 3.5, { align: 'right' });
+    y += rowH;
+  });
+
+  if (y > 260) { doc.addPage(); y = 14; }
+  doc.setFillColor(26, 26, 46); doc.rect(M, y, PW, 8, 'F');
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(255, 255, 255);
+  doc.text(`TOTAL (${sorted.length} transactions)`, M + 2, y + 5.5);
+  doc.text(fmt(running) + ' /-', balX + balW - 2, y + 5.5, { align: 'right' });
+
+  doc.save(`Income_Report_${dateFrom}_to_${dateTo}.pdf`);
 }
 
-export function pdfHeadwiseExpense(categories: { category: string; total: number; count: number }[], grandTotal: number, dateFrom: string, dateTo: string) {
+export function pdfExpenseReport(
+  hwData: { category: string; total: number; count: number }[],
+  grandTotal: number, data: any[], dateFrom: string, dateTo: string,
+) {
   const doc = new jsPDF({ format: 'a4', unit: 'mm' });
-  let y = addHeader(doc, 'HEADWISE EXPENSE REPORT', subtitleForRange(dateFrom, dateTo), 10);
+  let y = addHeader(doc, 'EXPENSE REPORT', subtitleForRange(dateFrom, dateTo), 10);
+
+  // ── SECTION 1: Headwise Summary ──
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(26, 26, 46);
+  doc.text('Expense by Category', 12, y); y += 6;
 
   doc.setFillColor(26, 26, 46); doc.rect(12, y, 186, 7, 'F');
   doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(255, 255, 255);
   doc.text('Category', 14, y + 4.5); doc.text('Amount', 120, y + 4.5, { align: 'right' }); doc.text('% Share', 160, y + 4.5, { align: 'right' }); doc.text('Count', 186, y + 4.5, { align: 'right' });
   y += 7;
 
-  categories.forEach(({ category: cat, total: amt, count }, i) => {
+  hwData.forEach(({ category: cat, total: amt, count }, i) => {
     const pct = grandTotal > 0 ? ((amt / grandTotal) * 100).toFixed(1) : '0';
     if (i % 2 === 0) { doc.setFillColor(255, 253, 247); doc.rect(12, y, 186, 6, 'F'); }
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(26, 26, 46);
@@ -91,82 +167,69 @@ export function pdfHeadwiseExpense(categories: { category: string; total: number
   doc.setFillColor(240, 235, 225); doc.rect(12, y, 186, 7, 'F');
   doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(26, 26, 46);
   doc.text(`TOTAL EXPENSE: ${fmt(grandTotal)} /-`, 14, y + 4.5);
-  doc.text(`${categories.length} categories`, 186, y + 4.5, { align: 'right' });
+  doc.text(`${hwData.length} categories  ·  ${data.length} transactions`, 186, y + 4.5, { align: 'right' });
+  y += 14;
 
-  doc.save(`Headwise_Expense_${dateFrom}_to_${dateTo}.pdf`);
-}
-
-export function pdfMonthly(type: 'income' | 'expense', data: any[], _precomputedTotal: number, dateFrom: string, dateTo: string) {
-  const doc = new jsPDF({ format: 'a4', unit: 'mm' });
-  const title = type === 'income' ? 'MONTHLY INCOME REPORT' : 'MONTHLY EXPENSE REPORT';
-  let y = addHeader(doc, title, subtitleForRange(dateFrom, dateTo), 10);
+  // ── SECTION 2: Monthly Detail ──
+  if (y > 200) { doc.addPage(); y = 14; }
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(26, 26, 46);
+  doc.text('Monthly Expense Detail', 12, y); y += 6;
 
   if (!data.length) {
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(130, 124, 114);
-    doc.text('No data for this period.', 12, y + 10);
-    doc.save(`${title.replace(/ /g, '_')}_${dateFrom}_to_${dateTo}.pdf`);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(130, 124, 114);
+    doc.text('No transactions for this period.', 12, y + 6);
+    doc.save(`Expense_Report_${dateFrom}_to_${dateTo}.pdf`);
     return;
   }
 
   const M = 12, PW = 186;
-  const dateW = 26, descW = 80, catW = 32, amtW = 24, balW = 24;
+  const dateW = 24, catW = 32, descW = 80, amtW = 24, balW = 24;
   const headerH = 7, rowH = 5;
-  const amountColor: [number, number, number] = type === 'income' ? [22, 101, 52] : [185, 28, 28];
-  const catX = M + dateW + descW;
-  const amtX = catX + catW;
+  const catX = M + dateW + catW;
+  const descX = catX;
+  const amtX = M + dateW + catW + descW;
   const balX = amtX + amtW;
 
-  // Sort all transactions by date (flat list, no grouping)
   const sorted = [...data].sort((a, b) => new Date(a.transactionDate).getTime() - new Date(b.transactionDate).getTime());
 
-  let grandTotal = 0;
+  let running = 0;
 
-  function drawTableHeader() {
-    doc.setFillColor(26, 26, 46);
-    doc.rect(M, y, PW, headerH, 'F');
+  function drawDetailHeader() {
+    doc.setFillColor(26, 26, 46); doc.rect(M, y, PW, headerH, 'F');
     doc.setFont('helvetica', 'bold'); doc.setFontSize(6.5); doc.setTextColor(255, 255, 255);
     doc.text('Date', M + 2, y + 4.5);
-    doc.text('Class / Student', M + dateW + 2, y + 4.5);
-    doc.text('Category', catX + 2, y + 4.5);
+    doc.text('Category', M + dateW + 2, y + 4.5);
+    doc.text('Description', descX + catW + 2, y + 4.5);
     doc.text('Amount', amtX + amtW - 2, y + 4.5, { align: 'right' });
     doc.text('Running', balX + balW - 2, y + 4.5, { align: 'right' });
     y += headerH;
   }
 
-  drawTableHeader();
+  drawDetailHeader();
 
   sorted.forEach((t, i) => {
-    if (y > 270) { doc.addPage(); y = 14; drawTableHeader(); }
+    if (y > 270) { doc.addPage(); y = 14; drawDetailHeader(); }
     if (i % 2 === 0) { doc.setFillColor(255, 253, 247); doc.rect(M, y, PW, rowH, 'F'); }
 
     const dateStr = new Date(t.transactionDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-    const studentName = t.student?.name || '';
-    const classStudent = [t.className || '', studentName].filter(Boolean).join(' / ') || t.description || `${(t.sourceAccount || '').replace(/_/g, ' ')} -> ${(t.destinationAccount || '').replace(/_/g, ' ')}`;
-    grandTotal += Number(t.amount);
+    running += Number(t.amount);
 
     doc.setFont('helvetica', 'normal'); doc.setFontSize(6.5);
-    doc.setTextColor(80, 80, 80);
-    doc.text(dateStr, M + 2, y + 3.5);
-    doc.setTextColor(26, 26, 46);
-    doc.text(classStudent.substring(0, 38), M + dateW + 2, y + 3.5);
-    doc.setTextColor(130, 124, 114);
-    doc.text((t.category || 'Uncategorized').substring(0, 18), catX + 2, y + 3.5);
-    doc.setTextColor(...amountColor);
-    doc.text(fmt(Number(t.amount)) + ' /-', amtX + amtW - 2, y + 3.5, { align: 'right' });
-    doc.setTextColor(130, 124, 114);
-    doc.text(fmt(grandTotal) + ' /-', balX + balW - 2, y + 3.5, { align: 'right' });
+    doc.setTextColor(80, 80, 80); doc.text(dateStr, M + 2, y + 3.5);
+    doc.setTextColor(26, 26, 46); doc.text((t.category || 'Uncategorized').substring(0, 18), M + dateW + 2, y + 3.5);
+    doc.setTextColor(130, 124, 114); doc.text((t.description || '—').substring(0, 50), descX + catW + 2, y + 3.5);
+    doc.setTextColor(185, 28, 28); doc.text(fmt(Number(t.amount)) + ' /-', amtX + amtW - 2, y + 3.5, { align: 'right' });
+    doc.setTextColor(130, 124, 114); doc.text(fmt(running) + ' /-', balX + balW - 2, y + 3.5, { align: 'right' });
     y += rowH;
   });
 
-  // Grand total
   if (y > 260) { doc.addPage(); y = 14; }
-  doc.setFillColor(26, 26, 46);
-  doc.rect(M, y, PW, 8, 'F');
+  doc.setFillColor(26, 26, 46); doc.rect(M, y, PW, 8, 'F');
   doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(255, 255, 255);
   doc.text(`TOTAL (${sorted.length} transactions)`, M + 2, y + 5.5);
-  doc.text(fmt(grandTotal) + ' /-', balX + balW - 2, y + 5.5, { align: 'right' });
+  doc.text(fmt(running) + ' /-', balX + balW - 2, y + 5.5, { align: 'right' });
 
-  doc.save(`${title.replace(/ /g, '_')}_${dateFrom}_to_${dateTo}.pdf`);
+  doc.save(`Expense_Report_${dateFrom}_to_${dateTo}.pdf`);
 }
 
 export function pdfAudit(data: { totalIncome: number; totalExpense: number; netSurplus: number; incomeByCategory: [string, number][]; expenseByCategory: [string, number][] }, yearFilter: string) {

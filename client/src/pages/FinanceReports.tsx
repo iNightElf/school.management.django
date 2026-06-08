@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { useSchoolStore, api } from '../store';
-import { FileText, Calendar, BarChart3, Scale, Users, Loader } from 'lucide-react';
+import { Calendar, BarChart3, Scale, Users, Loader } from 'lucide-react';
 import { toast } from '../components/Toast';
 import ExportMenu from '../components/ExportMenu';
-import { getMonthName, fmt, headwise, pdfHeadwiseIncome, pdfHeadwiseExpense, pdfMonthly, pdfAudit, pdfYearlyAGM } from '../lib/financeReportPdf';
+import { getMonthName, fmt, headwise, pdfIncomeReport, pdfExpenseReport, pdfAudit, pdfYearlyAGM } from '../lib/financeReportPdf';
 import { FISCAL_YEAR_START_MONTH, FISCAL_START_LABEL, FISCAL_END_LABEL } from '../lib/config';
 
 
-type ReportTab = 'headwise-income' | 'headwise-expense' | 'monthly-income' | 'monthly-expense' | 'audit' | 'yearly-agm';
+type ReportTab = 'income-report' | 'expense-report' | 'audit' | 'yearly-agm';
 
 function downloadCSV(filename: string, headers: string[], rows: any[][]) {
   const csv = [headers.join(','), ...rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(','))].join('\n');
@@ -31,10 +31,8 @@ async function downloadExcel(filename: string, headers: string[], rows: any[][])
 }
 
 const REPORT_TABS: { key: ReportTab; label: string; icon: ReactNode }[] = [
-  { key: 'headwise-income', label: 'Headwise Income', icon: <BarChart3 size={14} /> },
-  { key: 'headwise-expense', label: 'Headwise Expense', icon: <BarChart3 size={14} /> },
-  { key: 'monthly-income', label: 'Monthly Income', icon: <FileText size={14} /> },
-  { key: 'monthly-expense', label: 'Monthly Expense', icon: <FileText size={14} /> },
+  { key: 'income-report', label: 'Income Report', icon: <BarChart3 size={14} /> },
+  { key: 'expense-report', label: 'Expense Report', icon: <BarChart3 size={14} /> },
   { key: 'audit', label: 'Audit Report', icon: <Scale size={14} /> },
   { key: 'yearly-agm', label: 'Yearly AGM', icon: <Users size={14} /> },
 ];
@@ -70,7 +68,7 @@ function printDiv(id: string) {
 const FinanceReports = () => {
   useEffect(() => { document.title = 'Finance Reports - AL RAWA English School'; }, []);
   const { transactions, fetchTransactions, fetchStudents, fetchFinance, fetchOpeningBalances, setOpeningBalances, openingBalancesHistory, fetchOpeningBalanceHistory, revertOpeningBalance } = useSchoolStore();
-  const [tab, setTab] = useState<ReportTab>('headwise-income');
+  const [tab, setTab] = useState<ReportTab>('income-report');
   const [dateFrom, setDateFrom] = useState(() => { const d = new Date(); d.setMonth(d.getMonth() - 3); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; });
   const [dateTo, setDateTo] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; });
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
@@ -158,43 +156,29 @@ const FinanceReports = () => {
 
 
   const handleCsv = () => {
-    if (tab === 'headwise-income') {
-      const rows = headwise(incomeTx).map(([cat, amt]: [string, number]) => [cat, fmt(amt), incomeTx.filter((t: any) => (t.category || 'Uncategorized') === cat).length]);
-      downloadCSV(`Headwise_Income_${dateFrom}_${dateTo}.csv`, ['Category', 'Amount', 'Count'], rows);
-    } else if (tab === 'headwise-expense') {
-      const rows = headwise(expenseTx).map(([cat, amt]: [string, number]) => [cat, fmt(amt), expenseTx.filter((t: any) => (t.category || 'Uncategorized') === cat).length]);
-      downloadCSV(`Headwise_Expense_${dateFrom}_${dateTo}.csv`, ['Category', 'Amount', 'Count'], rows);
-    } else if (tab === 'monthly-income') {
-      const sorted = [...incomeTx].sort((a: any, b: any) => new Date(a.transactionDate).getTime() - new Date(b.transactionDate).getTime());
-      const rows = sorted.map((t: any) => [fmtDate(t.transactionDate), t.className || '', t.studentName || '', t.category || 'Uncategorized', fmt(Number(t.amount))]);
-      downloadCSV(`Monthly_Income_${dateFrom}_${dateTo}.csv`, ['Date', 'Class', 'Student', 'Category', 'Amount'], rows);
-    } else if (tab === 'monthly-expense') {
-      const sorted = [...expenseTx].sort((a: any, b: any) => new Date(a.transactionDate).getTime() - new Date(b.transactionDate).getTime());
-      const rows = sorted.map((t: any) => [fmtDate(t.transactionDate), t.category || 'Uncategorized', t.description || '', fmt(Number(t.amount))]);
-      downloadCSV(`Monthly_Expense_${dateFrom}_${dateTo}.csv`, ['Date', 'Category', 'Description', 'Amount'], rows);
+    if (tab === 'income-report') {
+      const hwRows = headwise(incomeTx).map(([cat, amt]: [string, number]) => [cat, fmt(amt), incomeTx.filter((t: any) => (t.category || 'Uncategorized') === cat).length]);
+      downloadCSV(`Income_Report_${dateFrom}_${dateTo}.csv`, ['Category', 'Amount', 'Count'], hwRows);
+      toast('CSV downloaded ✓', 'success');
+    } else if (tab === 'expense-report') {
+      const hwRows = headwise(expenseTx).map(([cat, amt]: [string, number]) => [cat, fmt(amt), expenseTx.filter((t: any) => (t.category || 'Uncategorized') === cat).length]);
+      downloadCSV(`Expense_Report_${dateFrom}_${dateTo}.csv`, ['Category', 'Amount', 'Count'], hwRows);
+      toast('CSV downloaded ✓', 'success');
     } else if (tab === 'audit' || tab === 'yearly-agm') {
       const incRows = headwise(yearIncome).map(([cat, amt]: [string, number]) => ['Income', cat, fmt(amt)]);
       const expRows = headwise(yearExpense).map(([cat, amt]: [string, number]) => ['Expense', cat, fmt(amt)]);
       downloadCSV(`Annual_Report_${yearFilter}.csv`, ['Type', 'Category', 'Amount'], [...incRows, ...expRows]);
+      toast('CSV downloaded ✓', 'success');
     }
-    toast('CSV downloaded ✓', 'success');
   };
 
   const handleExcel = async () => {
-    if (tab === 'headwise-income') {
+    if (tab === 'income-report') {
       const rows = headwise(incomeTx).map(([cat, amt]: [string, number]) => [cat, Number(amt), incomeTx.filter((t: any) => (t.category || 'Uncategorized') === cat).length]);
-      downloadExcel(`Headwise_Income_${dateFrom}_${dateTo}.xlsx`, ['Category', 'Amount', 'Count'], rows);
-    } else if (tab === 'headwise-expense') {
+      downloadExcel(`Income_Report_${dateFrom}_${dateTo}.xlsx`, ['Category', 'Amount', 'Count'], rows);
+    } else if (tab === 'expense-report') {
       const rows = headwise(expenseTx).map(([cat, amt]: [string, number]) => [cat, Number(amt), expenseTx.filter((t: any) => (t.category || 'Uncategorized') === cat).length]);
-      downloadExcel(`Headwise_Expense_${dateFrom}_${dateTo}.xlsx`, ['Category', 'Amount', 'Count'], rows);
-    } else if (tab === 'monthly-income') {
-      const sorted = [...incomeTx].sort((a: any, b: any) => new Date(a.transactionDate).getTime() - new Date(b.transactionDate).getTime());
-      const rows = sorted.map((t: any) => [fmtDate(t.transactionDate), t.className || '', t.studentName || '', t.category || 'Uncategorized', Number(t.amount)]);
-      downloadExcel(`Monthly_Income_${dateFrom}_${dateTo}.xlsx`, ['Date', 'Class', 'Student', 'Category', 'Amount'], rows);
-    } else if (tab === 'monthly-expense') {
-      const sorted = [...expenseTx].sort((a: any, b: any) => new Date(a.transactionDate).getTime() - new Date(b.transactionDate).getTime());
-      const rows = sorted.map((t: any) => [fmtDate(t.transactionDate), t.category || 'Uncategorized', t.description || '', Number(t.amount)]);
-      downloadExcel(`Monthly_Expense_${dateFrom}_${dateTo}.xlsx`, ['Date', 'Category', 'Description', 'Amount'], rows);
+      downloadExcel(`Expense_Report_${dateFrom}_${dateTo}.xlsx`, ['Category', 'Amount', 'Count'], rows);
     } else if (tab === 'audit' || tab === 'yearly-agm') {
       const incRows = headwise(yearIncome).map(([cat, amt]: [string, number]) => ['Income', cat, Number(amt)]);
       const expRows = headwise(yearExpense).map(([cat, amt]: [string, number]) => ['Expense', cat, Number(amt)]);
@@ -205,7 +189,7 @@ const FinanceReports = () => {
 
   const handlePdf = () => {
     try {
-      if (tab === 'headwise-income') {
+      if (tab === 'income-report') {
         const hw = headwise(incomeTx);
         const categories = hw.map(([cat, amt]) => ({
           category: cat,
@@ -214,9 +198,9 @@ const FinanceReports = () => {
           uniqueStudents: new Set(incomeTx.filter((t: any) => (t.category || 'Uncategorized') === cat && t.studentName).map((t: any) => t.studentName)).size,
         }));
         const grandTotal = hw.reduce((s: number, x: [string, number]) => s + x[1], 0);
-        pdfHeadwiseIncome(categories, grandTotal, dateFrom, dateTo);
+        pdfIncomeReport(categories, grandTotal, incomeTx, dateFrom, dateTo);
       }
-      else if (tab === 'headwise-expense') {
+      else if (tab === 'expense-report') {
         const hw = headwise(expenseTx);
         const categories = hw.map(([cat, amt]) => ({
           category: cat,
@@ -224,15 +208,7 @@ const FinanceReports = () => {
           count: expenseTx.filter((t: any) => (t.category || 'Uncategorized') === cat).length,
         }));
         const grandTotal = hw.reduce((s: number, x: [string, number]) => s + x[1], 0);
-        pdfHeadwiseExpense(categories, grandTotal, dateFrom, dateTo);
-      }
-      else if (tab === 'monthly-income') {
-        const totalIncome = incomeTx.reduce((s: number, t: any) => s + Number(t.amount), 0);
-        pdfMonthly('income', incomeTx, totalIncome, dateFrom, dateTo);
-      }
-      else if (tab === 'monthly-expense') {
-        const totalExpense = expenseTx.reduce((s: number, t: any) => s + Number(t.amount), 0);
-        pdfMonthly('expense', expenseTx, totalExpense, dateFrom, dateTo);
+        pdfExpenseReport(categories, grandTotal, expenseTx, dateFrom, dateTo);
       }
       else if (tab === 'audit') {
         const incHw = headwise(yearIncome);
@@ -263,7 +239,7 @@ const FinanceReports = () => {
 
       {/* Filters */}
       <div className="bg-white rounded-xl border border-school-border p-4 flex flex-wrap gap-4 items-end">
-        {(tab === 'headwise-income' || tab === 'headwise-expense' || tab === 'monthly-income' || tab === 'monthly-expense') && (
+        {(tab === 'income-report' || tab === 'expense-report') && (
           <>
             <div>
               <label className="text-[10px] font-bold uppercase text-school-muted mb-1 block">From</label>
@@ -293,18 +269,21 @@ const FinanceReports = () => {
               <Calendar size={14} /> Opening Balances
             </button>
           )}
-          {(tab === 'headwise-income' || tab === 'headwise-expense' || tab === 'monthly-income' || tab === 'monthly-expense' || tab === 'audit' || tab === 'yearly-agm') && (
+          {(tab === 'income-report' || tab === 'expense-report' || tab === 'audit' || tab === 'yearly-agm') && (
             <ExportMenu onCSV={handleCsv} onExcel={handleExcel} onPDF={handlePdf} onPrint={() => printDiv('print-area')} />
           )}
         </div>
       </div>
 
       {/* Report Content */}
-      {tab === 'headwise-income' && (
+      {tab === 'income-report' && (
         <div className="bg-white rounded-xl border border-school-border overflow-hidden p-4" id="print-area">
-            {(() => { const hw = headwise(incomeTx); const total = hw.reduce((s, x) => s + x[1], 0); return (
+          <h4 className="font-serif text-sm text-school-primary mb-3">Income Report — {getMonthName(Number(dateFrom.split('-')[1]) - 1)} {dateFrom.split('-')[0]} to {getMonthName(Number(dateTo.split('-')[1]) - 1)} {dateTo.split('-')[0]}</h4>
+          {(() => { const hw = headwise(incomeTx); const total = hw.reduce((s, x) => s + x[1], 0); return (
+            <div className="space-y-6">
+              {/* Headwise Summary */}
               <div>
-                <h4 className="font-serif text-sm text-school-primary mb-3">Headwise Income — {getMonthName(Number(dateFrom.split('-')[1]) - 1)} {dateFrom.split('-')[0]} to {getMonthName(Number(dateTo.split('-')[1]) - 1)} {dateTo.split('-')[0]}</h4>
+                <h5 className="font-bold text-xs uppercase text-school-muted mb-2">Income by Category</h5>
                 <table className="w-full text-sm"><thead><tr className="bg-school-primary text-white text-[10px] uppercase"><th className="px-3 py-2 text-left w-[40px]">S#</th><th className="px-3 py-2 text-left">Category</th><th className="px-3 py-2 text-right">Amount</th><th className="px-3 py-2 text-right">%</th><th className="px-3 py-2 text-right">Txns</th><th className="px-3 py-2 text-right">Students</th></tr></thead>
                   <tbody>{hw.map(([cat, amt], idx) => {
                     const catTx = incomeTx.filter((t: any) => (t.category || 'Uncategorized') === cat);
@@ -314,63 +293,64 @@ const FinanceReports = () => {
                   <tfoot><tr className="border-t-2 border-school-primary font-bold bg-school-paper"><td className="px-3 py-2" colSpan={1}></td><td className="px-3 py-2">Total Income</td><td className="px-3 py-2 text-right">{fmt(total)} /-</td><td></td><td className="px-3 py-2 text-right">{incomeTx.length}</td><td className="px-3 py-2 text-right">{new Set(incomeTx.filter((t: any) => t.studentName).map((t: any) => t.studentName)).size || '—'}</td></tr></tfoot>
                 </table>
               </div>
-            ); })()}
-        </div>
-      )}
-
-      {tab === 'headwise-expense' && (
-        <div className="bg-white rounded-xl border border-school-border p-4" id="print-area">
-          {(() => { const hw = headwise(expenseTx); const total = hw.reduce((s, x) => s + x[1], 0); return (
-            <div>
-              <h4 className="font-serif text-sm text-school-primary mb-3">Headwise Expense — {getMonthName(Number(dateFrom.split('-')[1]) - 1)} {dateFrom.split('-')[0]} to {getMonthName(Number(dateTo.split('-')[1]) - 1)} {dateTo.split('-')[0]}</h4>
-              <table className="w-full text-sm"><thead><tr className="bg-school-primary text-white text-[10px] uppercase"><th className="px-3 py-2 text-left w-[40px]">S#</th><th className="px-3 py-2 text-left">Category</th><th className="px-3 py-2 text-right">Amount</th><th className="px-3 py-2 text-right">%</th><th className="px-3 py-2 text-right">Count</th></tr></thead>
-                <tbody>{hw.map(([cat, amt], idx) => <tr key={cat} className="border-t border-school-border/50"><td className="px-3 py-2 text-xs text-school-muted">{idx + 1}</td><td className="px-3 py-2 font-medium">{cat}</td><td className="px-3 py-2 text-right">{fmt(amt)} /-</td><td className="px-3 py-2 text-right">{total > 0 ? ((amt / total) * 100).toFixed(1) : 0}%</td><td className="px-3 py-2 text-right">{expenseTx.filter((t: any) => (t.category || 'Uncategorized') === cat).length}</td></tr>)}</tbody>
-                <tfoot><tr className="border-t-2 border-school-primary font-bold bg-school-paper"><td className="px-3 py-2" colSpan={1}></td><td className="px-3 py-2">Total Expense</td><td className="px-3 py-2 text-right">{fmt(total)} /-</td><td></td><td className="px-3 py-2 text-right">{expenseTx.length}</td></tr></tfoot>
-              </table>
+              {/* Monthly Detail */}
+              <div>
+                <h5 className="font-bold text-xs uppercase text-school-muted mb-2">Monthly Income Detail</h5>
+                {(() => { if (!incomeTx.length) return <p className="text-sm text-school-muted">No income data for this period.</p>;
+                  const sorted = [...incomeTx].sort((a, b) => new Date(a.transactionDate).getTime() - new Date(b.transactionDate).getTime());
+                  const sortedTotal = sorted.reduce((s, t) => s + Number(t.amount), 0);
+                  return (
+                  <table className="w-full text-sm"><thead><tr className="bg-school-primary text-white text-[10px] uppercase"><th className="px-3 py-2 text-left w-[40px]">S#</th><th className="px-3 py-2 text-left">Date</th><th className="px-3 py-2 text-left">Class</th><th className="px-3 py-2 text-left">Student</th><th className="px-3 py-2 text-left">Category</th><th className="px-3 py-2 text-right">Amount</th></tr></thead>
+                    <tbody>{sorted.map((t, i) => <tr key={t.id} className={`border-t border-school-border/50 ${i % 2 ? 'bg-school-paper/30' : ''}`}>
+                      <td className="px-3 py-2 text-xs text-school-muted">{i + 1}</td>
+                      <td className="px-3 py-2 whitespace-nowrap text-xs font-mono">{fmtDate(t.transactionDate)}</td>
+                      <td className="px-3 py-2 text-xs">{t.className || '—'}</td>
+                      <td className="px-3 py-2 text-xs font-medium">{t.studentName || '—'}</td>
+                      <td className="px-3 py-2 font-medium">{t.category || 'Uncategorized'}</td>
+                      <td className="px-3 py-2 text-right font-bold text-emerald-600">{fmt(Number(t.amount))} /-</td>
+                    </tr>)}</tbody>
+                    <tfoot><tr className="border-t-2 border-school-primary font-bold bg-school-paper"><td className="px-3 py-2" colSpan={5}>Total Income ({sorted.length} transactions)</td><td className="px-3 py-2 text-right text-emerald-600">{fmt(sortedTotal)} /-</td></tr></tfoot>
+                  </table>
+                ); })()}
+              </div>
             </div>
           ); })()}
         </div>
       )}
 
-      {tab === 'monthly-income' && (
-        <div className="bg-white rounded-xl border border-school-border p-4" id="print-area">
-          <h4 className="font-serif text-sm text-school-primary mb-3">Monthly Income — {getMonthName(Number(dateFrom.split('-')[1]) - 1)} {dateFrom.split('-')[0]} to {getMonthName(Number(dateTo.split('-')[1]) - 1)} {dateTo.split('-')[0]}</h4>
-          {(() => { if (!incomeTx.length) return <p className="text-sm text-school-muted">No income data for this period.</p>;
-            const sorted = [...incomeTx].sort((a, b) => new Date(a.transactionDate).getTime() - new Date(b.transactionDate).getTime());
-            const total = sorted.reduce((s, t) => s + Number(t.amount), 0);
-            return (
-            <table className="w-full text-sm"><thead><tr className="bg-school-primary text-white text-[10px] uppercase"><th className="px-3 py-2 text-left w-[40px]">S#</th><th className="px-3 py-2 text-left">Date</th><th className="px-3 py-2 text-left">Class</th><th className="px-3 py-2 text-left">Student</th><th className="px-3 py-2 text-left">Category</th><th className="px-3 py-2 text-right">Amount</th></tr></thead>
-              <tbody>{sorted.map((t, i) => <tr key={t.id} className={`border-t border-school-border/50 ${i % 2 ? 'bg-school-paper/30' : ''}`}>
-                <td className="px-3 py-2 text-xs text-school-muted">{i + 1}</td>
-                <td className="px-3 py-2 whitespace-nowrap text-xs font-mono">{fmtDate(t.transactionDate)}</td>
-                <td className="px-3 py-2 text-xs">{t.className || '—'}</td>
-                <td className="px-3 py-2 text-xs font-medium">{t.studentName || '—'}</td>
-                <td className="px-3 py-2 font-medium">{t.category || 'Uncategorized'}</td>
-                <td className="px-3 py-2 text-right font-bold text-emerald-600">{fmt(Number(t.amount))} /-</td>
-              </tr>)}</tbody>
-              <tfoot><tr className="border-t-2 border-school-primary font-bold bg-school-paper"><td className="px-3 py-2" colSpan={5}>Total Income ({sorted.length} transactions)</td><td className="px-3 py-2 text-right text-emerald-600">{fmt(total)} /-</td></tr></tfoot>
-            </table>
-          ); })()}
-        </div>
-      )}
-
-      {tab === 'monthly-expense' && (
-        <div className="bg-white rounded-xl border border-school-border p-4" id="print-area">
-          <h4 className="font-serif text-sm text-school-primary mb-3">Monthly Expense — {getMonthName(Number(dateFrom.split('-')[1]) - 1)} {dateFrom.split('-')[0]} to {getMonthName(Number(dateTo.split('-')[1]) - 1)} {dateTo.split('-')[0]}</h4>
-          {(() => { if (!expenseTx.length) return <p className="text-sm text-school-muted">No expense data for this period.</p>;
-            const sorted = [...expenseTx].sort((a, b) => new Date(a.transactionDate).getTime() - new Date(b.transactionDate).getTime());
-            const total = sorted.reduce((s, t) => s + Number(t.amount), 0);
-            return (
-            <table className="w-full text-sm"><thead><tr className="bg-school-primary text-white text-[10px] uppercase"><th className="px-3 py-2 text-left w-[40px]">S#</th><th className="px-3 py-2 text-left">Date</th><th className="px-3 py-2 text-left">Category</th><th className="px-3 py-2 text-left">Description</th><th className="px-3 py-2 text-right">Amount</th></tr></thead>
-              <tbody>{sorted.map((t, i) => <tr key={t.id} className={`border-t border-school-border/50 ${i % 2 ? 'bg-school-paper/30' : ''}`}>
-                <td className="px-3 py-2 text-xs text-school-muted">{i + 1}</td>
-                <td className="px-3 py-2 whitespace-nowrap text-xs font-mono">{fmtDate(t.transactionDate)}</td>
-                <td className="px-3 py-2 font-medium">{t.category || 'Uncategorized'}</td>
-                <td className="px-3 py-2 text-xs text-school-muted">{t.description || '—'}</td>
-                <td className="px-3 py-2 text-right font-bold text-rose-600">{fmt(Number(t.amount))} /-</td>
-              </tr>)}</tbody>
-              <tfoot><tr className="border-t-2 border-school-primary font-bold bg-school-paper"><td className="px-3 py-2" colSpan={4}>Total Expense ({sorted.length} transactions)</td><td className="px-3 py-2 text-right text-rose-600">{fmt(total)} /-</td></tr></tfoot>
-            </table>
+      {tab === 'expense-report' && (
+        <div className="bg-white rounded-xl border border-school-border overflow-hidden p-4" id="print-area">
+          <h4 className="font-serif text-sm text-school-primary mb-3">Expense Report — {getMonthName(Number(dateFrom.split('-')[1]) - 1)} {dateFrom.split('-')[0]} to {getMonthName(Number(dateTo.split('-')[1]) - 1)} {dateTo.split('-')[0]}</h4>
+          {(() => { const hw = headwise(expenseTx); const total = hw.reduce((s, x) => s + x[1], 0); return (
+            <div className="space-y-6">
+              {/* Headwise Summary */}
+              <div>
+                <h5 className="font-bold text-xs uppercase text-school-muted mb-2">Expense by Category</h5>
+                <table className="w-full text-sm"><thead><tr className="bg-school-primary text-white text-[10px] uppercase"><th className="px-3 py-2 text-left w-[40px]">S#</th><th className="px-3 py-2 text-left">Category</th><th className="px-3 py-2 text-right">Amount</th><th className="px-3 py-2 text-right">%</th><th className="px-3 py-2 text-right">Count</th></tr></thead>
+                  <tbody>{hw.map(([cat, amt], idx) => <tr key={cat} className="border-t border-school-border/50"><td className="px-3 py-2 text-xs text-school-muted">{idx + 1}</td><td className="px-3 py-2 font-medium">{cat}</td><td className="px-3 py-2 text-right">{fmt(amt)} /-</td><td className="px-3 py-2 text-right">{total > 0 ? ((amt / total) * 100).toFixed(1) : 0}%</td><td className="px-3 py-2 text-right">{expenseTx.filter((t: any) => (t.category || 'Uncategorized') === cat).length}</td></tr>)}</tbody>
+                  <tfoot><tr className="border-t-2 border-school-primary font-bold bg-school-paper"><td className="px-3 py-2" colSpan={1}></td><td className="px-3 py-2">Total Expense</td><td className="px-3 py-2 text-right">{fmt(total)} /-</td><td></td><td className="px-3 py-2 text-right">{expenseTx.length}</td></tr></tfoot>
+                </table>
+              </div>
+              {/* Monthly Detail */}
+              <div>
+                <h5 className="font-bold text-xs uppercase text-school-muted mb-2">Monthly Expense Detail</h5>
+                {(() => { if (!expenseTx.length) return <p className="text-sm text-school-muted">No expense data for this period.</p>;
+                  const sorted = [...expenseTx].sort((a, b) => new Date(a.transactionDate).getTime() - new Date(b.transactionDate).getTime());
+                  const sortedTotal = sorted.reduce((s, t) => s + Number(t.amount), 0);
+                  return (
+                  <table className="w-full text-sm"><thead><tr className="bg-school-primary text-white text-[10px] uppercase"><th className="px-3 py-2 text-left w-[40px]">S#</th><th className="px-3 py-2 text-left">Date</th><th className="px-3 py-2 text-left">Category</th><th className="px-3 py-2 text-left">Description</th><th className="px-3 py-2 text-right">Amount</th></tr></thead>
+                    <tbody>{sorted.map((t, i) => <tr key={t.id} className={`border-t border-school-border/50 ${i % 2 ? 'bg-school-paper/30' : ''}`}>
+                      <td className="px-3 py-2 text-xs text-school-muted">{i + 1}</td>
+                      <td className="px-3 py-2 whitespace-nowrap text-xs font-mono">{fmtDate(t.transactionDate)}</td>
+                      <td className="px-3 py-2 font-medium">{t.category || 'Uncategorized'}</td>
+                      <td className="px-3 py-2 text-xs text-school-muted">{t.description || '—'}</td>
+                      <td className="px-3 py-2 text-right font-bold text-rose-600">{fmt(Number(t.amount))} /-</td>
+                    </tr>)}</tbody>
+                    <tfoot><tr className="border-t-2 border-school-primary font-bold bg-school-paper"><td className="px-3 py-2" colSpan={4}>Total Expense ({sorted.length} transactions)</td><td className="px-3 py-2 text-right text-rose-600">{fmt(sortedTotal)} /-</td></tr></tfoot>
+                  </table>
+                ); })()}
+              </div>
+            </div>
           ); })()}
         </div>
       )}
