@@ -119,7 +119,10 @@ const FeeScheduleTab = () => {
       await api.patch(`/academic-years/${id}/`, { isActive: true });
       toast('Active year changed', 'success');
       fetchAcademicYears();
-    } catch { toast('Failed to update', 'error'); }
+    } catch (err: any) {
+      console.error('Failed to set active year:', err?.response?.data || err);
+      toast(err?.response?.data?.detail || 'Failed to update', 'error');
+    }
   };
 
   const grouped = schedules.reduce((acc: Record<string, any[]>, s: any) => {
