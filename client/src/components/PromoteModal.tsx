@@ -16,26 +16,35 @@ export default function PromoteModal({ open, targetYearName, targetAcademicYearI
   const [loading, setLoading] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!open) { setPreview(null); setConfirming(false); setResult(null); return; }
+    if (!open) { setPreview(null); setConfirming(false); setResult(null); setError(null); return; }
     setLoading(true);
+    setError(null);
     api.post('/classes/promote-all/?dryRun=true', { targetYearName, targetAcademicYearId })
       .then(r => { setPreview(r.data); setLoading(false); })
-      .catch(() => { toast('Failed to load preview', 'error'); setLoading(false); onClose(); });
+      .catch((e) => {
+        const msg = e?.response?.data?.error || e?.response?.data?.detail || e?.message || 'Failed to load preview';
+        setError(typeof msg === 'string' ? msg : JSON.stringify(msg));
+        setLoading(false);
+      });
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleConfirm = async () => {
     setConfirming(true);
+    setError(null);
     try {
       const res = await api.post('/classes/promote-all/', { targetYearName, targetAcademicYearId });
       const d = res.data;
       if (d.error) throw new Error(d.error);
       setResult(d);
-      toast('Promotion complete ✓', 'success');
+      toast('Promotion complete', 'success');
       onDone();
     } catch (e: any) {
-      toast(e.message || 'Promotion failed', 'error');
+      const msg = e?.response?.data?.error || e?.response?.data?.detail || e?.message || 'Promotion failed';
+      setError(typeof msg === 'string' ? msg : JSON.stringify(msg));
+      toast(msg, 'error');
     }
     setConfirming(false);
   };
@@ -65,6 +74,19 @@ export default function PromoteModal({ open, targetYearName, targetAcademicYearI
                 Cancel
               </button>
             </div>
+          ) : error ? (
+            <div className="space-y-4">
+              <div className="flex items-start gap-2 text-rose-600 bg-rose-50 rounded-xl p-4 text-sm">
+                <AlertTriangle size={18} className="mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="font-bold">Error</p>
+                  <p className="mt-1 text-rose-700">{error}</p>
+                </div>
+              </div>
+              <button onClick={onClose} className="w-full py-2.5 border border-school-border rounded-xl text-sm hover:bg-school-paper">
+                Close
+              </button>
+            </div>
           ) : result ? (
             <div className="space-y-4">
               <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50 rounded-xl p-3 text-sm font-bold">
@@ -92,16 +114,6 @@ export default function PromoteModal({ open, targetYearName, targetAcademicYearI
                         <span>{g.from}</span>
                         <span className="font-bold">{g.count} student{g.count !== 1 ? 's' : ''}</span>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {result.classesCreated.length > 0 && (
-                <div>
-                  <h4 className="text-xs font-bold uppercase text-school-muted mb-2">New Classes Created</h4>
-                  <div className="flex flex-wrap gap-1">
-                    {result.classesCreated.map((c: string, i: number) => (
-                      <span key={i} className="px-2 py-1 bg-purple-50 text-purple-700 rounded-lg text-xs font-bold">{c}</span>
                     ))}
                   </div>
                 </div>
@@ -148,19 +160,9 @@ export default function PromoteModal({ open, targetYearName, targetAcademicYearI
                       </div>
                     </div>
                   )}
-                  {preview.classesCreated.length > 0 && (
-                    <div>
-                      <h4 className="text-xs font-bold uppercase text-school-muted mb-2">New Classes to Create</h4>
-                      <div className="flex flex-wrap gap-1">
-                        {preview.classesCreated.map((c: string, i: number) => (
-                          <span key={i} className="px-2 py-1 bg-purple-50 text-purple-700 rounded-lg text-xs font-bold">{c}</span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                   <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2 text-sm">
                     <AlertTriangle size={16} className="text-amber-600 mt-0.5 flex-shrink-0" />
-                    <span className="text-amber-800">This action cannot be undone. Student IDs will remain unchanged. New classes, fee schedules, books, and subjects will be copied.</span>
+                    <span className="text-amber-800">This action cannot be undone. Student IDs will remain unchanged.</span>
                   </div>
                   <div className="flex gap-2">
                     <button onClick={onClose} className="flex-1 py-2.5 border border-school-border rounded-xl text-sm hover:bg-school-paper">

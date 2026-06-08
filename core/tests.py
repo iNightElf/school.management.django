@@ -3,6 +3,7 @@ from rest_framework.test import APIClient
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import SchoolClass, Subject, AcademicYear, Category
+from students.models import Student
 
 User = get_user_model()
 
@@ -170,3 +171,77 @@ class SettingsTests(TestCase):
         res = self.client.patch('/api/settings/', {'value': 'New Name'})
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.data['value'], 'New Name')
+
+
+class PromoteAllTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        _auth(self.client)
+        self.c1 = SchoolClass.objects.create(name='Test Class 1', order=8)
+        self.c2 = SchoolClass.objects.create(name='Test Class 2', order=9)
+        self.c3 = SchoolClass.objects.create(name='Test Class 3', order=10)
+        self.s1 = Student.objects.create(name='Alice', student_id='r9998001', school_class=self.c1, session='old')
+        self.s2 = Student.objects.create(name='Bob', student_id='r9998101', school_class=self.c2, session='old')
+        self.s3 = Student.objects.create(name='Charlie', student_id='r9998201', school_class=self.c3, session='old')
+
+    def tearDown(self):
+        Student.objects.filter(id__in=[self.s1.id, self.s2.id, self.s3.id]).delete()
+        SchoolClass.objects.filter(order__in=[8, 9, 10, 11, 12]).delete()
+
+    def test_dry_run_does_not_modify(self):
+        self.client.post('/api/classes/promote-all/?dryRun=true', {'targetYearName': '2027'}, format='json')
+        self.s1.refresh_from_db()
+        self.assertEqual(self.s1.school_class, self.c1)
+        self.assertEqual(self.s1.student_id, 'r9998001')
+
+    def test_promote_moves_students(self):
+        self.client.post('/api/classes/promote-all/', {'targetYearName': '2027'}, format='json')
+        self.s1.refresh_from_db()
+        self.s2.refresh_from_db()
+        self.s3.refresh_from_db()
+        self.assertEqual(self.s1.school_class, self.c2)
+        self.assertEqual(self.s2.school_class, self.c3)
+        self.assertEqual(self.s3.school_class.order, 11)
+        self.assertIsNone(self.s3.graduated_at)
+
+    def test_session_updated(self):
+        self.client.post('/api/classes/promote-all/', {'targetYearName': '2027'}, format='json')
+        self.s1.refresh_from_db()
+        self.assertEqual(self.s1.session, '2027')
+
+    def test_roll_numbers_updated(self):
+        self.client.post('/api/classes/promote-all/', {'targetYearName': '2027'}, format='json')
+        self.s1.refresh_from_db()
+        self.s2.refresh_from_db()
+        self.assertEqual(self.s1.student_id, 'r20270101')
+        self.assertEqual(self.s2.student_id, 'r20270201')
+
+    def test_empty_body_rejected(self):
+        res = self.client.post('/api/classes/promote-all/', {}, format='json')
+        self.assertEqual(res.status_code, 400)
+
+    def test_hyphen_url_works(self):
+        res = self.client.post('/api/classes/promote-all/?dryRun=true', {'targetYearName': '2027'}, format='json')
+        self.assertEqual(res.status_code, 200)
+
+    def test_auto_create_class(self):
+        SchoolClass.objects.filter(order__gte=8).delete()
+        c = SchoolClass.objects.create(name='Test Eleven', order=11)
+        s = Student.objects.create(name='AutoTest', student_id='r9998301', school_class=c, session='old')
+        res = self.client.post('/api/classes/promote-all/?dryRun=true', {'targetYearName': '2027'}, format='json')
+        self.assertEqual(res.status_code, 200)
+        created = res.data.get('classesCreated', [])
+        self.assertTrue(any('Class' in c for c in created))
+        s.delete()
+        c.delete()
+
+    def test_graduation_at_max_class(self):
+        SchoolClass.objects.filter(order__gte=8).delete()
+        c = SchoolClass.objects.create(name='Test Twelve', order=12)
+        s = Student.objects.create(name='GradTest', student_id='r9998401', school_class=c, session='old')
+        res = self.client.post('/api/classes/promote-all/', {'targetYearName': '2027'}, format='json')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(len(res.data['graduated']), 1)
+        s.refresh_from_db()
+        self.assertIsNone(s.school_class)
+        self.assertIsNotNone(s.graduated_at)

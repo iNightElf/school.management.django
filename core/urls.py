@@ -10,6 +10,7 @@ router.register(r'audit', views.AuditLogViewSet, basename='audit')
 router.register(r'categories', views.CategoryViewSet, basename='category')
 
 urlpatterns = [
+    path('classes/promote-all/', views.ClassViewSet.as_view({'post': 'promote_all'}), name='promote-all'),
     path('', include(router.urls)),
     path('settings/', views.SettingView.as_view(), name='settings'),
     path('setup/status/', views.SetupStatusView.as_view(), name='setup-status'),

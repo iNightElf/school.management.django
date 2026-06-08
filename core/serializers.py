@@ -69,5 +69,14 @@ class CategorySerializer(serializers.ModelSerializer):
 class PromoteAllSerializer(serializers.Serializer):
     from_class_id = serializers.UUIDField(required=False)
     to_class_id = serializers.UUIDField(required=False)
-    targetYearName = serializers.CharField(required=False)
-    targetAcademicYearId = serializers.UUIDField(required=False)
+    targetYearName = serializers.CharField(required=False, allow_blank=True)
+    targetAcademicYearId = serializers.UUIDField(required=False, allow_null=True)
+
+    def validate(self, data):
+        has_pair = 'from_class_id' in data and 'to_class_id' in data
+        has_year = bool(data.get('targetYearName'))
+        if not has_pair and not has_year:
+            raise serializers.ValidationError(
+                'Provide either targetYearName (full promote) or from_class_id + to_class_id (class move).'
+            )
+        return data

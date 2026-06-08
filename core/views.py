@@ -1,3 +1,4 @@
+import logging
 from rest_framework import viewsets, status, generics
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -13,6 +14,34 @@ from .serializers import (
     PromoteAllSerializer,
 )
 from accounts.permissions import require_permission
+
+logger = logging.getLogger(__name__)
+
+
+def _parse_student_roll(student_id):
+    """Parse r{year}{classNum}{roll} format. Returns (year, class_num, roll) or None."""
+    if not student_id or not isinstance(student_id, str):
+        return None
+    s = student_id.strip()
+    if not s.startswith('r') or len(s) < 7:
+        return None
+    body = s[1:]
+    if len(body) == 7:
+        year = body[:4]
+        class_num = int(body[4])
+        roll = body[5:7]
+    elif len(body) == 8:
+        year = body[:4]
+        class_num = int(body[4:6])
+        roll = body[6:8]
+    else:
+        return None
+    return year, class_num, roll
+
+
+def _generate_student_roll(year, class_num, roll):
+    """Generate r{year}{classNum:02d}{roll} format."""
+    return f'r{year}{class_num:02d}{roll}'
 
 
 class ClassViewSet(viewsets.ModelViewSet):
@@ -50,73 +79,153 @@ class ClassViewSet(viewsets.ModelViewSet):
         serializer = PromoteAllSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
-        from datetime import datetime, timezone
-        now = datetime.now(timezone.utc)
+        is_dry_run = request.query_params.get('dryRun') == 'true'
 
-        with db_transaction.atomic():
+        try:
+            from datetime import datetime, timezone
+            now = datetime.now(timezone.utc)
+
             # Backward-compatible: simple class-to-class promotion
             if 'from_class_id' in data and 'to_class_id' in data:
                 from_id = data['from_class_id']
                 to_id = data['to_class_id']
-                Student.objects.filter(school_class_id=from_id, deleted_at__isnull=True)\
-                    .update(school_class_id=to_id)
-                return Response({'status': 'ok'})
+                if not is_dry_run:
+                    Student.objects.filter(
+                        school_class_id=from_id, deleted_at__isnull=True
+                    ).update(school_class_id=to_id)
+                from_name = SchoolClass.objects.filter(id=from_id).values_list('name', flat=True).first() or str(from_id)
+                to_name = SchoolClass.objects.filter(id=to_id).values_list('name', flat=True).first() or str(to_id)
+                count = Student.objects.filter(
+                    school_class_id=from_id, deleted_at__isnull=True
+                ).count()
+                return Response({
+                    'promoted': [{'from': from_name, 'to': to_name, 'count': count}],
+                    'graduated': [],
+                    'classesCreated': [],
+                })
 
             # Full end-of-year promotion
             target_year_name = data.get('targetYearName')
-            target_academic_year_id = data.get('targetAcademicYearId')
-            is_dry_run = request.query_params.get('dryRun') == 'true'
+            target_year = int(target_year_name) if target_year_name and target_year_name.isdigit() else None
+
+            MAX_CLASS_ORDER = 12  # Class Ten = order 12, classNum 13
+
+            CLASS_NAMES = {
+                8: 'Class Six', 9: 'Class Seven', 10: 'Class Eight',
+                11: 'Class Nine', 12: 'Class Ten',
+            }
 
             classes = list(SchoolClass.objects.order_by('order', 'name'))
+            if not classes:
+                return Response(
+                    {'error': 'No classes found. Create classes before promoting.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
             promoted = []
             graduated = []
             classes_created = []
 
-            for i, cls in enumerate(classes):
-                is_last = i == len(classes) - 1
+            # Build map of class order → class object
+            class_by_order = {cls.order: cls for cls in classes}
+            max_order = max(c.order for c in classes) if classes else 0
 
-                if is_last:
-                    graduating = Student.objects.filter(
-                        school_class=cls, deleted_at__isnull=True,
-                        graduated_at__isnull=True
-                    )
-                    count = graduating.count()
-                    if count:
-                        graduated.append({'from': cls.name, 'count': count})
-                        if not is_dry_run:
-                            graduating.update(
-                                graduated_at=now,
-                                school_class=None
-                            )
-                    continue
+            # Collect all moves and new rolls from ORIGINAL state (no cascade)
+            moves = []
+            grads = []
+            new_rolls = {}
 
-                next_class = classes[i + 1]
-                promoting = Student.objects.filter(
+            for cls in classes:
+                students = list(Student.objects.filter(
                     school_class=cls, deleted_at__isnull=True,
-                    graduated_at__isnull=True
-                )
-                count = promoting.count()
-                if not count:
+                    graduated_at__isnull=True,
+                ))
+                if not students:
                     continue
+
+                next_order = cls.order + 1
+
+                if next_order > MAX_CLASS_ORDER:
+                    grads.append((cls, students))
+                    continue
+
+                next_class = class_by_order.get(next_order)
+                if not next_class and not is_dry_run:
+                    name = CLASS_NAMES.get(next_order, f'Class {next_order}')
+                    next_class = SchoolClass.objects.create(name=name, order=next_order)
+                    class_by_order[next_order] = next_class
+                    classes_created.append(name)
+                elif not next_class:
+                    name = CLASS_NAMES.get(next_order, f'Class {next_order}')
+                    classes_created.append(name)
+
                 promoted.append({
                     'from': cls.name,
-                    'to': next_class.name,
-                    'count': count,
+                    'to': next_class.name if next_class else CLASS_NAMES.get(next_order, f'Class {next_order}'),
+                    'count': len(students),
                 })
-                if not is_dry_run:
-                    promoting.update(school_class=next_class)
+                moves.append((cls, next_class, students))
 
-            # Update session for all students
-            if target_year_name and not is_dry_run:
-                Student.objects.filter(deleted_at__isnull=True).update(
-                    session=target_year_name
-                )
+                # Compute new roll numbers
+                for s in students:
+                    parsed = _parse_student_roll(s.student_id)
+                    if parsed and target_year:
+                        old_year, old_class_num, old_roll = parsed
+                        new_class_num = old_class_num + 1
+                        new_id = _generate_student_roll(target_year, new_class_num, old_roll)
+                        new_rolls[s.id] = (new_id, next_order)
+
+            # Graduation roll numbers
+            for cls, students in grads:
+                graduation_class_num = cls.order + 1
+                for s in students:
+                    parsed = _parse_student_roll(s.student_id)
+                    if parsed and target_year:
+                        _, _, old_roll = parsed
+                        new_id = _generate_student_roll(target_year, graduation_class_num, old_roll)
+                        new_rolls[s.id] = (new_id, cls.order)
+
+            # Apply all changes
+            if not is_dry_run:
+                # Move students to next classes
+                for cls, next_class, students in moves:
+                    for s in students:
+                        s.school_class = next_class
+                    Student.objects.bulk_update(students, ['school_class'])
+
+                # Graduate students
+                for cls, students in grads:
+                    for s in students:
+                        s.graduated_at = now
+                        s.school_class = None
+                    Student.objects.bulk_update(students, ['graduated_at', 'school_class'])
+
+                # Update roll numbers
+                if new_rolls:
+                    students_to_update = Student.objects.filter(id__in=new_rolls.keys())
+                    for s in students_to_update:
+                        new_id, _ = new_rolls[s.id]
+                        s.student_id = new_id
+                    Student.objects.bulk_update(students_to_update, ['student_id'])
+
+                # Update session for all students
+                if target_year_name:
+                    Student.objects.filter(deleted_at__isnull=True).update(
+                        session=target_year_name,
+                    )
 
             return Response({
                 'promoted': promoted,
-                'graduated': graduated,
+                'graduated': [{'from': cls.name, 'count': len(students)} for cls, students in grads],
                 'classesCreated': classes_created,
             })
+
+        except Exception as e:
+            logger.exception('promote_all failed')
+            return Response(
+                {'error': f'Promotion failed: {e}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
 
 class SubjectViewSet(viewsets.ModelViewSet):
