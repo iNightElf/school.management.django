@@ -67,14 +67,14 @@ export default function PeriodCloseTab() {
       </div>
 
       {showForm && (
-        <div className="px-5 py-4 border-b border-school-border bg-amber-50/50 space-y-3">
+        <div className="px-5 py-4 border-b border-school-border bg-school-paper/50 space-y-3">
           <div>
             <label className="text-[10px] font-bold uppercase text-school-muted mb-1 block">Fiscal Year</label>
-            <input type="number" value={fiscalYear} onChange={e => setFiscalYear(Number(e.target.value))} className="border border-school-border rounded-lg px-3 py-1.5 text-xs w-32 focus:outline-none focus:border-school-accent" />
+            <input type="number" value={fiscalYear} onChange={e => setFiscalYear(Number(e.target.value))} className="border border-school-border rounded-lg px-3 py-1.5 text-xs w-32 bg-white dark:bg-gray-800 focus:outline-none focus:border-school-accent" />
           </div>
           <div>
             <label className="text-[10px] font-bold uppercase text-school-muted mb-1 block">Notes (optional)</label>
-            <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} className="border border-school-border rounded-lg px-3 py-1.5 text-xs w-full focus:outline-none focus:border-school-accent" />
+            <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} className="border border-school-border rounded-lg px-3 py-1.5 text-xs w-full bg-white dark:bg-gray-800 focus:outline-none focus:border-school-accent" />
           </div>
           <button onClick={handleClose} disabled={closing} className="px-4 py-2 rounded-xl text-xs font-bold bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 transition-all">
             {closing ? 'Closing...' : `Close FY ${fiscalYear}`}
