@@ -47,7 +47,7 @@ function findMonthlyFee(fees: DefaulterFee[], name: string, month: string) {
 const MONTH_OPTIONS = buildMonthOptions();
 
 export default function DefaulterTab() {
-  const { classes, students, feeSchedules, fetchClasses, fetchStudents } = useSchoolStore();
+  const { classes, students, feeSchedules, fetchClasses, fetchStudents, fetchFeeSchedules } = useSchoolStore();
 
   const [data, setData] = useState<DefaulterStudent[]>([]);
   const [loading, setLoading] = useState(false);
@@ -65,7 +65,7 @@ export default function DefaulterTab() {
   });
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
 
-  useEffect(() => { fetchClasses(); fetchStudents(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchClasses(); fetchStudents(); fetchFeeSchedules(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const controller = new AbortController();
@@ -186,7 +186,7 @@ export default function DefaulterTab() {
           <option value="">All Fees</option>
           {(() => {
             const monthly = feeSchedules.filter(fs => fs.frequency === 'MONTHLY');
-            const yearly = feeSchedules.filter(fs => fs.frequency === 'YEARLY' || fs.frequency === 'ONETIME');
+            const yearly = feeSchedules.filter(fs => fs.frequency === 'YEARLY' || fs.frequency === 'ONE_TIME');
             return (
               <>
                 {monthly.length > 0 && (
