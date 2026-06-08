@@ -115,26 +115,26 @@ const Register = () => {
 
             <div className="space-y-3">
               <div>
-                <label className="text-[10px] font-bold uppercase text-school-muted ml-1">Full Name</label>
-                <input type="text" required value={name} onChange={(e) => setName(e.target.value)}
+                <label htmlFor="reg-name" className="text-[10px] font-bold uppercase text-school-muted ml-1">Full Name</label>
+                <input id="reg-name" type="text" required value={name} onChange={(e) => setName(e.target.value)}
                   className="w-full bg-white border border-school-border p-3 rounded-xl focus:ring-2 focus:ring-school-accent focus:border-transparent outline-none transition-all text-sm"
                   placeholder="John Doe" />
               </div>
               <div>
-                <label className="text-[10px] font-bold uppercase text-school-muted ml-1">Email Address</label>
-                <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
+                <label htmlFor="reg-email" className="text-[10px] font-bold uppercase text-school-muted ml-1">Email Address</label>
+                <input id="reg-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
                   className="w-full bg-white border border-school-border p-3 rounded-xl focus:ring-2 focus:ring-school-accent focus:border-transparent outline-none transition-all text-sm"
                   placeholder="staff@alrawa.edu" />
               </div>
               <div>
-                <label className="text-[10px] font-bold uppercase text-school-muted ml-1">Password</label>
-                <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
+                <label htmlFor="reg-password" className="text-[10px] font-bold uppercase text-school-muted ml-1">Password</label>
+                <input id="reg-password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
                   className="w-full bg-white border border-school-border p-3 rounded-xl focus:ring-2 focus:ring-school-accent focus:border-transparent outline-none transition-all text-sm"
                   placeholder="••••••••" />
               </div>
               <div>
-                <label className="text-[10px] font-bold uppercase text-school-muted ml-1">Confirm Password</label>
-                <input type="password" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+                <label htmlFor="reg-confirm" className="text-[10px] font-bold uppercase text-school-muted ml-1">Confirm Password</label>
+                <input id="reg-confirm" type="password" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
                   className="w-full bg-white border border-school-border p-3 rounded-xl focus:ring-2 focus:ring-school-accent focus:border-transparent outline-none transition-all text-sm"
                   placeholder="••••••••" />
               </div>

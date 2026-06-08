@@ -1,4 +1,4 @@
-import React, { useEffect, Suspense, lazy } from 'react';
+import { useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -24,7 +24,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     fetchSession();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [fetchSession]);
 
   if (loading) {
     return <PageLoader />;

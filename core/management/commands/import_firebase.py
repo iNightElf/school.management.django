@@ -1,4 +1,5 @@
 import json
+import os
 import uuid
 import base64
 import urllib.request
@@ -17,12 +18,9 @@ from staff.models import Staff
 from results.models import Result
 
 
-FIREBASE_URL = "https://student-info-41f18-default-rtdb.asia-southeast1.firebasedatabase.app/school.json"
+FIREBASE_URL = os.environ.get("FIREBASE_URL", "")
 
-SUPABASE_DSN = (
-    "postgresql://postgres.elpruxjzepvyhbtdlyck:%40nWPZjZ112358"
-    "@aws-1-ap-northeast-2.pooler.supabase.com:5432/postgres"
-)
+SUPABASE_DSN = os.environ.get("SUPABASE_DSN", "")
 
 CLASS_KEY_MAP = {
     "play": "Play",

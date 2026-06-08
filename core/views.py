@@ -120,7 +120,7 @@ class ClassViewSet(viewsets.ModelViewSet):
 
 
 class SubjectViewSet(viewsets.ModelViewSet):
-    queryset = Subject.objects.all()
+    queryset = Subject.objects.select_related('school_class').all()
     serializer_class = SubjectSerializer
     filterset_fields = ['school_class_id']
 
@@ -249,16 +249,18 @@ class SetupInitView(generics.GenericAPIView):
     permission_classes = []
 
     def post(self, request):
+        from django.db import transaction
         from accounts.models import User
         from accounts.serializers import RegisterSerializer
-        if User.objects.exists():
-            return Response({'error': 'Setup already completed. Use normal registration.'}, status=403)
-        serializer = RegisterSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        user = serializer.save()
-        user.role = 'admin'
-        user.email_verified = True
-        user.save(update_fields=['role', 'email_verified'])
+        with transaction.atomic():
+            if User.objects.select_for_update().exists():
+                return Response({'error': 'Setup already completed. Use normal registration.'}, status=403)
+            serializer = RegisterSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            user = serializer.save()
+            user.role = 'admin'
+            user.email_verified = True
+            user.save(update_fields=['role', 'email_verified'])
         return Response({
             'user': {'id': str(user.id), 'name': user.name, 'email': user.email, 'role': user.role}
         })

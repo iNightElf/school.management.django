@@ -4,7 +4,6 @@ from core.supabase_storage import get_signed_url
 
 
 class StaffSerializer(serializers.ModelSerializer):
-    phone = serializers.CharField(source='contact', read_only=True, allow_null=True)
     designation = serializers.CharField(source='role', read_only=True)
     hasPhoto = serializers.SerializerMethodField()
     photoUrl = serializers.SerializerMethodField()
@@ -12,8 +11,8 @@ class StaffSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Staff
-        fields = ['id', 'name', 'phone', 'contact', 'email', 'designation', 'hasPhoto', 'photoUrl', 'createdAt']
-        read_only_fields = ['id', 'createdAt', 'phone']
+        fields = ['id', 'name', 'role', 'contact', 'email', 'designation', 'hasPhoto', 'photoUrl', 'createdAt']
+        read_only_fields = ['id', 'createdAt', 'designation']
 
     def get_hasPhoto(self, obj):
         return bool(obj.photo_path)

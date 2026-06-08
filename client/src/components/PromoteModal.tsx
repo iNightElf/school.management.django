@@ -23,7 +23,7 @@ export default function PromoteModal({ open, targetYearName, targetAcademicYearI
     api.post('/classes/promote-all/?dryRun=true', { targetYearName, targetAcademicYearId })
       .then(r => { setPreview(r.data); setLoading(false); })
       .catch(() => { toast('Failed to load preview', 'error'); setLoading(false); onClose(); });
-  }, [open]);
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleConfirm = async () => {
     setConfirming(true);

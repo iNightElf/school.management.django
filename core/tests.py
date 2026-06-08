@@ -29,7 +29,7 @@ class ClassTests(TestCase):
         SchoolClass.objects.create(name='Class 6', order=2)
         res = self.client.get('/api/classes/')
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(len(res.data), 2)
+        self.assertEqual(len(res.data['results']), 2)
 
     def test_delete_class(self):
         c = SchoolClass.objects.create(name='Class 5', order=1)
@@ -47,7 +47,6 @@ class ClassTests(TestCase):
         c = SchoolClass.objects.create(name='Class 5', order=1)
         res = self.client.get(f'/api/classes/{c.id}/')
         self.assertIn('studentCount', res.data)
-        self.assertIn('section', res.data)
         self.assertIn('order', res.data)
 
 
@@ -67,7 +66,7 @@ class SubjectTests(TestCase):
         Subject.objects.create(name='English', full_marks=100, school_class=self.klass)
         res = self.client.get(f'/api/classes/{self.klass.id}/subjects/')
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(len(res.data), 2)
+        self.assertEqual(len(res.data['results']), 2)
 
     def test_update_subject(self):
         s = Subject.objects.create(name='Math', full_marks=100, school_class=self.klass)
@@ -106,7 +105,7 @@ class AcademicYearTests(TestCase):
         AcademicYear.objects.create(name='2026', start_date='2026-01-01', end_date='2026-12-31')
         res = self.client.get('/api/academic-years/')
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(len(res.data), 1)
+        self.assertEqual(len(res.data['results']), 1)
 
     def test_serializer_camelcase(self):
         y = AcademicYear.objects.create(name='2026', start_date='2026-01-01', end_date='2026-12-31', is_active=True)
@@ -142,14 +141,14 @@ class CategoryTests(TestCase):
         Category.objects.create(type='EXPENSE', name='Salary')
         res = self.client.get('/api/categories/')
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(len(res.data), 2)
+        self.assertEqual(len(res.data['results']), 2)
 
     def test_filter_categories(self):
         Category.objects.create(type='INCOME', name='Tuition')
         Category.objects.create(type='EXPENSE', name='Salary')
         res = self.client.get('/api/categories/?type=INCOME')
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(len(res.data), 1)
+        self.assertEqual(len(res.data['results']), 1)
 
 
 class SettingsTests(TestCase):

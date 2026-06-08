@@ -17,6 +17,7 @@ interface DataTableProps<T> {
   error?: string | null;
   emptyMessage?: string;
   className?: string;
+  caption?: string;
 }
 
 export default function DataTable<T>({
@@ -27,6 +28,7 @@ export default function DataTable<T>({
   error,
   emptyMessage = 'No data',
   className = '',
+  caption,
 }: DataTableProps<T>) {
   if (loading) {
     return (
@@ -56,7 +58,8 @@ export default function DataTable<T>({
 
   return (
     <div className={`overflow-x-auto ${className}`}>
-      <table className="w-full text-left mobile-card-table">
+      <table className="w-full text-left mobile-card-table" aria-label={caption || ''}>
+        {caption && <caption className="sr-only">{caption}</caption>}
         <thead>
           <tr className="border-b border-school-border text-xs uppercase tracking-wider text-school-muted">
             {columns.map((col) => (

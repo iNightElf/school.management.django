@@ -6,13 +6,15 @@ class Teacher(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     designation = models.CharField(max_length=255)
     name = models.CharField(max_length=255)
-    email = models.EmailField(blank=True, null=True)
-    contact = models.CharField(max_length=255, blank=True, null=True)
-    photo_path = models.TextField(blank=True, null=True)
+    email = models.EmailField(blank=True, default='')
+    contact = models.CharField(max_length=255, blank=True, default='')
+    photo_path = models.TextField(blank=True, default='')
     deleted_at = models.DateTimeField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        verbose_name = 'Teacher'
+        verbose_name_plural = 'Teachers'
         indexes = [
             models.Index(fields=['name']),
             models.Index(fields=['designation']),

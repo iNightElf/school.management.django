@@ -37,7 +37,9 @@ class RegisterView(generics.CreateAPIView):
     permission_classes = [permissions.AllowAny]
 
     def create(self, request, *args, **kwargs):
-        is_first = User.objects.count() == 0
+        from django.db import transaction as db_transaction
+        with db_transaction.atomic():
+            is_first = not User.objects.select_for_update().exists()
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
@@ -141,7 +143,7 @@ class AuthGetSessionView(APIView):
 
 
 class RoleChoicesView(APIView):
-    permission_classes = []
+    permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
         from .models import User
@@ -178,7 +180,9 @@ class SendVerificationView(APIView):
                 fail_silently=False,
             )
         except Exception as e:
-            return Response({'detail': f'Failed to send email: {str(e)}'}, status=500)
+            import logging
+            logging.getLogger(__name__).error('Failed to send verification email to %s: %s', user.email, e)
+            return Response({'detail': 'Failed to send verification email. Please try again later.'}, status=500)
 
         return Response({'detail': 'Verification email sent.'})
 

@@ -3,13 +3,8 @@ import { useSchoolStore } from '../../store';
 import ClassSelect from '../../components/ClassSelect';
 import { tabulationPDF } from '../../lib/tabulationPdf';
 import { ClipboardList, Download } from 'lucide-react';
-import { API_URL, TERM_NAMES } from '../../lib/config';
+import { TERM_NAMES } from '../../lib/config';
 
-const SUBJECT_KEY_MAP: Record<string, string> = {
-  'General knowledge': 'General Knowledge',
-  'Religion & Quran Learning': 'Religion and Quran Learning',
-  'Quran Learning': 'Religion and Quran Learning',
-};
 
 export default function TabulationTab() {
 
@@ -34,7 +29,7 @@ export default function TabulationTab() {
       const active = useSchoolStore.getState().academicYears.find((y: any) => y.isActive);
       setSessionFilter(active ? active.name : String(new Date().getFullYear()));
     }).catch(() => setSessionFilter(String(new Date().getFullYear())));
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { if (cls) loadResults(cls.id); }, [sessionFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 

@@ -40,7 +40,7 @@ export default function EnterBySubject() {
       const active = academicYears.find((y: any) => y.isActive);
       setSessionFilter(active ? active.name : (academicYears.length > 0 ? academicYears[0].name : ''));
     });
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { if (cls) loadResults(cls.id); }, [sessionFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -86,7 +86,7 @@ export default function EnterBySubject() {
       });
       setBulkMarks(m);
     }
-  }, [bulkSubject, bulkTerm, allResults, clsStudents]);
+  }, [bulkSubject, bulkTerm, allResults, clsStudents]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const saveBulkMarks = async () => {
     if (!selectedSubj) return;

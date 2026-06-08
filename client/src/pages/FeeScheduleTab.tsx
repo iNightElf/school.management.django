@@ -28,7 +28,7 @@ const FeeScheduleTab = () => {
     ? schedules.filter((s: any) => s.academicYearId === previousYear.id)
     : [];
 
-  useEffect(() => { Promise.all([fetchClasses(), fetchFeeSchedules(), fetchAcademicYears()]).then(() => setLoading(false)); }, []);
+  useEffect(() => { Promise.all([fetchClasses(), fetchFeeSchedules(), fetchAcademicYears()]).then(() => setLoading(false)); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleEdit = (s: any) => {
     setEditingId(s.id);
@@ -141,7 +141,7 @@ const FeeScheduleTab = () => {
         return next;
       });
     }
-  }, [groupOrder.length]);
+  }, [groupOrder.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="space-y-4">

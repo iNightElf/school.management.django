@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.db import transaction as db_transaction
 from .models import Student
-from core.supabase_storage import get_signed_url
+from core.models import StudentIdCounter
 
 
 class StudentSerializer(serializers.ModelSerializer):
@@ -48,7 +48,6 @@ class StudentSerializer(serializers.ModelSerializer):
         return ret
 
     def create(self, validated_data):
-        from core.models import StudentIdCounter
         with db_transaction.atomic():
             counter, _ = StudentIdCounter.objects.select_for_update().get_or_create(
                 id='singleton',
@@ -58,9 +57,6 @@ class StudentSerializer(serializers.ModelSerializer):
             validated_data['student_id'] = student_id
             counter.next_value += 1
             counter.save(update_fields=['next_value'])
-        # Map camelCase create fields back to snake_case
-        if 'schoolClass' in validated_data:
-            validated_data['school_class'] = validated_data.pop('schoolClass')
         return super().create(validated_data)
 
 

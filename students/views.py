@@ -10,7 +10,6 @@ from core.mixins import PhotoHandleMixin
 
 
 class StudentViewSet(PhotoHandleMixin, viewsets.ModelViewSet):
-    queryset = Student.objects.select_related('school_class').all()
     serializer_class = StudentSerializer
     photo_prefix = 'students'
     filterset_fields = ['school_class_id', 'session']

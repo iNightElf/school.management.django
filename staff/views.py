@@ -8,7 +8,6 @@ from core.mixins import PhotoHandleMixin
 
 
 class StaffViewSet(PhotoHandleMixin, viewsets.ModelViewSet):
-    queryset = Staff.objects.all()
     serializer_class = StaffSerializer
     photo_prefix = 'staff'
     filterset_fields = ['role']
@@ -22,7 +21,7 @@ class StaffViewSet(PhotoHandleMixin, viewsets.ModelViewSet):
         return [require_permission('staff:write')()]
 
     def get_queryset(self):
-        qs = super().get_queryset()
+        qs = Staff.objects.all()
         show_deleted = self.request.query_params.get('deleted', 'false').lower() == 'true'
         if not show_deleted:
             qs = qs.filter(deleted_at__isnull=True)

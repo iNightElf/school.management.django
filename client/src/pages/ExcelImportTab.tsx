@@ -58,7 +58,6 @@ function parseFeeMonth(val: any): string {
   const s = String(val).trim();
   if (/^\d{4}-\d{2}$/.test(s)) return s;
   const parts = s.split(/\s+/);
-  const monthStr = parts[0].toLowerCase().substring(0, 3);
   const mi = MONTH_NAMES[parts[0].toLowerCase()];
   if (mi === undefined) return '';
   const year = parts[1] ? parseInt(parts[1]) : new Date().getFullYear();
@@ -153,7 +152,7 @@ export default function ExcelImportTab() {
       setPaidMonths(pSet);
       setUsedTokens(tSet);
     }).catch(() => {});
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const rollMapRef = React.useRef<Record<string, Student>>({});
 
@@ -214,7 +213,7 @@ export default function ExcelImportTab() {
       ]);
       latestFeeSchedules = fsRes.data.results || fsRes.data.data || fsRes.data;
       latestWaivers = wRes.data.results || wRes.data.data || wRes.data;
-    } catch {}
+    } catch { /* fee schedule fetch failed, use cached data */ }
     setWaivers(latestWaivers);
     // Read latest students from store
     const latestStudents = useSchoolStore.getState().students;
@@ -383,7 +382,7 @@ export default function ExcelImportTab() {
       setRows([]);
       fetchTransactions();
       const store = useSchoolStore.getState();
-      store._fetchedAt && (store._fetchedAt['finance'] = 0);
+      if (store._fetchedAt) store._fetchedAt['finance'] = 0;
       fetchFinance();
     } catch (err: any) {
       const errorMsg = err.response?.data?.detail || err.response?.data?.error || 'Import failed';

@@ -10,19 +10,21 @@ export default defineConfig({
     },
   },
   build: {
-    rollupOptions: {
+    chunkSizeWarningLimit: 800,
+    rolldownOptions: {
       output: {
-        manualChunks(id) {
-          if (id.includes('node_modules')) {
-            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) return 'vendor-react';
-            if (id.includes('jspdf')) return 'vendor-jspdf';
-            if (id.includes('xlsx')) return 'vendor-xlsx';
-            if (id.includes('framer-motion')) return 'vendor-framer';
-            if (id.includes('axios')) return 'vendor-axios';
-            if (id.includes('lucide')) return 'vendor-lucide';
-            if (id.includes('zustand')) return 'vendor-zustand';
-            return 'vendor-other';
-          }
+        codeSplitting: {
+          groups: [
+            { test: /node_modules\/(react|react-dom|react-router)/, name: 'vendor-react' },
+            { test: /node_modules\/jspdf/, name: 'vendor-jspdf' },
+            { test: /node_modules\/xlsx/, name: 'vendor-xlsx' },
+            { test: /node_modules\/framer-motion/, name: 'vendor-framer' },
+            { test: /node_modules\/axios/, name: 'vendor-axios' },
+            { test: /node_modules\/lucide/, name: 'vendor-lucide' },
+            { test: /node_modules\/zustand/, name: 'vendor-zustand' },
+            { test: /node_modules\/@supabase/, name: 'vendor-supabase' },
+            { test: /node_modules\/zod/, name: 'vendor-zod' },
+          ],
         },
       },
     },

@@ -92,7 +92,7 @@ function Ledger({ fmt, fetchFinance, fetchFeeSchedules, fetchDashboardSummary, r
         setTotalDebit(res.data.totalDebit);
         setTotalCredit(res.data.totalCredit);
       }
-    } catch { /* silent */ }
+    } catch (e) { if (import.meta.env.DEV) console.warn('[FinanceSection] ledger fetch failed', e); }
     finally { setLoading(false); }
   }, [ledgerAccount, dateFrom, dateTo, search]);
 
@@ -101,9 +101,9 @@ function Ledger({ fmt, fetchFinance, fetchFeeSchedules, fetchDashboardSummary, r
     fetchFeeSchedules();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   
-  useEffect(() => { setPage(1); fetchData(1); }, [ledgerAccount, dateFrom, dateTo, search, refreshKey]);
+  useEffect(() => { setPage(1); fetchData(1); }, [ledgerAccount, dateFrom, dateTo, search, refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { fetchData(page); }, [page]);
+  useEffect(() => { fetchData(page); }, [page]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleCancel = async () => {
     if (!cancelId || !canWrite) return;
@@ -115,11 +115,13 @@ function Ledger({ fmt, fetchFinance, fetchFeeSchedules, fetchDashboardSummary, r
       setCancelReason('');
       fetchData(page);
       const store = useSchoolStore.getState();
-      store._fetchedAt && (store._fetchedAt['finance'] = 0);
-      store._fetchedAt && (store._fetchedAt['transactions'] = 0);
+      if (store._fetchedAt) {
+        store._fetchedAt['finance'] = 0;
+        store._fetchedAt['transactions'] = 0;
+      }
       const now = new Date();
       const fy = now.getMonth() >= FISCAL_YEAR_START_MONTH ? now.getFullYear() + 1 : now.getFullYear();
-      store._fetchedAt && (store._fetchedAt[`dashboardSummary_${fy}`] = 0);
+      if (store._fetchedAt) store._fetchedAt[`dashboardSummary_${fy}`] = 0;
       fetchFinance();
       fetchDashboardSummary(String(fy));
     } catch {
@@ -154,10 +156,12 @@ function Ledger({ fmt, fetchFinance, fetchFeeSchedules, fetchDashboardSummary, r
       const res = await api.get('/finance/ledger/', { params });
       const allEntries = res.data?.data || [];
       const { buildLedgerPrintHtml } = await import('../lib/financeReportPdf');
-      const html = buildLedgerPrintHtml(allEntries, ledgerAccount, dateFrom, dateTo, res.data.openingBalance, res.data.closingBalance, fmt, res.data.totalDebit, res.data.totalCredit);
+      const rawHtml = buildLedgerPrintHtml(allEntries, ledgerAccount, dateFrom, dateTo, res.data.openingBalance, res.data.closingBalance, fmt, res.data.totalDebit, res.data.totalCredit);
       const w = window.open('', '_blank');
       if (!w) { toast('Please allow pop-ups for printing', 'error'); return; }
-      w.document.write(html);
+      const sanitize = (s: string) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+      const safeHtml = sanitize(rawHtml).replace(/<script[\s\S]*?<\/script>/gi, '').replace(/on\w+="[^"]*"/gi, '');
+      w.document.write(safeHtml);
       w.document.close();
       w.print();
     } catch { toast('Print failed', 'error'); }
@@ -209,7 +213,7 @@ function Ledger({ fmt, fetchFinance, fetchFeeSchedules, fetchDashboardSummary, r
 
       {/* Table */}
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm" aria-label="Ledger entries">
           <thead className="bg-school-paper/50 text-[10px] uppercase tracking-widest text-school-muted font-bold">
             <tr>
               <th className="px-3 py-3 text-left w-[90px]">Voucher</th>
@@ -264,7 +268,7 @@ function Ledger({ fmt, fetchFinance, fetchFeeSchedules, fetchDashboardSummary, r
                 </td>
                 {canWrite && <td className="px-3 py-2.5 text-center">
                   {entry.status === 'Active' ? (
-                    <button onClick={() => setCancelId(entry.id)} title="Cancel transaction"
+                    <button onClick={() => setCancelId(entry.id)} aria-label="Cancel transaction"
                       className="p-1 rounded-lg text-school-muted hover:text-red-600 hover:bg-red-50 transition-all">
                       <Ban size={14} />
                     </button>
@@ -315,7 +319,7 @@ function Ledger({ fmt, fetchFinance, fetchFeeSchedules, fetchDashboardSummary, r
 
       {/* Cancel Modal */}
       {cancelId && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setCancelId(null)}>
+          <div role="dialog" aria-modal="true" aria-label="Cancel Transaction" className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setCancelId(null)} onKeyDown={e => { if (e.key === 'Escape') { setCancelId(null); setCancelReason(''); } }}>
           <div className="bg-white rounded-xl border border-school-border p-6 w-full max-w-md space-y-4" onClick={e => e.stopPropagation()}>
             <h4 className="font-serif text-sm text-school-primary">Cancel Transaction</h4>
             <p className="text-xs text-school-muted">This will cancel the transaction and create a reversal. The cancelled row will remain in the ledger with a strikethrough.</p>
@@ -371,7 +375,6 @@ const FinanceSection = () => {
   const [selectedAllocations, setSelectedAllocations] = useState<Record<string, boolean>>({});
 
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     fetchFinance();
     const now = new Date();
@@ -381,7 +384,7 @@ const FinanceSection = () => {
     fetchStudents();
     fetchFeeSchedules();
     fetchExpenseCategories();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { useUIStore.getState().registerSwipeBack(() => setMainTab('transactions')); }, []);
   // Re-fetch students when class changes (ensures student data is current)
   useEffect(() => { if (selectedClass) fetchStudents(); }, [selectedClass]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -394,7 +397,7 @@ const FinanceSection = () => {
     const sched = feeSchedules.find((fs: any) => fs.category === category && (!fs.classId || fs.classRel?.name === selectedClass));
     if (!sched) return;
     const ctrl = new AbortController();
-    api.get(`/finance/fee-waivers`, { signal: ctrl.signal, params: { studentId: selectedStudent, feeScheduleId: sched.id, active: 'true' } })
+    api.get(`/finance/fee-waivers/`, { signal: ctrl.signal, params: { studentId: selectedStudent, feeScheduleId: sched.id, active: 'true' } })
       .then(res => {
         const data = res.data.results || res.data.data || res.data;
         const waiver = data?.[0];
@@ -414,7 +417,7 @@ const FinanceSection = () => {
     const sched = feeSchedules.find((fs: any) => fs.category === category && (!fs.classId || fs.classRel?.name === selectedClass));
     if (sched?.applicability === 'ASSIGNED_ONLY') {
       const ctrl = new AbortController();
-      api.get(`/finance/student-fee-assignments`, { signal: ctrl.signal, params: { feeScheduleId: sched.id } })
+      api.get(`/finance/student-fee-assignments/`, { signal: ctrl.signal, params: { feeScheduleId: sched.id } })
         .then(res => {
           const data = res.data.results || res.data.data || res.data;
           setAssignedStudentIds(data.map((a: any) => a.studentId));
@@ -432,7 +435,7 @@ const FinanceSection = () => {
     const ctrl = new AbortController();
     const params: Record<string, string> = { studentId: selectedStudent, feeMonth };
     if (feeMonthTo) params.feeMonthTo = feeMonthTo;
-    api.get('/finance/fee-status', { signal: ctrl.signal, params })
+    api.get('/finance/fee-status/', { signal: ctrl.signal, params })
       .then(res => {
         setFeeStatusList(res.data || []);
         const defaultChecked: Record<string, boolean> = {};
@@ -554,11 +557,13 @@ const FinanceSection = () => {
       toast(activeTab === 'income' ? 'Income recorded ✓' : activeTab === 'expense' ? 'Expense recorded ✓' : 'Transfer recorded ✓', 'success');
       resetForm();
       const store = useSchoolStore.getState();
-      store._fetchedAt && (store._fetchedAt['finance'] = 0);
-      store._fetchedAt && (store._fetchedAt['transactions'] = 0);
+      if (store._fetchedAt) {
+        store._fetchedAt['finance'] = 0;
+        store._fetchedAt['transactions'] = 0;
+      }
       const now = new Date();
       const fy = now.getMonth() >= FISCAL_YEAR_START_MONTH ? now.getFullYear() + 1 : now.getFullYear();
-      store._fetchedAt && (store._fetchedAt[`dashboardSummary_${fy}`] = 0);
+      if (store._fetchedAt) store._fetchedAt[`dashboardSummary_${fy}`] = 0;
       fetchFinance();
       fetchDashboardSummary(String(fy));
       setLedgerRefreshKey(k => k + 1);
@@ -890,7 +895,7 @@ const FinanceSection = () => {
                                 await fetchExpenseCategories();
                                 toast('Category deleted', 'success');
                               } catch { toast('Failed to delete', 'error'); }
-                            }} className="text-rose-500 hover:text-rose-700 ml-1" title="Delete">
+                            }} className="text-rose-500 hover:text-rose-700 ml-1" aria-label="Delete category">
                               ×
                             </button>
                           </div>

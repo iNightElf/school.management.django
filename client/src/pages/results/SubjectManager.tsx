@@ -16,7 +16,7 @@ export default function SubjectManager() {
   const [editMarks, setEditMarks] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  useEffect(() => { if (cls) fetchSubjects(cls.id); }, [cls]); // eslint-disable-line react-hooks/deep-act
+  useEffect(() => { if (cls) fetchSubjects(cls.id); }, [cls]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSelectClass = (c: any) => { setCls(c); setNewName(''); setNewMarks(''); };
 

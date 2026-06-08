@@ -30,7 +30,7 @@ export default function AllReportCardsTab() {
       const active = useSchoolStore.getState().academicYears.find((y: any) => y.isActive);
       setSessionFilter(active ? active.name : String(new Date().getFullYear()));
     }).catch(() => setSessionFilter(String(new Date().getFullYear())));
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { if (cls) loadResults(cls.id); }, [sessionFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 

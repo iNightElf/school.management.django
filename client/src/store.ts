@@ -3,7 +3,7 @@ import axios from 'axios';
 import { API_URL } from './lib/config';
 import type { 
   Student, Teacher, Staff, Transaction, SchoolClass, Subject, 
-  FeeSchedule, SchoolSettings, AcademicYear, OpeningBalance, 
+  FeeSchedule, SchoolSettings, AcademicYear,
   OpeningBalanceHistory, Book, Result 
 } from './lib/types';
 
@@ -35,9 +35,10 @@ export const api = axios.create({
 });
 
 // ── Request deduplication ──
-const inflight = new Map<string, Promise<any>>();
+const inflight = new Map<string, Promise<unknown>>();
 export function dedupedFetch<T>(key: string, fn: () => Promise<T>): Promise<T> {
-  if (inflight.has(key)) return inflight.get(key)!;
+  const existing = inflight.get(key);
+  if (existing) return existing as Promise<T>;
   const p = fn().finally(() => inflight.delete(key));
   inflight.set(key, p);
   return p;
@@ -61,14 +62,11 @@ api.interceptors.response.use(
       if (refreshToken) {
         try {
           const res = await axios.post(`${API_URL}/auth/refresh/`, { refresh: refreshToken });
-          const { access } = res.data;
-          setTokens(access, refreshToken);
+          const { access, refresh: newRefresh } = res.data;
+          setTokens(access, newRefresh || refreshToken);
           error.config.headers.Authorization = `Bearer ${access}`;
           return api(error.config);
-        } catch {
-          useAuthStore.setState({ user: null });
-          clearTokens();
-        }
+        } catch (e) { if (import.meta.env.DEV) console.warn('[store] refresh token failed', e); useAuthStore.setState({ user: null }); clearTokens(); }
       } else {
         useAuthStore.setState({ user: null });
       }
@@ -84,10 +82,9 @@ interface User {
   name: string;
   email: string;
   role: string;
+  emailVerified?: boolean;
   image: string | null;
 }
-
-let fetching = false;
 
 interface AuthState {
   user: User | null;
@@ -97,7 +94,10 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>;
 }
 
-export const useAuthStore = create<AuthState>((set, get) => ({
+export const useAuthStore = create<AuthState>((set, get) => {
+  let fetching = false;
+
+  return {
   user: null,
   loading: true,
 
@@ -134,7 +134,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     clearTokens();
     set({ user: null });
   },
-}));
+}});
 
 // ── Dark Mode ──
 function getInitialDark(): boolean {
@@ -310,7 +310,7 @@ export const useSchoolStore = create<SchoolState>((set, get) => ({
     if (!force && get().classes.length > 0) return;
     set((s) => ({ loading: { ...s.loading, classes: true } }));
     try { 
-      const res = await api.get('/classes'); 
+      const res = await api.get('/classes/'); 
       set({ classes: res.data.results || res.data.data || res.data, lastFetched: Date.now() }); 
     } catch (e) { if (import.meta.env.DEV) console.warn("[store]", e) }
     finally { set((s) => ({ loading: { ...s.loading, classes: false } })); }
@@ -319,7 +319,7 @@ export const useSchoolStore = create<SchoolState>((set, get) => ({
     if (!force && get().students.length > 0 && !params) return;
     set((s) => ({ loading: { ...s.loading, students: true } }));
     try { 
-      const res = await api.get('/students', { params: { limit: '2000', ...params } }); 
+      const res = await api.get('/students/', { params: { limit: '2000', ...params } }); 
       set({ 
         students: res.data.results || res.data.data || res.data, 
         studentTotal: res.data.count ?? res.data.total ?? 0, 
@@ -332,7 +332,7 @@ export const useSchoolStore = create<SchoolState>((set, get) => ({
     if (!force && get().teachers.length > 0 && !params) return;
     set((s) => ({ loading: { ...s.loading, teachers: true } }));
     try { 
-      const res = await api.get('/teachers', { params: { limit: '2000', ...params } }); 
+      const res = await api.get('/teachers/', { params: { limit: '2000', ...params } }); 
       set({ 
         teachers: res.data.results || res.data.data || res.data, 
         teacherTotal: res.data.count ?? res.data.total ?? 0, 
@@ -345,7 +345,7 @@ export const useSchoolStore = create<SchoolState>((set, get) => ({
     if (!force && get().staff.length > 0 && !params) return;
     set((s) => ({ loading: { ...s.loading, staff: true } }));
     try { 
-      const res = await api.get('/staff', { params: { limit: '2000', ...params } }); 
+      const res = await api.get('/staff/', { params: { limit: '2000', ...params } }); 
       set({ 
         staff: res.data.results || res.data.data || res.data, 
         staffTotal: res.data.count ?? res.data.total ?? 0, 
@@ -358,7 +358,7 @@ export const useSchoolStore = create<SchoolState>((set, get) => ({
     if (!force && get().books.length > 0 && !params) return;
     set((s) => ({ loading: { ...s.loading, books: true } }));
     try { 
-      const res = await api.get('/books', { params: { limit: '2000', ...params } }); 
+      const res = await api.get('/books/', { params: { limit: '2000', ...params } }); 
       set({ 
         books: res.data.results || res.data.data || res.data, 
         bookTotal: res.data.count ?? res.data.total ?? 0, 
@@ -372,7 +372,7 @@ export const useSchoolStore = create<SchoolState>((set, get) => ({
     const now = Date.now();
     if (get().subjects.length > 0 && get().subjects[0]?.classId === classId && now - (get()._fetchedAt[key] || 0) < CACHE_TTL) return;
     try { 
-      const res = await dedupedFetch(key, () => api.get(`/classes/${classId}/subjects`)); 
+      const res = await dedupedFetch(key, () => api.get(`/classes/${classId}/subjects/`)); 
       set({ subjects: res.data.results || res.data.data || res.data, _fetchedAt: { ...get()._fetchedAt, [key]: Date.now() } }); 
     } catch (e) { if (import.meta.env.DEV) console.warn("[store]", e) }
   },
@@ -456,7 +456,7 @@ export const useSchoolStore = create<SchoolState>((set, get) => ({
     const key = 'settings';
     const now = Date.now();
     if (now - (get()._fetchedAt[key] || 0) < CACHE_TTL) return;
-    try { const res = await dedupedFetch(key, () => api.get('/settings')); set({ settings: res.data, _fetchedAt: { ...get()._fetchedAt, [key]: Date.now() } }); } catch (e) { if (import.meta.env.DEV) console.warn("[store]", e) }
+    try { const res = await dedupedFetch(key, () => api.get('/settings/')); set({ settings: res.data, _fetchedAt: { ...get()._fetchedAt, [key]: Date.now() } }); } catch (e) { if (import.meta.env.DEV) console.warn("[store]", e) }
   },
   updateSettings: async (data) => {
     const res = await api.put('/settings/', data);
@@ -508,7 +508,7 @@ export const useSchoolStore = create<SchoolState>((set, get) => ({
     if (get().academicYears.length > 0 && now - (get()._fetchedAt[key] || 0) < CACHE_TTL) return;
     set((s) => ({ loading: { ...s.loading, academicYears: true } }));
     try { 
-      const res = await dedupedFetch(key, () => api.get('/academic-years')); 
+      const res = await dedupedFetch(key, () => api.get('/academic-years/')); 
       set({ academicYears: res.data.results || res.data.data || res.data, _fetchedAt: { ...get()._fetchedAt, [key]: Date.now() } }); 
     } catch (e) { if (import.meta.env.DEV) console.warn("[store]", e) }
     finally { set((s) => ({ loading: { ...s.loading, academicYears: false } })); }
@@ -522,7 +522,7 @@ export const useSchoolStore = create<SchoolState>((set, get) => ({
     try { 
       const params: Record<string, string> = { session };
       if (term) params.term = term;
-      const res = await dedupedFetch(key, () => api.get(`/classes/${classId}/results`, { params }));
+      const res = await dedupedFetch(key, () => api.get(`/classes/${classId}/results/`, { params }));
       set((s) => ({ classResults: { ...s.classResults, [cacheKey]: res.data.results || res.data.data || res.data }, _fetchedAt: { ...s._fetchedAt, [key]: Date.now() } })); 
     } catch (e) { if (import.meta.env.DEV) console.warn("[store]", e) }
     finally { set((s) => ({ loading: { ...s.loading, classResults: false } })); }
@@ -555,7 +555,7 @@ export const useSchoolStore = create<SchoolState>((set, get) => ({
     const cached = get().studentResultsCache[key];
     if (cached && Date.now() - cached.ts < 30000) return cached.data;
     const params = session ? { session } : {};
-    const res = await api.get(`/students/${studentId}/results`, { params });
+    const res = await api.get(`/students/${studentId}/results/`, { params });
     const data = res.data.results || res.data.data || res.data;
     set((s) => ({ studentResultsCache: { ...s.studentResultsCache, [key]: { data, ts: Date.now() } } }));
     return data;
@@ -593,13 +593,13 @@ export const useUserManagementStore = create<UserManagementState>((set, get) => 
 
   fetchUsers: async () => {
     try { 
-      const res = await api.get('/users'); 
+      const res = await api.get('/users/'); 
       set({ users: res.data.results || res.data.data || res.data }); 
     } catch (e) { if (import.meta.env.DEV) console.warn("[store]", e) }
   },
 
   fetchRoles: async () => {
-    try { const res = await api.get('/users/roles'); set({ roles: res.data }); } catch (e) { if (import.meta.env.DEV) console.warn("[store]", e) }
+    try { const res = await api.get('/users/roles/'); set({ roles: res.data }); } catch (e) { if (import.meta.env.DEV) console.warn("[store]", e) }
   },
   updateRole: async (userId: string, role: string) => {
     await api.put(`/users/${userId}/role/`, { role });

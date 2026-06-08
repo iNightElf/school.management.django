@@ -63,9 +63,9 @@ class ResultViewSet(viewsets.ModelViewSet):
         if term:
             filters['term'] = term
 
-        qs = Result.objects.filter(**filters).select_related('student')
+        qs = self.get_queryset().filter(**filters).select_related('student')
 
-        limit = int(request.query_params.get('limit', 200))
+        limit = int(request.query_params.get('limit', 200) if str(request.query_params.get('limit', '200')).isdigit() else 200)
         serializer = self.get_serializer(qs[:limit], many=True)
         return Response(serializer.data)
 

@@ -11,15 +11,21 @@ SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', '')
 BUCKET = os.environ.get('SUPABASE_BUCKET', 'student-photos')
 CACHE_TTL = 1800
 
-HEADERS = {
-    "apikey": SERVICE_KEY,
-    "Authorization": f"Bearer {SERVICE_KEY}",
-    "Content-Type": "application/json",
-}
+if not SUPABASE_URL or not SERVICE_KEY:
+    import logging
+    logging.getLogger(__name__).warning('SUPABASE_URL or SUPABASE_SERVICE_KEY not set — photo uploads will fail')
+
+
+def _get_headers():
+    return {
+        "apikey": SERVICE_KEY,
+        "Authorization": f"Bearer {SERVICE_KEY}",
+        "Content-Type": "application/json",
+    }
 
 
 def _req(method, url, data=None, content_type=None, raw=False):
-    h = {k: v for k, v in HEADERS.items() if k != 'Content-Type'}
+    h = {k: v for k, v in _get_headers().items() if k != 'Content-Type'}
     if content_type:
         h["Content-Type"] = content_type
     if data is not None and isinstance(data, bytes) and raw:

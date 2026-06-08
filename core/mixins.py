@@ -47,7 +47,7 @@ class PhotoHandleMixin:
                 return
             instance.photo_path = path
             instance.save(update_fields=['photo_path'])
-        except (ValueError, OSError, Exception) as e:
+        except (ValueError, OSError) as e:
             logger.error("Photo handle failed for %s/%s: %s", self.photo_prefix, instance.id, e)
 
     @action(detail=True, methods=['get'], permission_classes=[])
@@ -75,7 +75,7 @@ class PhotoHandleMixin:
 
     @action(detail=True, methods=['post'])
     def restore(self, request, pk=None):
-        model_class = self.queryset.model if hasattr(self, 'queryset') else self.get_serializer().Meta.model
+        model_class = self.get_serializer().Meta.model
         try:
             instance = model_class.objects.get(pk=pk)
         except model_class.DoesNotExist:

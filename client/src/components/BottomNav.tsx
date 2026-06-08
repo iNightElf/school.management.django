@@ -1,17 +1,20 @@
 import { useNavigate } from 'react-router-dom';
-import { useUIStore } from '../store';
+import { useUIStore, useAuthStore } from '../store';
 import { CreditCard, BookOpen, ClipboardList, Banknote } from 'lucide-react';
+
+const financeRoles = ['admin', 'principal', 'accountant'];
 
 const items = [
   { mode: 'idcard' as const, label: 'ID Card', icon: CreditCard },
   { mode: 'accessories' as const, label: 'Fees', icon: BookOpen },
   { mode: 'result' as const, label: 'Result', icon: ClipboardList },
-  { mode: 'finance' as const, label: 'Finance', icon: Banknote },
+  { mode: 'finance' as const, label: 'Finance', icon: Banknote, roles: financeRoles },
 ];
 
 export default function BottomNav() {
   const navigate = useNavigate();
   const { activeMode, setMode } = useUIStore();
+  const user = useAuthStore((s) => s.user);
 
   const handleClick = (mode: typeof items[number]['mode']) => {
     if (activeMode === mode) {
@@ -28,6 +31,7 @@ export default function BottomNav() {
       aria-label="Main navigation"
     >
       {items.map((item) => {
+        if (item.roles && user && !item.roles.includes(user.role)) return null;
         const active = activeMode === item.mode;
         return (
           <button

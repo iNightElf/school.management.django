@@ -49,6 +49,8 @@ ROLE_PERMISSIONS = {
 
 
 def has_permission(user, permission):
+    if not user.is_authenticated:
+        return False
     if user.is_superuser:
         return True
     perms = ROLE_PERMISSIONS.get(user.role, [])

@@ -3,6 +3,7 @@ import { useSchoolStore, useAuthStore } from '../../store';
 import { api } from '../../store';
 import { toast } from '../../components/Toast';
 import ClassManagerModal from '../../components/ClassManagerModal';
+import type { AcademicYear } from '../../lib/types';
 import CameraModal from '../../components/CameraModal';
 import ImportModal from '../../components/ImportModal';
 import { CardSkeleton } from '../../components/Skeleton';
@@ -49,10 +50,9 @@ export default function StudentSection() {
   const [photo, setPhoto] = useState<string | null>(null);
   const [form, setForm] = useState({ className: '', roll: '', name: '', fatherName: '', motherName: '', contact: '' });
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
     if (classes.length === 0) fetchClasses(); 
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   
   useEffect(() => { 
     if (students.length === 0 || showGraduated) {
@@ -65,7 +65,7 @@ export default function StudentSection() {
       const active = useSchoolStore.getState().academicYears.find((y: AcademicYear) => y.isActive);
       if (active) setSessionFilter(active.name);
     });
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sorted = [...classes].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const sessionStudents = students.filter((s) => s.session === sessionFilter);
@@ -97,6 +97,8 @@ export default function StudentSection() {
     setEditingId(s.id);
   };
 
+  const [submitting, setSubmitting] = useState(false);
+
   const handleSubmit = async () => {
     if (!form.name.trim()) return toast('Enter student name', 'error');
     if (!form.className) return toast('Select a class', 'error');
@@ -112,6 +114,7 @@ export default function StudentSection() {
     };
 
     try {
+      setSubmitting(true);
       if (editingId) {
         await api.put(`/students/${editingId}/`, body);
         toast('Student updated ✓', 'success');
@@ -123,6 +126,8 @@ export default function StudentSection() {
       fetchStudents();
     } catch (e: any) {
       toast(e.response?.data?.error || e.message || 'Error', 'error');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -211,8 +216,8 @@ export default function StudentSection() {
           <input type="tel" value={form.contact} onChange={(e) => setForm({ ...form, contact: e.target.value })} placeholder="01XXXXXXXXX" className={inputCls} />
         </div>
         <div className="flex gap-2 mt-3">
-          <button onClick={handleSubmit} className={`flex-1 py-2 text-white rounded-xl text-sm font-bold hover:opacity-90 flex items-center justify-center gap-1.5 ${isNew ? 'bg-violet-600' : 'bg-blue-600'}`}>
-            {isNew ? '+ Add Student' : <><Check size={14} /> Save</>}
+          <button onClick={handleSubmit} disabled={submitting} className={`flex-1 py-2 text-white rounded-xl text-sm font-bold hover:opacity-90 flex items-center justify-center gap-1.5 disabled:opacity-50 ${isNew ? 'bg-violet-600' : 'bg-blue-600'}`}>
+            {isNew ? '+ Add Student' : <>{submitting ? 'Saving...' : <><Check size={14} /> Save</>}</>}
           </button>
           <button onClick={resetForm} className="px-4 py-2 border border-school-border rounded-xl text-sm hover:bg-white">Cancel</button>
         </div>
@@ -307,7 +312,7 @@ export default function StudentSection() {
                     reader.onload = () => res(reader.result as string);
                     reader.readAsDataURL(r.data);
                   });
-                } catch {}
+                } catch { /* photo load failed, skip */ }
               }));
               const doc = new (await loadJsPDF())();
               const title = activeClass ? activeClass + ' — Students' : 'All Students';
@@ -321,7 +326,7 @@ export default function StudentSection() {
                 doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(0, 0, 0);
                 const lines = [`Class: ${s.class}${s.roll ? '   Roll No: ' + s.roll : ''}`, `Father: ${s.fatherName || ''}`, `Mother: ${s.motherName || ''}`, `Contact: ${s.contact || ''}`];
                 if (photoCache[s.id]) {
-                  try { doc.addImage(photoCache[s.id], 'JPEG', 15, y, 22, 22); } catch {}
+                  try { doc.addImage(photoCache[s.id], 'JPEG', 15, y, 22, 22); } catch { /* skip */ }
                   lines.forEach((l, li) => doc.text(l, 42, y + 5 + li * 5)); y += 28;
                 } else { lines.forEach(l => { doc.text(l, 15, y); y += 5; }); }
                 doc.setDrawColor(200); doc.setLineWidth(0.3); doc.setLineDashPattern([4, 4], 0);

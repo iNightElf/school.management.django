@@ -76,8 +76,9 @@ const Login = () => {
 
             <div className="space-y-3">
               <div>
-                <label className="text-[10px] font-bold uppercase text-school-muted ml-1">Email</label>
+                <label htmlFor="login-email" className="text-[10px] font-bold uppercase text-school-muted ml-1">Email</label>
                 <input
+                  id="login-email"
                   type="email" required value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full bg-white border border-school-border p-3 rounded-xl focus:ring-2 focus:ring-school-accent focus:border-transparent outline-none transition-all text-sm"
@@ -85,8 +86,9 @@ const Login = () => {
                 />
               </div>
               <div>
-                <label className="text-[10px] font-bold uppercase text-school-muted ml-1">Password</label>
+                <label htmlFor="login-password" className="text-[10px] font-bold uppercase text-school-muted ml-1">Password</label>
                 <input
+                  id="login-password"
                   type="password" required value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full bg-white border border-school-border p-3 rounded-xl focus:ring-2 focus:ring-school-accent focus:border-transparent outline-none transition-all text-sm"

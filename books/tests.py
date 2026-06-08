@@ -25,7 +25,7 @@ class BookTests(TestCase):
         res = self.client.post('/api/books/', {
             'name': 'Math Book', 'publication': 'Test Pub',
             'mrp': 100, 'discounted': 90, 'sell': 85,
-            'school_class': str(self.klass.id),
+            'classId': str(self.klass.id),
         })
         self.assertEqual(res.status_code, 201)
         self.assertEqual(Book.objects.count(), 1)

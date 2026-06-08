@@ -69,7 +69,7 @@ class TransactionViewSet(PeriodClosedMixin, viewsets.ModelViewSet):
                 raise ValidationError({'feeMonth': 'Fee month is required for income transactions.'})
 
         with db_transaction.atomic():
-            tx_date = serializer.validated_data.get('transaction_date') or datetime.now().date()
+            tx_date = serializer.validated_data.get('transaction_date') or timezone.now().date()
             tx = serializer.save(
                 created_by=str(self.request.user.id),
                 fiscal_year=fiscal_year or _fiscal_year_from_date(tx_date),
@@ -250,7 +250,7 @@ class TransactionViewSet(PeriodClosedMixin, viewsets.ModelViewSet):
                         continue
                     seen_paid.add(dup_key)
 
-                tx_date = serializer.validated_data.get('transaction_date') or datetime.now().date()
+                tx_date = serializer.validated_data.get('transaction_date') or timezone.now().date()
                 tx = serializer.save(
                     created_by=str(self.request.user.id),
                     fiscal_year=fiscal_year or _fiscal_year_from_date(tx_date),
@@ -474,7 +474,7 @@ class TransactionViewSet(PeriodClosedMixin, viewsets.ModelViewSet):
                 elif src == 'AL_RAWA_BANK' and dst == 'GLOBAL_FORUM_BANK':
                     display_type = 'EXPENSE'
 
-            status = 'Cancelled' if tx.is_cancelled else ('Reversal' if tx.reversal_of_id else 'Active')
+            tx_status = 'Cancelled' if tx.is_cancelled else ('Reversal' if tx.reversal_of_id else 'Active')
 
             full_data.append({
                 'id': str(tx.id),
@@ -506,7 +506,7 @@ class TransactionViewSet(PeriodClosedMixin, viewsets.ModelViewSet):
                 'cancelledByName': cancelled_by_names.get(tx.cancelled_by, tx.cancelled_by) if tx.cancelled_by else None,
                 'cancelReason': tx.cancel_reason,
                 'reversalOfId': str(tx.reversal_of_id) if tx.reversal_of_id else None,
-                'status': status,
+                'status': tx_status,
                 'createdBy': tx.created_by,
                 'createdAt': tx.created_at.isoformat(),
             })
@@ -600,8 +600,9 @@ class TransactionViewSet(PeriodClosedMixin, viewsets.ModelViewSet):
                         'assignmentStart': a.starts_at,
                         'assignmentEnd': a.ends_at,
                     }
-            except Exception:
-                pass
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning('Failed to fetch fee assignments: %s', e)
 
         # 4. Final schedule list: all AUTO + matched ASSIGNED_ONLY
         final_schedules = auto_schedules + [
@@ -723,11 +724,11 @@ class TransactionViewSet(PeriodClosedMixin, viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def dashboard_summary(self, request):
-        fy = _param(request, 'fiscal_year', 'fiscalYear') or datetime.now().year
+        fy = _param(request, 'fiscal_year', 'fiscalYear') or timezone.now().year
         try:
             fy = int(fy)
         except ValueError:
-            fy = datetime.now().year
+            fy = timezone.now().year
 
         agg = Transaction.objects.filter(
             fiscal_year=fy, is_cancelled=False,
@@ -756,7 +757,7 @@ class TransactionViewSet(PeriodClosedMixin, viewsets.ModelViewSet):
         fee_category = _param(request, 'fee_category', 'feeCategory')
         month_from = _param(request, 'month_from', 'monthFrom')
         month_to = _param(request, 'month_to', 'monthTo')
-        year_str = _param(request, 'year') or str(datetime.now().year)
+        year_str = _param(request, 'year') or str(timezone.now().year)
 
         students_qs = Student.objects.filter(deleted_at__isnull=True)
         if class_name:

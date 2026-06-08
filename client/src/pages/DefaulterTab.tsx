@@ -3,7 +3,6 @@ import { useSchoolStore, api } from '../store';
 import { toast } from '../components/Toast';
 import { AlertTriangle, Download, Printer, Check, X } from 'lucide-react';
 import { defaulterPDF } from '../lib/defaulterPdf';
-import React from 'react';
 
 function getMonthName(m: number) { return ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m]; }
 
@@ -60,12 +59,12 @@ export default function DefaulterTab() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchClasses(); fetchStudents(); }, []);
+  useEffect(() => { fetchClasses(); fetchStudents(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const controller = new AbortController();
     fetchDefaulter(controller.signal);
     return () => controller.abort();
-  }, [filterClass, filterStudent, filterFee, monthFrom, monthTo, yearFilter]);
+  }, [filterClass, filterStudent, filterFee, monthFrom, monthTo, yearFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const displayData = filterFee
     ? defaulterData.filter(r => r.fees.some((f: any) => f.name === filterFee))

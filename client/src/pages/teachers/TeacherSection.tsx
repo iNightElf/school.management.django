@@ -32,10 +32,9 @@ export default function TeacherSection() {
   const [form, setForm] = useState({ designation: '', name: '', email: '', contact: '' });
 
   useEffect(() => { document.title = 'Teachers - AL RAWA English School'; }, []);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
     if (teachers.length === 0) fetchTeachers(); 
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const designations = [...new Set(teachers.map((t: any) => t.designation))];
   const filtered = teachers.filter((t: any) => {
@@ -57,6 +56,8 @@ export default function TeacherSection() {
     setEditingId(t.id);
   };
 
+  const [submitting, setSubmitting] = useState(false);
+
   const handleSubmit = async () => {
     if (!form.name.trim()) return toast('Enter teacher name', 'error');
     if (!form.designation.trim()) return toast('Enter designation', 'error');
@@ -64,6 +65,7 @@ export default function TeacherSection() {
     const body = { ...form, photo: photo || undefined };
 
     try {
+      setSubmitting(true);
       if (editingId) {
         await api.put(`/teachers/${editingId}/`, body);
       } else {
@@ -74,6 +76,8 @@ export default function TeacherSection() {
       fetchTeachers();
     } catch (e: any) {
       toast(e.response?.data?.error || e.message || 'Error', 'error');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -134,8 +138,8 @@ export default function TeacherSection() {
         </div>
       </div>
       <div className="flex gap-2 mt-3">
-        <button onClick={handleSubmit} className={`flex-1 py-2 text-white rounded-xl text-sm font-bold hover:opacity-90 flex items-center justify-center gap-1.5 ${isNew ? 'bg-violet-600' : 'bg-blue-600'}`}>
-          {isNew ? '+ Add Teacher' : <><Check size={14} /> Save</>}
+        <button onClick={handleSubmit} disabled={submitting} className={`flex-1 py-2 text-white rounded-xl text-sm font-bold hover:opacity-90 flex items-center justify-center gap-1.5 disabled:opacity-50 ${isNew ? 'bg-violet-600' : 'bg-blue-600'}`}>
+          {isNew ? '+ Add Teacher' : <>{submitting ? 'Saving...' : <><Check size={14} /> Save</>}</>}
         </button>
         <button onClick={resetForm} className="px-4 py-2 border border-school-border rounded-xl text-sm hover:bg-white">Cancel</button>
       </div>
@@ -194,7 +198,7 @@ export default function TeacherSection() {
                     reader.onload = () => res(reader.result as string);
                     reader.readAsDataURL(r.data);
                   });
-                } catch {}
+                } catch { /* photo load failed, skip */ }
               }));
               const doc = new (await loadJsPDF())();
               doc.setFont('helvetica', 'bold'); doc.setFontSize(16);
@@ -207,7 +211,7 @@ export default function TeacherSection() {
                 doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(0, 0, 0);
                 const lines = [`Designation: ${t.designation}`, t.email ? `Email: ${t.email}` : null, `Contact: ${t.contact || ''}`].filter(Boolean);
                 if (photoCache[t.id]) {
-                  try { doc.addImage(photoCache[t.id], 'JPEG', 15, y, 22, 22); } catch {}
+                  try { doc.addImage(photoCache[t.id], 'JPEG', 15, y, 22, 22); } catch { /* skip */ }
                   lines.forEach((l, li) => doc.text(l!, 42, y + 5 + li * 5)); y += 28;
                 } else { lines.forEach(l => { doc.text(l!, 15, y); y += 5; }); }
                 doc.setDrawColor(200); doc.setLineWidth(0.3); doc.setLineDashPattern([4, 4], 0);

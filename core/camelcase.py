@@ -8,7 +8,9 @@ def to_camel_case(snake_str):
 
 
 def to_snake_case(camel_str):
-    return re.sub(r'([A-Z])', r'_\1', camel_str).lower()
+    result = re.sub(r'([A-Z]+)([A-Z][a-z])', r'\1_\2', camel_str)
+    result = re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', result)
+    return result.lower()
 
 
 class CamelCaseModelSerializer(serializers.ModelSerializer):

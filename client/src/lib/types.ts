@@ -18,9 +18,10 @@ export interface Student {
 export interface Teacher {
   id: string;
   name: string;
-  phone: string | null;
+  contact: string | null;
   email: string | null;
   role: string | null;
+  designation?: string | null;
   hasPhoto: boolean;
   photoUrl?: string | null;
   createdAt: string;
@@ -29,9 +30,10 @@ export interface Teacher {
 export interface Staff {
   id: string;
   name: string;
-  phone: string | null;
+  contact: string | null;
   email: string | null;
-  designation: string | null;
+  role: string | null;
+  designation?: string | null;
   hasPhoto: boolean;
   photoUrl?: string | null;
   createdAt: string;
@@ -195,10 +197,13 @@ export interface OpeningBalanceHistory {
 
 export interface Book {
   id: string;
-  title: string;
-  author: string | null;
-  schoolClassId: string | null;
+  name: string;
+  classId: string | null;
   className?: string | null;
+  publication?: string;
+  mrp?: number;
+  discounted?: number;
+  sell: number;
 }
 
 export interface SchoolSettings {

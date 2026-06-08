@@ -106,7 +106,7 @@ export default function ImportModal({ open, onClose, onImported, entity = 'stude
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div role="dialog" aria-modal="true" aria-label={`Import ${cfg.label}`} className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose} onKeyDown={e => { if (e.key === 'Escape') onClose(); }}>
       <div className="bg-white dark:bg-school-primary rounded-2xl border border-school-border p-5 w-full max-w-lg space-y-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <h3 className="font-serif text-sm text-school-primary dark:text-white flex items-center gap-2">

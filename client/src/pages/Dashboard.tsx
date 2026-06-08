@@ -23,7 +23,7 @@ function TodaysGreeting() {
 const Dashboard = () => {
   const { activeMode, setMode } = useUIStore();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { students, teachers, staff, studentTotal, teacherTotal, staffTotal, bookTotal, fetchClasses, fetchDashboardCounts } = useSchoolStore();
+  const { studentTotal, teacherTotal, staffTotal, fetchClasses, fetchDashboardCounts } = useSchoolStore();
   const user = useAuthStore((s) => s.user);
   const isTeacher = user?.role === 'teacher';
   const isPendingViewer = user?.role === 'viewer';
@@ -35,7 +35,7 @@ const Dashboard = () => {
     try {
       await api.post('/auth/send-verification/');
       setVerifySent(true);
-    } catch { /* ignore */ }
+    } catch (e) { if (import.meta.env.DEV) console.warn('[Dashboard] verification resend failed', e); }
     setVerifying(false);
   };
 
@@ -44,6 +44,12 @@ const Dashboard = () => {
     fetchDashboardCounts();
     fetchClasses();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSetMode = (mode: ModeParam | null) => {
+    setMode(mode);
+    if (mode) setSearchParams({ mode }, { replace: false });
+    else setSearchParams({}, { replace: false });
+  };
 
   useEffect(() => {
     const urlMode = searchParams.get('mode') as ModeParam | null;
@@ -55,12 +61,6 @@ const Dashboard = () => {
       setMode(urlMode);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleSetMode = (mode: ModeParam | null) => {
-    setMode(mode);
-    if (mode) setSearchParams({ mode }, { replace: false });
-    else setSearchParams({}, { replace: false });
-  };
 
   const MODULES = [
     { key: 'idcard' as ModeParam, label: 'ID Card', desc: 'Students, Teachers & Staff', color: 'blue', icon: CreditCard },
@@ -81,7 +81,7 @@ const Dashboard = () => {
             <div className="absolute top-0 right-0 w-40 h-40 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/4" />
             <div className="relative flex items-center gap-4">
               <button onClick={() => handleSetMode(null)} className="hidden sm:block">
-                <img src={SCHOOL_LOGO} alt="" className="w-14 h-14 rounded-full border-2 border-white/20 shadow-lg object-cover cursor-pointer hover:scale-105 transition-transform" />
+                <img src={SCHOOL_LOGO} alt="School logo" className="w-14 h-14 rounded-full border-2 border-white/20 shadow-lg object-cover cursor-pointer hover:scale-105 transition-transform" />
               </button>
               <div className="flex-1">
                 <p className="text-sm text-white/70 font-medium">{TodaysGreeting()}{user?.name ? `, ${user.name.split(' ')[0]}` : ''}</p>

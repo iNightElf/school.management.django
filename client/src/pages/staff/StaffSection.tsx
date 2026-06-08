@@ -31,10 +31,9 @@ export default function StaffSection() {
   const [form, setForm] = useState({ role: '', name: '', email: '', contact: '' });
 
   useEffect(() => { document.title = 'Staff - AL RAWA English School'; }, []);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
     if (staff.length === 0) fetchStaff(); 
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filtered = staff.filter((s: any) => {
     if (search && !s.name.toLowerCase().includes(search.toLowerCase()) && !(s.role || '').toLowerCase().includes(search.toLowerCase())) return false;
@@ -54,6 +53,8 @@ export default function StaffSection() {
     setEditingId(s.id);
   };
 
+  const [submitting, setSubmitting] = useState(false);
+
   const handleSubmit = async () => {
     if (!form.name.trim()) return toast('Enter staff name', 'error');
     if (!form.role.trim()) return toast('Enter role/designation', 'error');
@@ -61,6 +62,7 @@ export default function StaffSection() {
     const body = { ...form, photo: photo || undefined };
 
     try {
+      setSubmitting(true);
       if (editingId) {
         await api.put(`/staff/${editingId}/`, body);
       } else {
@@ -71,6 +73,8 @@ export default function StaffSection() {
       fetchStaff();
     } catch (e: any) {
       toast(e.response?.data?.error || e.message || 'Error', 'error');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -131,8 +135,8 @@ export default function StaffSection() {
         </div>
       </div>
       <div className="flex gap-2 mt-3">
-        <button onClick={handleSubmit} className={`flex-1 py-2 text-white rounded-xl text-sm font-bold hover:opacity-90 flex items-center justify-center gap-1.5 ${isNew ? 'bg-violet-600' : 'bg-blue-600'}`}>
-          {isNew ? '+ Add Staff' : <><Check size={14} /> Save</>}
+        <button onClick={handleSubmit} disabled={submitting} className={`flex-1 py-2 text-white rounded-xl text-sm font-bold hover:opacity-90 flex items-center justify-center gap-1.5 disabled:opacity-50 ${isNew ? 'bg-violet-600' : 'bg-blue-600'}`}>
+          {isNew ? '+ Add Staff' : <>{submitting ? 'Saving...' : <><Check size={14} /> Save</>}</>}
         </button>
         <button onClick={resetForm} className="px-4 py-2 border border-school-border rounded-xl text-sm hover:bg-white">Cancel</button>
       </div>
@@ -191,7 +195,7 @@ export default function StaffSection() {
                     reader.onload = () => res(reader.result as string);
                     reader.readAsDataURL(r.data);
                   });
-                } catch {}
+                } catch { /* photo load failed, skip */ }
               }));
               const doc = new (await loadJsPDF())();
               doc.setFont('helvetica', 'bold'); doc.setFontSize(16);
@@ -204,7 +208,7 @@ export default function StaffSection() {
                 doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(0, 0, 0);
                 const lines = [`Role: ${s.role || ''}`, s.email ? `Email: ${s.email}` : null, `Contact: ${s.contact || ''}`].filter(Boolean);
                 if (photoCache[s.id]) {
-                  try { doc.addImage(photoCache[s.id], 'JPEG', 15, y, 22, 22); } catch {}
+                  try { doc.addImage(photoCache[s.id], 'JPEG', 15, y, 22, 22); } catch { /* skip */ }
                   lines.forEach((l, li) => doc.text(l!, 42, y + 5 + li * 5)); y += 28;
                 } else { lines.forEach(l => { doc.text(l!, 15, y); y += 5; }); }
                 doc.setDrawColor(200); doc.setLineWidth(0.3); doc.setLineDashPattern([4, 4], 0);

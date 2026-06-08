@@ -1,11 +1,12 @@
 import json
+import os
 import urllib.request
 
 from django.core.management.base import BaseCommand
 
 from core.models import Subject, SchoolClass
 
-FIREBASE_BASE = "https://student-info-41f18-default-rtdb.asia-southeast1.firebasedatabase.app/school/results"
+FIREBASE_BASE = os.environ.get("FIREBASE_RESULTS_URL", "")
 
 CLASS_KEY_MAP = {
     "play": "Play",

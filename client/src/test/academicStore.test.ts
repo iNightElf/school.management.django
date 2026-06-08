@@ -187,7 +187,7 @@ describe('useSchoolStore — academic', () => {
 
   describe('student results caching', () => {
     it('getStudentResults fetches and caches', async () => {
-      const marks = [{ id: 'r1', term: '1', marks: { Math: 90 } }];
+      const marks = [{ id: 'r1', studentId: 'stu1', session: '2025', term: '1', marks: { Math: 90 }, attendance: null, comment: null }];
       vi.spyOn(api, 'get').mockResolvedValue({ data: marks });
 
       const result = await useSchoolStore.getState().getStudentResults('stu1', '2025');
@@ -198,7 +198,7 @@ describe('useSchoolStore — academic', () => {
     });
 
     it('getStudentResults returns cached data within 30s', async () => {
-      const marks = [{ id: 'r1', term: '1', marks: { Math: 90 } }];
+      const marks = [{ id: 'r1', studentId: 'stu1', session: '2025', term: '1', marks: { Math: 90 }, attendance: null, comment: null }];
       const getSpy = vi.spyOn(api, 'get').mockResolvedValue({ data: marks });
       useSchoolStore.setState({ studentResultsCache: { 'stu1-2025': { data: marks, ts: Date.now() } } });
 

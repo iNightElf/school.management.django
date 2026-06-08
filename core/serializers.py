@@ -3,21 +3,14 @@ from .models import SchoolClass, Subject, AcademicYear, SchoolSetting, AuditLog,
 
 
 class SchoolClassSerializer(serializers.ModelSerializer):
-    section = serializers.SerializerMethodField()
-    createdAt = serializers.SerializerMethodField()
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
     studentCount = serializers.IntegerField(source='student_count', read_only=True)
     bookCount = serializers.IntegerField(source='book_count', read_only=True)
     subjectCount = serializers.IntegerField(source='subject_count', read_only=True)
 
     class Meta:
         model = SchoolClass
-        fields = ['id', 'name', 'section', 'order', 'createdAt', 'studentCount', 'bookCount', 'subjectCount']
-
-    def get_section(self, obj):
-        return None
-
-    def get_createdAt(self, obj):
-        return None
+        fields = ['id', 'name', 'order', 'createdAt', 'studentCount', 'bookCount', 'subjectCount']
 
 
 class SchoolClassReorderSerializer(serializers.Serializer):
@@ -50,20 +43,20 @@ class AcademicYearSerializer(serializers.ModelSerializer):
 class SchoolSettingSerializer(serializers.ModelSerializer):
     class Meta:
         model = SchoolSetting
-        fields = '__all__'
+        fields = ['id', 'key', 'value']
 
 
 class AuditLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = AuditLog
-        fields = '__all__'
+        fields = ['id', 'user_id', 'action', 'entity_type', 'entity_id', 'details', 'created_at']
         read_only_fields = ['created_at']
 
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
-        fields = '__all__'
+        fields = ['id', 'name', 'type']
 
 
 class PromoteAllSerializer(serializers.Serializer):

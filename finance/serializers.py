@@ -24,7 +24,13 @@ class TransactionSerializer(CamelCaseModelSerializer):
 
     class Meta:
         model = Transaction
-        fields = '__all__'
+        fields = ['id', 'transaction_date', 'entry_date', 'transaction_type', 'source_account',
+                  'destination_account', 'amount', 'category', 'description', 'student',
+                  'student_id', 'studentName', 'class_name', 'className', 'affects_income_ledger',
+                  'affects_expense_ledger', 'created_by', 'approved_by', 'reference_id',
+                  'token_number', 'fee_month', 'feeMonth', 'fiscal_year', 'receipt_sequence',
+                  'is_cancelled', 'cancelled_at', 'cancelled_by', 'cancel_reason',
+                  'reversal_of_id', 'created_at', 'updated_by', 'updated_at']
         read_only_fields = ['id', 'created_at', 'is_cancelled', 'cancelled_at',
                             'cancelled_by', 'cancel_reason', 'reversal_of_id',
                             'receipt_sequence']
@@ -70,7 +76,9 @@ class FeeWaiverSerializer(CamelCaseModelSerializer):
 
     class Meta:
         model = FeeWaiver
-        fields = '__all__'
+        fields = ['id', 'student', 'studentName', 'fee_schedule', 'feeCategory',
+                  'feeScheduleAmount', 'type', 'value', 'reason', 'approved_by',
+                  'active', 'starts_at', 'ends_at', 'created_at']
         read_only_fields = ['id', 'created_at']
 
 
@@ -81,7 +89,8 @@ class StudentFeeAssignmentSerializer(CamelCaseModelSerializer):
 
     class Meta:
         model = StudentFeeAssignment
-        fields = '__all__'
+        fields = ['id', 'student', 'studentName', 'fee_schedule', 'feeCategory',
+                  'studentId', 'active', 'starts_at', 'ends_at', 'note', 'created_at']
         read_only_fields = ['id', 'created_at']
 
 
@@ -128,20 +137,21 @@ class OpeningBalanceSerializer(CamelCaseModelSerializer):
 
     class Meta:
         model = OpeningBalance
-        fields = '__all__'
+        fields = ['id', 'account', 'fiscal_year', 'amount', 'updated_at']
         read_only_fields = ['id', 'updated_at']
 
 
 class OpeningBalanceHistorySerializer(CamelCaseModelSerializer):
     class Meta:
         model = OpeningBalanceHistory
-        fields = '__all__'
+        fields = ['id', 'account', 'fiscal_year', 'old_amount', 'new_amount',
+                  'changed_by', 'changed_at']
 
 
 class PeriodCloseSerializer(CamelCaseModelSerializer):
     class Meta:
         model = PeriodClose
-        fields = '__all__'
+        fields = ['id', 'fiscal_year', 'closed_by', 'closed_at', 'notes']
         read_only_fields = ['id', 'closed_at']
 
     def validate_fiscal_year(self, value):
@@ -153,14 +163,15 @@ class PeriodCloseSerializer(CamelCaseModelSerializer):
 class ReconciliationSerializer(CamelCaseModelSerializer):
     class Meta:
         model = Reconciliation
-        fields = '__all__'
+        fields = ['id', 'account', 'fiscal_year', 'system_balance', 'actual_balance',
+                  'difference', 'note', 'reconciled_by', 'created_at']
         read_only_fields = ['id', 'created_at', 'system_balance', 'difference']
 
 
 class PaymentAllocationSerializer(CamelCaseModelSerializer):
     class Meta:
         model = PaymentAllocation
-        fields = '__all__'
+        fields = ['id', 'transaction', 'fee_schedule', 'student', 'period', 'amount', 'created_at']
         read_only_fields = ['id', 'created_at']
 
 
