@@ -254,7 +254,7 @@ interface SchoolState {
   getStudentResults: (studentId: string, session?: string) => Promise<Result[]>;
 
   academicYears: AcademicYear[];
-  fetchAcademicYears: () => Promise<void>;
+  fetchAcademicYears: (force?: boolean) => Promise<void>;
   classResults: Record<string, Result[]>;
   fetchClassResults: (classId: string, session: string, term?: string) => Promise<void>;
   expenseCategories: string[];
@@ -502,10 +502,10 @@ export const useSchoolStore = create<SchoolState>((set, get) => ({
     }
   },
 
-  fetchAcademicYears: async () => {
+  fetchAcademicYears: async (force?: boolean) => {
     const key = 'academicYears';
     const now = Date.now();
-    if (get().academicYears.length > 0 && now - (get()._fetchedAt[key] || 0) < CACHE_TTL) return;
+    if (!force && get().academicYears.length > 0 && now - (get()._fetchedAt[key] || 0) < CACHE_TTL) return;
     set((s) => ({ loading: { ...s.loading, academicYears: true } }));
     try { 
       const res = await dedupedFetch(key, () => api.get('/academic-years/')); 

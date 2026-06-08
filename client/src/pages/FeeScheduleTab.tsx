@@ -95,7 +95,7 @@ const FeeScheduleTab = () => {
       setYearForm({ name: '', startDate: '', endDate: '' });
       setShowPromote(true);
       setPromoteTarget({ name: res.data.name, id: res.data.id });
-      fetchAcademicYears();
+      fetchAcademicYears(true);
     } catch (e: any) {
       const msg = e?.response?.data?.error || (e?.response?.data ? Object.values(e.response.data).flat().join(', ') : 'Failed to create academic year');
       toast(msg, 'error');
@@ -118,7 +118,7 @@ const FeeScheduleTab = () => {
     try {
       await api.patch(`/academic-years/${id}/`, { isActive: true });
       toast('Active year changed', 'success');
-      fetchAcademicYears();
+      fetchAcademicYears(true);
     } catch (err: any) {
       console.error('Failed to set active year:', err?.response?.data || err);
       toast(err?.response?.data?.detail || 'Failed to update', 'error');
