@@ -114,6 +114,13 @@ const FeeScheduleTab = () => {
     } catch { toast('Failed to copy schedules', 'error'); }
   };
 
+  const handleSetActive = async (id: string) => {
+    try {
+      await api.patch(`/academic-years/${id}/`, { isActive: true });
+      toast('Active year changed', 'success');
+      fetchAcademicYears();
+    } catch { toast('Failed to update', 'error'); }
+  };
 
   const grouped = schedules.reduce((acc: Record<string, any[]>, s: any) => {
     const key = s.classRel?.name || 'All Classes';
@@ -159,7 +166,20 @@ const FeeScheduleTab = () => {
 
       {showYearForm && (
         <div className="bg-white rounded-xl border border-school-border p-4 space-y-3">
-          <h4 className="font-bold text-xs text-school-primary">Create Academic Year</h4>
+          <h4 className="font-bold text-xs text-school-primary">Academic Years</h4>
+          {years.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-3">
+              {years.map((y: any) => (
+                <button
+                  key={y.id}
+                  onClick={() => handleSetActive(y.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${y.isActive ? 'bg-school-primary text-white border-school-primary' : 'bg-white text-school-muted border-school-border hover:border-school-accent'}`}
+                >
+                  {y.name} {y.isActive ? '✓' : '(set active)'}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="text-[10px] font-bold uppercase text-school-muted block mb-1">Year Name</label>
