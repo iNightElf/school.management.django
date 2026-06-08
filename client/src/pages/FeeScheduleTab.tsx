@@ -88,6 +88,10 @@ const FeeScheduleTab = () => {
       toast('Name, start date, and end date required', 'error');
       return;
     }
+    if (new Date(yearForm.startDate).getFullYear() !== new Date(yearForm.endDate).getFullYear()) {
+      toast('Start and end date must be in the same year', 'error');
+      return;
+    }
     try {
       const res = await api.post('/academic-years/', { ...yearForm, isActive: true });
       toast('Academic year created', 'success');

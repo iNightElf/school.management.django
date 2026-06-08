@@ -39,6 +39,13 @@ class AcademicYearSerializer(serializers.ModelSerializer):
     def validate_isActive(self, value):
         return value
 
+    def validate(self, data):
+        start = data.get('start_date') or getattr(self.instance, 'start_date', None)
+        end = data.get('end_date') or getattr(self.instance, 'end_date', None)
+        if start and end and start.year != end.year:
+            raise serializers.ValidationError('Start and end date must be in the same year.')
+        return data
+
 
 class SchoolSettingSerializer(serializers.ModelSerializer):
     class Meta:
