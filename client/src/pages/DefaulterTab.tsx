@@ -1,36 +1,62 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSchoolStore, api } from '../store';
 import { toast } from '../components/Toast';
 import { AlertTriangle, Download, Printer, Check, X } from 'lucide-react';
 import { defaulterPDF } from '../lib/defaulterPdf';
+import { getMonthNameShort, fmt } from '../lib/financeReportPdf';
+import type { DefaulterStudent, DefaulterFee } from '../lib/types';
 
-function getMonthName(m: number) { return ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m]; }
+function shortName(s: string) {
+  const p = s.trim().split(/\s+/);
+  return p.length > 2 ? p.slice(0, 2).join(' ') : s;
+}
 
-function shortName(s: string) { const p = s.trim().split(/\s+/); return p.length > 2 ? p.slice(0, 2).join(' ') : s; }
-
-function getMonthOptions(): { value: string; label: string }[] {
+function buildMonthOptions(): { value: string; label: string }[] {
   const now = new Date();
   const months: { value: string; label: string }[] = [];
   for (let i = 0; i < 18; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const v = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    months.push({ value: v, label: `${getMonthName(d.getMonth())} ${d.getFullYear()}` });
+    months.push({ value: v, label: `${getMonthNameShort(d.getMonth())} ${d.getFullYear()}` });
   }
   return months;
 }
 
-const MONTH_OPTIONS = getMonthOptions();
+function buildMonthRange(from: string, to: string): string[] {
+  const range: string[] = [];
+  if (!from || !to) return range;
+  let [y, m] = from.split('-').map(Number);
+  const [ey, em] = to.split('-').map(Number);
+  while (y < ey || (y === ey && m <= em)) {
+    range.push(`${y}-${String(m).padStart(2, '0')}`);
+    m++;
+    if (m > 12) { m = 1; y++; }
+  }
+  return range;
+}
+
+function findFee(fees: DefaulterFee[], name: string): DefaulterFee | undefined {
+  return fees.find(f => f.name === name);
+}
+
+function findMonthlyFee(fees: DefaulterFee[], name: string, month: string) {
+  const fee = fees.find(f => f.name === name && (f.type === 'recurring' || f.type === 'special'));
+  return fee?.months?.find(m => m.month === month) || null;
+}
+
+const MONTH_OPTIONS = buildMonthOptions();
 
 export default function DefaulterTab() {
   const { classes, students, feeSchedules, fetchClasses, fetchStudents } = useSchoolStore();
-  const [defaulterData, setDefaulterData] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
 
+  const [data, setData] = useState<DefaulterStudent[]>([]);
+  const [loading, setLoading] = useState(false);
   const [filterClass, setFilterClass] = useState('');
   const [filterStudent, setFilterStudent] = useState('');
   const [filterFee, setFilterFee] = useState('');
   const [monthFrom, setMonthFrom] = useState(() => {
-    const d = new Date(); d.setMonth(d.getMonth() - 3);
+    const d = new Date();
+    d.setMonth(d.getMonth() - 3);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
   const [monthTo, setMonthTo] = useState(() => {
@@ -39,71 +65,53 @@ export default function DefaulterTab() {
   });
   const [yearFilter, setYearFilter] = useState(String(new Date().getFullYear()));
 
-  const fmt = (n: number) => n.toLocaleString('en-BD');
-
-  const fetchDefaulter = async (signal?: AbortSignal) => {
-    setLoading(true);
-    try {
-      const params: Record<string, string> = {};
-      if (filterClass) params.className = filterClass;
-      if (filterStudent) params.studentId = filterStudent;
-      if (filterFee) params.feeCategory = filterFee;
-      params.monthFrom = monthFrom;
-      params.monthTo = monthTo;
-      params.year = yearFilter;
-      const res = await api.get('/finance/defaulter', { params, signal });
-      const data = res.data.results || res.data.data || res.data;
-      setDefaulterData(data);
-
-    } catch { if (!signal?.aborted) toast('Failed to load defaulter data', 'error'); }
-    finally { setLoading(false); }
-  };
-
   useEffect(() => { fetchClasses(); fetchStudents(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     const controller = new AbortController();
-    fetchDefaulter(controller.signal);
+    setLoading(true);
+    const params: Record<string, string> = {};
+    if (filterClass) params.className = filterClass;
+    if (filterStudent) params.studentId = filterStudent;
+    if (filterFee) params.feeCategory = filterFee;
+    params.monthFrom = monthFrom;
+    params.monthTo = monthTo;
+    params.year = yearFilter;
+    api.get('/finance/defaulter', { params, signal: controller.signal })
+      .then(res => setData(res.data.results || res.data.data || res.data))
+      .catch(() => { if (!controller.signal.aborted) toast('Failed to load defaulter data', 'error'); })
+      .finally(() => setLoading(false));
     return () => controller.abort();
-  }, [filterClass, filterStudent, filterFee, monthFrom, monthTo, yearFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [filterClass, filterStudent, filterFee, monthFrom, monthTo, yearFilter]);
 
-  const displayData = filterFee
-    ? defaulterData.filter(r => r.fees.some((f: any) => f.name === filterFee))
-    : defaulterData;
+  const filtered = useMemo(() =>
+    filterFee ? data.filter(r => r.fees.some(f => f.name === filterFee)) : data,
+    [data, filterFee]
+  );
 
-  const totalDueAll = displayData.reduce((s: number, r: any) => s + r.totalDue, 0);
-  const totalPaidAll = displayData.reduce((s: number, r: any) => s + r.totalPaid, 0);
+  const monthRange = useMemo(() => buildMonthRange(monthFrom, monthTo), [monthFrom, monthTo]);
 
-  const monthRange: string[] = [];
-  if (monthFrom && monthTo) {
-    let [y, m] = monthFrom.split('-').map(Number);
-    const [ey, em] = monthTo.split('-').map(Number);
-    while (y < ey || (y == ey && m <= em)) {
-      monthRange.push(`${y}-${String(m).padStart(2, '0')}`);
-      m++; if (m > 12) { m = 1; y++; }
-    }
-  }
+  const yearlyFeeNames = useMemo(() =>
+    [...new Set(filtered.flatMap(r => r.fees.filter(f => f.type === 'onetime' || f.type === 'global').map(f => f.name)))],
+    [filtered]
+  );
 
-  const yearlyFeeNames = [...new Set(displayData.flatMap((r: any) =>
-    r.fees.filter((f: any) => f.type === 'onetime' || f.type === 'global').map((f: any) => f.name)
-  ))];
-  const monthlyFeeNames = [...new Set(displayData.flatMap((r: any) =>
-    r.fees.filter((f: any) => f.type === 'recurring' || f.type === 'special').map((f: any) => f.name)
-  ))];
+  const monthlyFeeNames = useMemo(() =>
+    [...new Set(filtered.flatMap(r => r.fees.filter(f => f.type === 'recurring' || f.type === 'special').map(f => f.name)))],
+    [filtered]
+  );
 
-  function getStudentFee(row: any, name: string): any {
-    return row.fees.find((f: any) => f.name === name) || null;
-  }
+  const hasMonthly = monthlyFeeNames.length > 0 && monthRange.length > 0;
 
-  function getMonthlyFeeValue(row: any, feeName: string, month: string): any {
-    const fee = row.fees.find((f: any) => f.name === feeName && (f.type === 'recurring' || f.type === 'special'));
-    if (!fee?.months) return null;
-    return fee.months.find((m: any) => m.month === month) || null;
-  }
+  const totalDue = useMemo(() => filtered.reduce((s, r) => s + r.totalDue, 0), [filtered]);
+  const totalPaid = useMemo(() => filtered.reduce((s, r) => s + r.totalPaid, 0), [filtered]);
+  const totalBalance = totalDue - totalPaid;
 
-  const classLabel = filterClass || 'All Classes';
-  const subtitle = `${getMonthName(Number(monthFrom.split('-')[1]) - 1)} ${monthFrom.split('-')[0]} — ${getMonthName(Number(monthTo.split('-')[1]) - 1)} ${monthTo.split('-')[0]}  |  Year ${yearFilter}`;
+  const colCount = 1 + yearlyFeeNames.length + (hasMonthly ? monthRange.length * monthlyFeeNames.length : 0) + 3;
 
-  function printDefaulter() {
+  const subtitle = `${getMonthNameShort(Number(monthFrom.split('-')[1]) - 1)} ${monthFrom.split('-')[0]} — ${getMonthNameShort(Number(monthTo.split('-')[1]) - 1)} ${monthTo.split('-')[0]}  |  Year ${yearFilter}`;
+
+  function handlePrint() {
     const el = document.getElementById('defaulter-print-area');
     if (!el) return;
     const w = window.open('', '_blank');
@@ -120,135 +128,138 @@ export default function DefaulterTab() {
       tfoot td{background:#1a1a2e;color:#fff;font-weight:bold;font-size:11px}
       @media print{body{padding:10px}}
     </style></head><body><h2>AL RAWA English School</h2><h3>Fee Defaulter Report — ${subtitle}</h3>${el.innerHTML}</body></html>`);
-    w.document.close(); w.print();
+    w.document.close();
+    w.print();
   }
 
-  function handlePdfDefaulter() {
+  function handlePdf() {
     try {
-      defaulterPDF({ displayData, monthRange, classLabel, subtitle, totalDueAll, totalPaidAll, filterClass, monthFrom, monthTo, yearlyFeeNames, monthlyFeeNames });
+      defaulterPDF({
+        displayData: filtered,
+        monthRange,
+        classLabel: filterClass || 'All Classes',
+        subtitle,
+        totalDueAll: totalDue,
+        totalPaidAll: totalPaid,
+        filterClass,
+        monthFrom,
+        monthTo,
+        yearlyFeeNames,
+        monthlyFeeNames,
+      });
       toast('PDF downloaded', 'success');
-    } catch { toast('PDF failed', 'error'); }
+    } catch { toast('PDF generation failed', 'error'); }
   }
 
-  const hasMonthly = monthlyFeeNames.length > 0 && monthRange.length > 0;
-  const colCount = 1 + yearlyFeeNames.length + (hasMonthly ? monthRange.length * monthlyFeeNames.length : 0) + 3;
+  function handleClassChange(value: string) {
+    setFilterClass(value);
+    setFilterStudent('');
+  }
 
-  const renderFeeCell = (amount: number, paid: boolean) => (
-    <span className={`font-bold text-[10px] ${paid ? 'text-emerald-600' : 'text-rose-600'}`}>
-      {fmt(amount)}/- {paid ? <Check size={10} className="inline" /> : <X size={10} className="inline" />}
-    </span>
-  );
+  function FeeCell({ amount, paid }: { amount: number; paid: boolean }) {
+    return (
+      <span className={`font-bold text-[10px] ${paid ? 'text-emerald-600' : 'text-rose-600'}`}>
+        {fmt(amount)}/- {paid ? <Check size={10} className="inline" /> : <X size={10} className="inline" />}
+      </span>
+    );
+  }
 
   return (
     <div className="space-y-5">
       {/* Filters */}
       <div className="bg-white rounded-xl border border-school-border p-4 flex flex-wrap gap-4 items-end">
-        <div>
-          <label className="text-[10px] font-bold uppercase text-school-muted mb-1 block">Class</label>
-          <select value={filterClass} onChange={e => { setFilterClass(e.target.value); setFilterStudent(''); }}
-            className="border border-school-border rounded-xl px-3 py-2 text-sm bg-white">
-            <option value="">Whole School</option>
-            {classes.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
-          </select>
-        </div>
+        <FilterSelect label="Class" value={filterClass} onChange={handleClassChange}>
+          <option value="">Whole School</option>
+          {classes.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+        </FilterSelect>
+
         {filterClass && (
-          <div>
-            <label className="text-[10px] font-bold uppercase text-school-muted mb-1 block">Student</label>
-            <select value={filterStudent} onChange={e => setFilterStudent(e.target.value)}
-              className="border border-school-border rounded-xl px-3 py-2 text-sm bg-white">
-              <option value="">All Students</option>
-              {students.filter((s: any) => s.class === filterClass).map((s: any) => (
-                <option key={s.id} value={s.id}>{s.name}{s.fatherName ? ` (${s.fatherName})` : ''}</option>
-              ))}
-            </select>
-          </div>
+          <FilterSelect label="Student" value={filterStudent} onChange={setFilterStudent}>
+            <option value="">All Students</option>
+            {students.filter(s => s.class === filterClass).map(s => (
+              <option key={s.id} value={s.id}>{s.name}{s.fatherName ? ` (${s.fatherName})` : ''}</option>
+            ))}
+          </FilterSelect>
         )}
-        <div>
-          <label className="text-[10px] font-bold uppercase text-school-muted mb-1 block">Fee Type</label>
-          <select value={filterFee} onChange={e => setFilterFee(e.target.value)}
-            className="border border-school-border rounded-xl px-3 py-2 text-sm bg-white">
-            <option value="">All Fees</option>
-            {(() => {
-              const monthly = feeSchedules.filter((fs: any) => fs.frequency === 'MONTHLY');
-              const yearly = feeSchedules.filter((fs: any) => fs.frequency === 'YEARLY' || fs.frequency === 'ONETIME');
-              return <>
-                {monthly.length > 0 && <optgroup label="Monthly">
-                  {[...new Set(monthly.map((fs: any) => fs.category))].map(c => <option key={c} value={c}>{c}</option>)}
-                </optgroup>}
-                {yearly.length > 0 && <optgroup label="Yearly">
-                  {[...new Set(yearly.map((fs: any) => fs.category))].map(c => <option key={c} value={c}>{c}</option>)}
-                </optgroup>}
-              </>;
-            })()}
-          </select>
-        </div>
+
+        <FilterSelect label="Fee Type" value={filterFee} onChange={setFilterFee}>
+          <option value="">All Fees</option>
+          {(() => {
+            const monthly = feeSchedules.filter(fs => fs.frequency === 'MONTHLY');
+            const yearly = feeSchedules.filter(fs => fs.frequency === 'YEARLY' || fs.frequency === 'ONETIME');
+            return (
+              <>
+                {monthly.length > 0 && (
+                  <optgroup label="Monthly">
+                    {[...new Set(monthly.map(fs => fs.category))].map(c => <option key={c} value={c}>{c}</option>)}
+                  </optgroup>
+                )}
+                {yearly.length > 0 && (
+                  <optgroup label="Yearly">
+                    {[...new Set(yearly.map(fs => fs.category))].map(c => <option key={c} value={c}>{c}</option>)}
+                  </optgroup>
+                )}
+              </>
+            );
+          })()}
+        </FilterSelect>
 
         <div className="border-l border-school-border pl-4 flex gap-3 items-end">
-          <div>
-            <label className="text-[10px] font-bold uppercase text-school-muted mb-1 block">Month From</label>
-            <select value={monthFrom} onChange={e => setMonthFrom(e.target.value)}
-              className="border border-school-border rounded-xl px-3 py-2 text-sm bg-white">
-              {MONTH_OPTIONS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="text-[10px] font-bold uppercase text-school-muted mb-1 block">Month To</label>
-            <select value={monthTo} onChange={e => setMonthTo(e.target.value)}
-              className="border border-school-border rounded-xl px-3 py-2 text-sm bg-white">
-              {MONTH_OPTIONS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="text-[10px] font-bold uppercase text-school-muted mb-1 block">Year</label>
-            <select value={yearFilter} onChange={e => setYearFilter(e.target.value)}
-              className="border border-school-border rounded-xl px-3 py-2 text-sm bg-white">
-              {[0, 1, 2].map(i => { const y = new Date().getFullYear() - i; return <option key={y} value={y}>{y}</option>; })}
-            </select>
-          </div>
+          <FilterSelect label="Month From" value={monthFrom} onChange={setMonthFrom}>
+            {MONTH_OPTIONS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+          </FilterSelect>
+          <FilterSelect label="Month To" value={monthTo} onChange={setMonthTo}>
+            {MONTH_OPTIONS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+          </FilterSelect>
+          <FilterSelect label="Year" value={yearFilter} onChange={setYearFilter}>
+            {[0, 1, 2].map(i => {
+              const y = new Date().getFullYear() - i;
+              return <option key={y} value={y}>{y}</option>;
+            })}
+          </FilterSelect>
         </div>
 
         <div className="ml-auto flex gap-6 text-right">
-          <div>
-            <div className="text-[10px] uppercase text-school-muted font-bold">Total Due</div>
-            <div className="font-serif text-lg font-bold text-rose-600">{fmt(totalDueAll)} /-</div>
-          </div>
-          <div>
-            <div className="text-[10px] uppercase text-school-muted font-bold">Total Paid</div>
-            <div className="font-serif text-lg font-bold text-emerald-600">{fmt(totalPaidAll)} /-</div>
-          </div>
+          <SummaryCard label="Total Due" value={totalDue} color="text-rose-600" />
+          <SummaryCard label="Total Paid" value={totalPaid} color="text-emerald-600" />
         </div>
       </div>
 
-      {/* Defaulter Table */}
+      {/* Table */}
       <div className="bg-white rounded-xl border border-school-border overflow-hidden">
         <div className="px-5 py-4 border-b border-school-border flex items-center gap-2">
           <AlertTriangle size={18} className="text-amber-500" />
           <h4 className="font-serif text-sm text-school-primary">Fee Defaulters</h4>
-          <span className="text-[10px] text-school-muted">({displayData.length} students)</span>
+          <span className="text-[10px] text-school-muted">({filtered.length} students)</span>
           <div className="ml-auto flex gap-2">
-            <button onClick={handlePdfDefaulter}
+            <button onClick={handlePdf}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-school-primary text-white rounded-xl text-xs font-bold hover:opacity-90">
               <Download size={14} /> PDF
             </button>
-            <button onClick={printDefaulter}
+            <button onClick={handlePrint}
               className="flex items-center gap-1.5 px-3 py-1.5 border border-school-border rounded-xl text-xs font-bold hover:border-school-accent">
               <Printer size={14} /> Print
             </button>
           </div>
         </div>
+
         <div id="defaulter-print-area" className="overflow-x-auto">
           <table className="w-full text-sm mobile-card-table">
             <thead className="bg-school-paper/50 text-[10px] uppercase tracking-widest text-school-muted font-bold">
               <tr>
-                <th className="px-4 py-3 text-left sticky left-0 bg-school-paper/50 z-10" rowSpan={2}>Student<br/><span className="text-[9px] font-normal">Class</span></th>
+                <th className="px-4 py-3 text-left sticky left-0 bg-school-paper/50 z-10" rowSpan={2}>
+                  Student<br /><span className="text-[9px] font-normal">Class</span>
+                </th>
                 {yearlyFeeNames.map(name => (
                   <th key={name} className="px-2 py-3 text-center" rowSpan={2}>{shortName(name)}</th>
                 ))}
                 {hasMonthly && monthRange.map(m => {
                   const [yr, mn] = m.split('-');
-                  return <th key={m} className="px-2 py-3 text-center" colSpan={monthlyFeeNames.length}>
-                    {getMonthName(Number(mn) - 1)}<br/>'{yr.slice(2)}
-                  </th>;
+                  return (
+                    <th key={m} className="px-2 py-3 text-center" colSpan={monthlyFeeNames.length}>
+                      {getMonthNameShort(Number(mn) - 1)}<br />'{yr.slice(2)}
+                    </th>
+                  );
                 })}
                 <th className="px-3 py-3 text-right" rowSpan={2}>Due</th>
                 <th className="px-3 py-3 text-right" rowSpan={2}>Paid</th>
@@ -257,73 +268,126 @@ export default function DefaulterTab() {
               {hasMonthly && (
                 <tr>
                   {monthRange.flatMap(m => monthlyFeeNames.map(name => (
-                    <th key={`${m}_${name}`} className="px-1 py-2 text-center text-[9px] font-semibold tracking-normal">{shortName(name)}</th>
+                    <th key={`${m}_${name}`} className="px-1 py-2 text-center text-[9px] font-semibold tracking-normal">
+                      {shortName(name)}
+                    </th>
                   )))}
                 </tr>
               )}
             </thead>
+
             <tbody className="divide-y divide-school-border/50">
               {loading ? (
-                Array.from({ length: 4 }).map((_, i) => (
-                  <tr key={i}>
-                    <td className="px-4 py-3"><div className="h-4 bg-school-paper rounded animate-pulse w-24" /></td>
-                    {yearlyFeeNames.map(name => (
-                      <td key={name} className="px-2 py-3"><div className="h-4 bg-school-paper rounded animate-pulse w-12 mx-auto" /></td>
-                    ))}
-                    {hasMonthly && monthRange.flatMap(m => monthlyFeeNames.map(name => (
-                      <td key={`sk_${m}_${name}`} className="px-1 py-3"><div className="h-4 w-8 bg-school-paper rounded animate-pulse mx-auto" /></td>
-                    )))}
-                    <td className="px-3 py-3"><div className="h-4 bg-school-paper rounded animate-pulse w-16 ml-auto" /></td>
-                    <td className="px-3 py-3"><div className="h-4 bg-school-paper rounded animate-pulse w-16 ml-auto" /></td>
-                    <td className="px-3 py-3"><div className="h-4 bg-school-paper rounded animate-pulse w-16 ml-auto" /></td>
+                <LoadingSkeleton yearlyCount={yearlyFeeNames.length} hasMonthly={hasMonthly} monthRange={monthRange} monthlyCount={monthlyFeeNames.length} />
+              ) : filtered.length > 0 ? (
+                filtered.map(row => (
+                  <tr key={row.studentId} className="hover:bg-school-paper/30 transition-colors border-t-2 border-school-primary/20">
+                    <td className="px-4 py-2 sticky left-0 bg-white z-10 font-bold text-xs border-r border-school-border/30" data-label="Student">
+                      {row.name}<br /><span className="text-[10px] text-school-muted font-normal">{row.class}</span>
+                    </td>
+                    {yearlyFeeNames.map(name => {
+                      const fee = findFee(row.fees, name);
+                      if (!fee) return <td key={name} className="px-2 py-2 text-center text-[8px] text-school-muted">—</td>;
+                      return <td key={name} className="px-2 py-2 text-center"><FeeCell amount={fee.amount} paid={fee.paid} /></td>;
+                    })}
+                    {hasMonthly && monthRange.flatMap(m => monthlyFeeNames.map(name => {
+                      const md = findMonthlyFee(row.fees, name, m);
+                      if (!md) return (
+                        <td key={`${m}_${name}`} className="px-1 py-2 text-center">
+                          <span className="text-rose-500"><X size={12} className="inline" /></span>
+                        </td>
+                      );
+                      return <td key={`${m}_${name}`} className="px-1 py-2 text-center"><FeeCell amount={md.amount} paid={md.paid} /></td>;
+                    }))}
+                    <td className="px-3 py-2 text-right font-bold text-xs" data-label="Due">{fmt(row.totalDue)} /-</td>
+                    <td className="px-3 py-2 text-right text-xs font-bold text-emerald-600" data-label="Paid">{fmt(row.totalPaid)} /-</td>
+                    <td className="px-3 py-2 text-right font-bold text-xs" data-label="Balance">
+                      <span className={row.balance > 0 ? 'text-rose-600' : 'text-emerald-600'}>{fmt(Math.abs(row.balance))} /-</span>
+                      {row.balance <= 0 && <span className="text-[9px] text-emerald-500 ml-1">(clear)</span>}
+                    </td>
                   </tr>
                 ))
-              ) : displayData.length > 0 ? displayData.map((row: any) => (
-                <tr key={row.studentId} className="hover:bg-school-paper/30 transition-colors border-t-2 border-school-primary/20">
-                  <td className="px-4 py-2 sticky left-0 bg-white z-10 font-bold text-xs border-r border-school-border/30" data-label="Student">
-                    {row.name}<br/><span className="text-[10px] text-school-muted font-normal">{row.class}</span>
-                  </td>
-                  {yearlyFeeNames.map(name => {
-                    const fee = getStudentFee(row, name);
-                    if (!fee) return <td key={name} className="px-2 py-2 text-center text-[8px] text-school-muted">—</td>;
-                    return <td key={name} className="px-2 py-2 text-center">{renderFeeCell(fee.amount, fee.paid)}</td>;
-                  })}
-                  {hasMonthly && monthRange.flatMap(m => monthlyFeeNames.map(name => {
-                    const md = getMonthlyFeeValue(row, name, m);
-                    if (!md) return <td key={`${m}_${name}`} className="px-1 py-2 text-center"><span className="text-rose-500"><X size={12} className="inline" /></span></td>;
-                    return <td key={`${m}_${name}`} className="px-1 py-2 text-center">{renderFeeCell(md.amount, md.paid)}</td>;
-                  }))}
-                  <td className="px-3 py-2 text-right font-bold text-xs" data-label="Due">{fmt(row.totalDue)} /-</td>
-                  <td className="px-3 py-2 text-right text-xs font-bold text-emerald-600" data-label="Paid">{fmt(row.totalPaid)} /-</td>
-                  <td className="px-3 py-2 text-right font-bold text-xs" data-label="Balance">
-                    <span className={row.balance > 0 ? 'text-rose-600' : 'text-emerald-600'}>{fmt(Math.abs(row.balance))} /-</span>
-                    {row.balance <= 0 && <span className="text-[9px] text-emerald-500 ml-1">(clear)</span>}
+              ) : (
+                <tr>
+                  <td colSpan={colCount} className="px-4 py-12 text-center text-sm text-school-muted italic">
+                    No defaulter data found.
                   </td>
                 </tr>
-              )) : (
-                <tr><td colSpan={colCount} className="px-4 py-12 text-center text-sm text-school-muted italic">
-                  No defaulter data found.
-                </td></tr>
               )}
             </tbody>
-            {!loading && displayData.length > 0 && (
-            <tfoot>
-              <tr className="bg-school-primary/5 border-t-2 border-school-primary/20">
-                <td className="px-4 py-3 sticky left-0 bg-school-primary/5 text-xs font-bold" colSpan={1 + yearlyFeeNames.length}>Grand Total</td>
-                {hasMonthly && monthRange.flatMap(m => monthlyFeeNames.map(name => (
-                  <td key={`gt_${m}_${name}`} className="px-2 py-3"></td>
-                )))}
-                <td className="px-3 py-3 text-right font-bold text-xs">{fmt(totalDueAll)} /-</td>
-                <td className="px-3 py-3 text-right font-bold text-xs text-emerald-600">{fmt(totalPaidAll)} /-</td>
-                <td className={`px-3 py-3 text-right font-bold text-xs ${totalDueAll - totalPaidAll > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                  {fmt(Math.abs(totalDueAll - totalPaidAll))} /-
-                </td>
-              </tr>
-            </tfoot>
+
+            {!loading && filtered.length > 0 && (
+              <tfoot>
+                <tr className="bg-school-primary/5 border-t-2 border-school-primary/20">
+                  <td className="px-4 py-3 sticky left-0 bg-school-primary/5 text-xs font-bold" colSpan={1 + yearlyFeeNames.length}>
+                    Grand Total
+                  </td>
+                  {hasMonthly && monthRange.flatMap(m => monthlyFeeNames.map(name => (
+                    <td key={`gt_${m}_${name}`} className="px-2 py-3" />
+                  )))}
+                  <td className="px-3 py-3 text-right font-bold text-xs">{fmt(totalDue)} /-</td>
+                  <td className="px-3 py-3 text-right font-bold text-xs text-emerald-600">{fmt(totalPaid)} /-</td>
+                  <td className={`px-3 py-3 text-right font-bold text-xs ${totalBalance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                    {fmt(Math.abs(totalBalance))} /-
+                  </td>
+                </tr>
+              </tfoot>
             )}
           </table>
         </div>
       </div>
     </div>
+  );
+}
+
+function FilterSelect({ label, value, onChange, children }: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <label className="text-[10px] font-bold uppercase text-school-muted mb-1 block">{label}</label>
+      <select value={value} onChange={e => onChange(e.target.value)}
+        className="border border-school-border rounded-xl px-3 py-2 text-sm bg-white">
+        {children}
+      </select>
+    </div>
+  );
+}
+
+function SummaryCard({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div>
+      <div className="text-[10px] uppercase text-school-muted font-bold">{label}</div>
+      <div className={`font-serif text-lg font-bold ${color}`}>{fmt(value)} /-</div>
+    </div>
+  );
+}
+
+function LoadingSkeleton({ yearlyCount, hasMonthly, monthRange, monthlyCount }: {
+  yearlyCount: number;
+  hasMonthly: boolean;
+  monthRange: string[];
+  monthlyCount: number;
+}) {
+  return (
+    <>
+      {Array.from({ length: 4 }).map((_, i) => (
+        <tr key={i}>
+          <td className="px-4 py-3"><div className="h-4 bg-school-paper rounded animate-pulse w-24" /></td>
+          {Array.from({ length: yearlyCount }).map((_, j) => (
+            <td key={j} className="px-2 py-3"><div className="h-4 bg-school-paper rounded animate-pulse w-12 mx-auto" /></td>
+          ))}
+          {hasMonthly && monthRange.flatMap(m => Array.from({ length: monthlyCount }).map((_, j) => (
+            <td key={`sk_${m}_${j}`} className="px-1 py-3"><div className="h-4 w-8 bg-school-paper rounded animate-pulse mx-auto" /></td>
+          )))}
+          <td className="px-3 py-3"><div className="h-4 bg-school-paper rounded animate-pulse w-16 ml-auto" /></td>
+          <td className="px-3 py-3"><div className="h-4 bg-school-paper rounded animate-pulse w-16 ml-auto" /></td>
+          <td className="px-3 py-3"><div className="h-4 bg-school-paper rounded animate-pulse w-16 ml-auto" /></td>
+        </tr>
+      ))}
+    </>
   );
 }

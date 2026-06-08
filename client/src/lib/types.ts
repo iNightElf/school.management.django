@@ -206,6 +206,30 @@ export interface Book {
   sell: number;
 }
 
+export interface DefaulterMonth {
+  month: string;
+  amount: number;
+  paid: boolean;
+}
+
+export interface DefaulterFee {
+  name: string;
+  amount: number;
+  paid: boolean;
+  type: 'onetime' | 'global' | 'recurring' | 'special';
+  months?: DefaulterMonth[];
+}
+
+export interface DefaulterStudent {
+  studentId: string;
+  name: string;
+  class: string;
+  totalDue: number;
+  totalPaid: number;
+  balance: number;
+  fees: DefaulterFee[];
+}
+
 export interface SchoolSettings {
   school_name: string;
   address: string;
