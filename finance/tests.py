@@ -104,6 +104,24 @@ class FinanceTests(TestCase):
         self.assertIsInstance(res.data, dict)
         self.assertIn('AL_RAWA_BANK', res.data)
 
+    def test_balances_includes_opening_balance(self):
+        Transaction.objects.create(
+            transaction_date='2026-06-01', transaction_type='INCOME',
+            amount=1000, description='Test', student=self.student,
+            destination_account=self.bank_ar, fiscal_year=2026
+        )
+        OpeningBalance.objects.create(
+            account=self.bank_ar, fiscal_year=2026, amount=50000,
+            updated_by='test'
+        )
+        res = self.client.get('/api/finance/balances/')
+        self.assertEqual(res.status_code, 200)
+        # Opening balance (50000) + income (1000) = 51000
+        self.assertEqual(float(res.data['AL_RAWA_BANK']), 51000.0)
+        # Other accounts should be 0 (no opening balance set)
+        self.assertEqual(float(res.data['GLOBAL_FORUM_BANK']), 0)
+        self.assertEqual(float(res.data['CASH_IN_HAND']), 0)
+
     def test_dashboard_summary(self):
         Transaction.objects.create(
             transaction_date='2026-06-01', transaction_type='INCOME',

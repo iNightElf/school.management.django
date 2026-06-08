@@ -360,13 +360,20 @@ class TransactionViewSet(PeriodClosedMixin, viewsets.ModelViewSet):
         ).annotate(total=Sum('amount')).values_list('source_account__name', 'total')
         transfer_out_map = dict(transfer_out_qs)
 
+        fy = _fiscal_year_from_date(timezone.now().date())
+        opening_qs = OpeningBalance.objects.filter(
+            fiscal_year=fy, account__name__in=accounts
+        ).select_related('account').values_list('account__name', 'amount')
+        opening_map = dict(opening_qs)
+
         results = {}
         for account in accounts:
+            opening = opening_map.get(account, Decimal('0'))
             income = income_map.get(account, Decimal('0'))
             expense = expense_map.get(account, Decimal('0'))
             transfer_in = transfer_in_map.get(account, Decimal('0'))
             transfer_out = transfer_out_map.get(account, Decimal('0'))
-            results[account] = income + transfer_in - expense - transfer_out
+            results[account] = opening + income + transfer_in - expense - transfer_out
 
         return Response(results)
 
