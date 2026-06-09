@@ -373,6 +373,9 @@ const FinanceSection = () => {
   const [selectedFeeScheduleId, setSelectedFeeScheduleId] = useState('');
   const [feeStatusList, setFeeStatusList] = useState<any[]>([]);
   const [selectedAllocations, setSelectedAllocations] = useState<Record<string, boolean>>({});
+  const [otherCategory, setOtherCategory] = useState('');
+  const [otherAmount, setOtherAmount] = useState('');
+  const [otherChecked, setOtherChecked] = useState(false);
 
 
   useEffect(() => {
@@ -443,6 +446,9 @@ const FinanceSection = () => {
           if (!f.paid) defaultChecked[f.feeScheduleId] = true;
         });
         setSelectedAllocations(defaultChecked);
+        setOtherChecked(false);
+        setOtherCategory('');
+        setOtherAmount('');
       })
       .catch(() => setFeeStatusList([]));
     return () => ctrl.abort();
@@ -451,15 +457,16 @@ const FinanceSection = () => {
   // Auto-fill amount from checked allocations
   useEffect(() => {
     const selectedFeeIds = Object.keys(selectedAllocations).filter(k => selectedAllocations[k]);
-    if (selectedFeeIds.length > 0 && feeStatusList.length > 0 && feeMonth) {
+    if ((selectedFeeIds.length > 0 || otherChecked) && feeStatusList.length > 0 && feeMonth) {
       const total = selectedFeeIds.reduce((s, id) => {
         const f = feeStatusList.find((fs: any) => fs.feeScheduleId === id);
         if (!f) return s;
         return s + Number(f.amount) * (f.numMonths || 1);
       }, 0);
-      setAmount(String(total));
+      const otherTotal = otherChecked ? Number(otherAmount) || 0 : 0;
+      setAmount(String(total + otherTotal));
     }
-  }, [selectedAllocations, feeStatusList, feeMonth]);
+  }, [selectedAllocations, feeStatusList, feeMonth, otherChecked, otherAmount]);
 
   const availableStudents = useMemo(() => {
     const classStudents = students.filter((s: any) => s.class === selectedClass);
@@ -545,6 +552,10 @@ const FinanceSection = () => {
           } else {
             body.allocations.push({ feeScheduleId: id, amount: Number(fs.amount), period: (feeMonth || '').split('-')[0] });
           }
+        }
+        if (otherChecked && otherCategory && Number(otherAmount) > 0) {
+          body.category += body.category ? `, ${otherCategory}` : otherCategory;
+          body.allocations.push({ feeScheduleId: '__other__', category: otherCategory, amount: Number(otherAmount), period: feeMonth || '' });
         }
       } else {
         body.category = finalCategory;
@@ -782,17 +793,37 @@ const FinanceSection = () => {
                                   </tr>
                                 );
                               })}
+                              <tr className="hover:bg-school-paper/30 border-t-2 border-dashed border-school-border">
+                                <td className="px-4 py-2.5 text-center">
+                                  <input type="checkbox" checked={otherChecked}
+                                    onChange={e => setOtherChecked(e.target.checked)}
+                                    className="w-4 h-4 rounded border-school-border accent-school-primary cursor-pointer" />
+                                </td>
+                                <td className="px-4 py-2.5">
+                                  <input type="text" value={otherCategory}
+                                    onChange={e => setOtherCategory(e.target.value)}
+                                    placeholder="Other (Notebook, Accessories...)"
+                                    className="w-full border border-school-border rounded-lg px-2 py-1 text-sm focus:outline-none focus:border-school-accent" />
+                                </td>
+                                <td className="px-4 py-2.5 text-right text-school-muted">—</td>
+                                <td className="px-4 py-2.5 text-right">
+                                  <input type="number" value={otherAmount}
+                                    onChange={e => setOtherAmount(e.target.value)}
+                                    placeholder="0"
+                                    className="w-24 border border-school-border rounded-lg px-2 py-1 text-sm text-right focus:outline-none focus:border-school-accent" />
+                                </td>
+                              </tr>
                             </tbody>
                             <tfoot className="bg-school-primary/5 border-t-2 border-school-primary/20">
                               <tr>
                                 <td colSpan={3} className="px-4 py-2.5 text-sm font-bold text-school-primary">Total</td>
                                 <td className="px-4 py-2.5 text-right font-bold text-school-primary">
-                                  {feeStatusList
+                                  {(feeStatusList
                                     .filter(f => selectedAllocations[f.feeScheduleId])
                                     .reduce((s, f) => {
                                       const months = f.numMonths || 1;
                                       return s + Number(f.amount) * months;
-                                    }, 0)
+                                    }, 0) + (otherChecked ? Number(otherAmount) || 0 : 0))
                                     .toLocaleString()}
                                 </td>
                               </tr>

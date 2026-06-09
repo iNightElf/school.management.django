@@ -160,7 +160,21 @@ class SettingsTests(TestCase):
     def test_get_settings(self):
         from .models import SchoolSetting
         SchoolSetting.objects.create(key='school_name', value='Test School')
+        SchoolSetting.objects.create(key='address', value='123 Main St')
         res = self.client.get('/api/settings/')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['school_name'], 'Test School')
+        self.assertEqual(res.data['address'], '123 Main St')
+
+    def test_get_settings_default(self):
+        res = self.client.get('/api/settings/')
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('school_name', res.data)
+
+    def test_get_settings_by_key(self):
+        from .models import SchoolSetting
+        SchoolSetting.objects.create(key='school_name', value='Test School')
+        res = self.client.get('/api/settings/?key=school_name')
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.data['key'], 'school_name')
         self.assertEqual(res.data['value'], 'Test School')
@@ -168,9 +182,16 @@ class SettingsTests(TestCase):
     def test_update_settings(self):
         from .models import SchoolSetting
         SchoolSetting.objects.create(key='school_name', value='Old Name')
-        res = self.client.patch('/api/settings/', {'value': 'New Name'})
+        res = self.client.put(
+            '/api/settings/',
+            {'school_name': 'New Name', 'address': '456 Oak Ave'},
+            format='json',
+        )
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(res.data['value'], 'New Name')
+        self.assertEqual(res.data['school_name'], 'New Name')
+        self.assertEqual(res.data['address'], '456 Oak Ave')
+        self.assertEqual(SchoolSetting.objects.get(key='school_name').value, 'New Name')
+        self.assertEqual(SchoolSetting.objects.get(key='address').value, '456 Oak Ave')
 
 
 class PromoteAllTests(TestCase):

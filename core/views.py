@@ -277,7 +277,7 @@ self):
         serializer.save()
 
 
-class SettingView(generics.RetrieveUpdateAPIView):
+class SettingView(generics.GenericAPIView):
     queryset = SchoolSetting.objects.all()
     serializer_class = SchoolSettingSerializer
 
@@ -286,16 +286,34 @@ class SettingView(generics.RetrieveUpdateAPIView):
             return [require_permission('classes:read')()]
         return [require_permission('users:write')()]
 
-    def get_object(self):
-        key = self.request.query_params.get('key')
+    def get(self, request):
+        key = request.query_params.get('key')
         if key:
             from django.shortcuts import get_object_or_404
-            return get_object_or_404(SchoolSetting, key=key)
-        obj = SchoolSetting.objects.first()
-        if not obj:
-            from rest_framework.exceptions import NotFound
-            raise NotFound('No settings found')
-        return obj
+            obj = get_object_or_404(SchoolSetting, key=key)
+            return Response(SchoolSettingSerializer(obj).data)
+        settings = {s.key: s.value for s in SchoolSetting.objects.all()}
+        if not settings:
+            settings = {
+                'school_name': 'AL RAWA English School',
+                'address': '',
+                'phone': '',
+                'email': '',
+                'website': '',
+            }
+        return Response(settings)
+
+    def put(self, request):
+        data = request.data
+        for key, value in data.items():
+            if key == 'id':
+                continue
+            SchoolSetting.objects.update_or_create(
+                key=key,
+                defaults={'value': str(value) if value is not None else ''},
+            )
+        settings = {s.key: s.value for s in SchoolSetting.objects.all()}
+        return Response(settings)
 
 
 class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):

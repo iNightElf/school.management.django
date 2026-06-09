@@ -10,7 +10,7 @@ interface Props {
   className: string;
   academicFees: FeeItem[];
   hifzFees: FeeItem[];
-  settings: { school_name?: string; address?: string; phone?: string };
+  settings: { school_name?: string; address?: string; phone?: string; email?: string; website?: string };
 }
 
 function fmt(n: number) { return n.toLocaleString('en-BD'); }

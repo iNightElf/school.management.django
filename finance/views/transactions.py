@@ -91,7 +91,11 @@ class TransactionViewSet(PeriodClosedMixin, viewsets.ModelViewSet):
                 alloc_objects = []
                 for alloc in allocations:
                     fs_id = alloc.get('feeScheduleId') or alloc.get('fee_schedule_id')
-                    if not fs_id or str(fs_id) not in fee_map:
+                    if not fs_id:
+                        continue
+                    if fs_id == '__other__':
+                        continue
+                    if str(fs_id) not in fee_map:
                         continue
                     fs = fee_map[str(fs_id)]
                     alloc_amount = Decimal(str(alloc.get('amount', 0)))
