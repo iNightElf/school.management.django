@@ -4,6 +4,26 @@ import Layout from '../components/Layout';
 import { ClipboardList, X } from 'lucide-react';
 
 const ACTION_LABELS: Record<string, string> = {
+  create: 'Create',
+  update: 'Update',
+  delete: 'Delete',
+  cancel: 'Cancel',
+  deactivate: 'Deactivate',
+  bulk_assign: 'Bulk Assign',
+  restore: 'Restore',
+  graduate: 'Graduate',
+  ungraduate: 'Ungraduate',
+  graduate_class: 'Graduate Class',
+  promote_all: 'Promote All',
+  reorder: 'Reorder',
+  copy_from_year: 'Copy From Year',
+  toggle: 'Toggle',
+  revert: 'Revert',
+  assign_class_teacher: 'Assign Class Teacher',
+  remove_class_teacher: 'Remove Class Teacher',
+  assign_subject: 'Assign Subject',
+  remove_subject: 'Remove Subject',
+  delete_class_results: 'Delete Class Results',
   CREATE: 'Create',
   UPDATE: 'Update',
   DELETE: 'Delete',
@@ -13,7 +33,25 @@ const ACTION_LABELS: Record<string, string> = {
 };
 
 const ENTITY_COLORS: Record<string, string> = {
+  student: 'text-blue-600 bg-blue-50',
+  teacher: 'text-amber-600 bg-amber-50',
+  staff: 'text-green-600 bg-green-50',
+  transaction: 'text-emerald-600 bg-emerald-50',
+  fee_schedule: 'text-purple-600 bg-purple-50',
+  fee_waiver: 'text-amber-600 bg-amber-50',
+  student_fee_assignment: 'text-rose-600 bg-rose-50',
+  class: 'text-blue-600 bg-blue-50',
+  subject: 'text-indigo-600 bg-indigo-50',
+  academic_year: 'text-cyan-600 bg-cyan-50',
+  category: 'text-gray-600 bg-gray-50',
+  setting: 'text-gray-600 bg-gray-50',
+  opening_balance: 'text-green-600 bg-green-50',
+  period_close: 'text-red-600 bg-red-50',
+  result: 'text-violet-600 bg-violet-50',
+  book: 'text-orange-600 bg-orange-50',
   Student: 'text-blue-600 bg-blue-50',
+  Teacher: 'text-amber-600 bg-amber-50',
+  Staff: 'text-green-600 bg-green-50',
   Transaction: 'text-emerald-600 bg-emerald-50',
   FeeSchedule: 'text-purple-600 bg-purple-50',
   FeeWaiver: 'text-amber-600 bg-amber-50',
@@ -26,6 +64,7 @@ interface AuditLog {
   entityType: string;
   entityId: string;
   userId: string;
+  userName: string;
   details: string;
   createdAt: string;
 }
@@ -177,7 +216,12 @@ const AuditLogs = () => {
                   {logs.map((log: AuditLog) => {
                     let parsed: any = null;
                     try { if (log.details) parsed = JSON.parse(log.details); } catch { parsed = log.details; }
-                    const preview = typeof parsed === 'object' && parsed ? JSON.stringify(parsed).slice(0, 80) + '…' : (log.details || '—');
+                    const preview = typeof parsed === 'object' && parsed ? (
+                      [parsed.destination_account ? `→ ${parsed.destination_account}` : '',
+                       parsed.source_account ? `← ${parsed.source_account}` : '',
+                       parsed.student ? parsed.student : '',
+                       parsed.type ? parsed.type : ''].filter(Boolean).join(' · ') || JSON.stringify(parsed).slice(0, 80) + '…'
+                    ) : (log.details || '—');
                     return (
                       <tr key={log.id} className="border-b border-school-border/50 hover:bg-school-paper/50 cursor-pointer"
                         onClick={() => setDetailLog(log)}>
@@ -185,10 +229,10 @@ const AuditLogs = () => {
                           {new Date(log.createdAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </td>
                         <td className="px-4 py-2.5 text-school-muted font-mono" data-label="User">
-                          {log.userId ? `#${log.userId.slice(0, 8)}` : '—'}
+                          {log.userName || (log.userId ? `#${log.userId.slice(0, 8)}` : '—')}
                         </td>
                         <td className="px-4 py-2.5" data-label="Action">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${log.action === 'DELETE' ? 'bg-red-50 text-red-600' : log.action === 'CREATE' ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'}`}>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${log.action === 'delete' || log.action === 'DELETE' ? 'bg-red-50 text-red-600' : log.action === 'create' || log.action === 'CREATE' ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'}`}>
                             {ACTION_LABELS[log.action] || log.action}
                           </span>
                         </td>
@@ -240,7 +284,7 @@ const AuditLogs = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div><div className="text-[10px] uppercase font-bold text-school-muted">Action</div><div className="text-sm font-bold text-school-primary">{ACTION_LABELS[detailLog.action] || detailLog.action}</div></div>
                 <div><div className="text-[10px] uppercase font-bold text-school-muted">Entity</div><div className="text-sm">{detailLog.entityType} #{detailLog.entityId}</div></div>
-                <div><div className="text-[10px] uppercase font-bold text-school-muted">User ID</div><div className="text-sm font-mono">{detailLog.userId}</div></div>
+                <div><div className="text-[10px] uppercase font-bold text-school-muted">User</div><div className="text-sm font-bold text-school-primary">{detailLog.userName || detailLog.userId}</div></div>
                 <div><div className="text-[10px] uppercase font-bold text-school-muted">Timestamp</div><div className="text-sm">{new Date(detailLog.createdAt).toLocaleString()}</div></div>
               </div>
               <div>

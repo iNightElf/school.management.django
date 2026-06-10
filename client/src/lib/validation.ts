@@ -63,8 +63,7 @@ export const feeScheduleSchema = z.object({
   applicability: z.enum(['AUTO', 'ASSIGNED_ONLY']).optional(),
 });
 
-export const openingBalancesSchema = z.object({
-  AL_RAWA_BANK: z.number().min(0, 'Balance cannot be negative'),
-  GLOBAL_FORUM_BANK: z.number().min(0, 'Balance cannot be negative'),
-  CASH_IN_HAND: z.number().min(0, 'Balance cannot be negative'),
-});
+export const openingBalancesSchema = z.record(
+  z.string(),
+  z.number().min(0, 'Balance cannot be negative')
+);

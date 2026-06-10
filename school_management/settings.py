@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     'books',
     'results',
     'finance',
+    'engagement',
 ]
 
 MIDDLEWARE = [
@@ -120,6 +121,14 @@ REST_FRAMEWORK = {
         'rest_framework.filters.SearchFilter',
         'rest_framework.filters.OrderingFilter',
     ],
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '1000/hour',
+        'setup': '5/hour',
+        'login': '10/min',
+    },
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',
     ] + (['rest_framework.renderers.BrowsableAPIRenderer'] if DEBUG else []),
@@ -149,3 +158,5 @@ EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
 
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
+
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')

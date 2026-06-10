@@ -3,7 +3,8 @@ from decimal import Decimal
 from rest_framework import viewsets, status, generics
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.db.models import Sum, Q, Count, OuterRef, Subquery
+from django.db.models import Sum, Q, Count, OuterRef, Subquery, DateTimeField
+from django.db.models.functions import ExtractMonth
 
 from finance.models import Transaction, StudentFeeAssignment, OpeningBalance
 from students.models import Student
@@ -235,10 +236,7 @@ class ReportView(generics.GenericAPIView):
         allowed = {'transaction_date', 'date'}
         if field not in allowed:
             raise ValueError(f"Field '{field}' is not allowed for month extraction")
-        from django.db import connection
-        if connection.vendor == 'postgresql':
-            return {"month": f"EXTRACT(MONTH FROM {field})"}
-        return {"month": f"strftime('%%m', {field})"}
+        return ExtractMonth(field)
 
 
 class ReportViewSet(viewsets.GenericViewSet):

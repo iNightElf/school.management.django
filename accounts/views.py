@@ -190,8 +190,8 @@ class SendVerificationView(APIView):
 class VerifyEmailView(APIView):
     permission_classes = []
 
-    def get(self, request):
-        token = request.query_params.get('token', '')
+    def post(self, request):
+        token = request.data.get('token', '') or request.query_params.get('token', '')
         if not token:
             return Response({'error': 'Token required.'}, status=400)
 

@@ -53,10 +53,13 @@ class SchoolSettingSerializer(serializers.ModelSerializer):
         fields = ['id', 'key', 'value']
 
 
-class AuditLogSerializer(serializers.ModelSerializer):
+from core.camelcase import CamelCaseModelSerializer
+
+
+class AuditLogSerializer(CamelCaseModelSerializer):
     class Meta:
         model = AuditLog
-        fields = ['id', 'user_id', 'action', 'entity_type', 'entity_id', 'details', 'created_at']
+        fields = ['id', 'user_id', 'user_name', 'action', 'entity_type', 'entity_id', 'details', 'created_at']
         read_only_fields = ['created_at']
 
 

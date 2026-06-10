@@ -75,6 +75,7 @@ class PhotoHandleMixin:
 
     @action(detail=True, methods=['post'])
     def restore(self, request, pk=None):
+        self.check_permissions(request)
         model_class = self.get_serializer().Meta.model
         try:
             instance = model_class.objects.get(pk=pk)
@@ -82,5 +83,7 @@ class PhotoHandleMixin:
             raise NotFound(f"{model_class.__name__} not found.")
         instance.deleted_at = None
         instance.save(update_fields=['deleted_at'])
+        from core.audit import log_audit
+        log_audit('restore', model_class._meta.model_name, entity_id=str(pk), request=request)
         serializer_class = self.get_serializer_class()
         return Response(serializer_class(instance).data)

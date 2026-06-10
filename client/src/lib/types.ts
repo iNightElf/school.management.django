@@ -22,9 +22,26 @@ export interface Teacher {
   email: string | null;
   role: string | null;
   designation?: string | null;
+  userId?: string | null;
   hasPhoto: boolean;
   photoUrl?: string | null;
   createdAt: string;
+  classTeacherOf?: ClassTeacherAssignment[];
+  subjectAssignments?: TeacherSubjectAssignment[];
+}
+
+export interface ClassTeacherAssignment {
+  id: string;
+  classId: string;
+  className: string;
+}
+
+export interface TeacherSubjectAssignment {
+  id: string;
+  subjectId: string;
+  subjectName: string;
+  classId: string;
+  className: string;
 }
 
 export interface Staff {
@@ -236,4 +253,77 @@ export interface SchoolSettings {
   phone: string;
   email: string;
   website: string;
+}
+
+export interface DailyQuiz {
+  id: string;
+  question: string;
+  optionA: string;
+  optionB: string;
+  optionC: string;
+  optionD: string;
+  category: string;
+  quizDate: string;
+  explanation: string;
+  hasResponded: boolean;
+}
+
+export interface DailyRiddle {
+  id: string;
+  question: string;
+  hint: string;
+  riddleDate: string;
+  hasResponded: boolean;
+  showAnswer: boolean;
+  answer?: string;
+  yourGuess?: string;
+  isCorrect?: boolean;
+}
+
+export interface DailyTip {
+  id: string;
+  tip: string;
+  category: string;
+  tipDate: string;
+}
+
+export interface WeeklyChallenge {
+  id: string;
+  title: string;
+  description: string;
+  challengeType: string;
+  startDate: string;
+  endDate: string;
+  hasResponded: boolean;
+  responseCount: number;
+}
+
+export interface MoodCheckin {
+  id: string;
+  mood: number;
+  moodDisplay: string;
+  checkinDate: string;
+}
+
+export interface LessonPlan {
+  id: string;
+  planDate: string;
+  className: string;
+  subject: string;
+  notes: string;
+}
+
+export interface TeacherStreak {
+  currentStreak: number;
+  longestStreak: number;
+  lastActiveDate: string | null;
+  totalDaysActive: number;
+}
+
+export interface LeaderboardEntry {
+  userId: string;
+  userName: string;
+  correctAnswers: number;
+  totalAnswers: number;
+  accuracy: number;
 }

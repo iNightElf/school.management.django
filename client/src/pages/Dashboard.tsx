@@ -3,11 +3,12 @@ import { useSearchParams } from 'react-router-dom';
 import { useUIStore, useSchoolStore, useAuthStore } from '../store';
 import { api } from '../store';
 import Layout from '../components/Layout';
-import Toast from '../components/Toast';
+import Toast, { toast } from '../components/Toast';
 import IdCardSection from './IdCardSection';
 import AccessoriesSection from './AccessoriesSection';
 import ResultSection from './ResultSection';
 import FinanceSection from './FinanceSection';
+import EngagementWidget, { QuizPanel, RiddlePanel, MoodPanel, ChallengePanel, TipsPanel, PlannerPanel } from './engagement/EngagementWidget';
 import { CreditCard, BookOpen, BarChart3, Wallet, Users, GraduationCap, Building2, Sparkles, ArrowRight, Clock, MailCheck } from 'lucide-react';
 import { SCHOOL_LOGO } from '../lib/logo';
 
@@ -26,16 +27,22 @@ const Dashboard = () => {
   const { studentTotal, teacherTotal, staffTotal, fetchClasses, fetchDashboardCounts } = useSchoolStore();
   const user = useAuthStore((s) => s.user);
   const isTeacher = user?.role === 'teacher';
+  const isAdmin = user?.role === 'admin';
   const isPendingViewer = user?.role === 'viewer';
   const [verifying, setVerifying] = useState(false);
   const [verifySent, setVerifySent] = useState(false);
+  const [engagementPanel, setEngagementPanel] = useState<string | null>(null);
 
   const handleResendVerification = async () => {
     setVerifying(true);
     try {
       await api.post('/auth/send-verification/');
       setVerifySent(true);
-    } catch (e) { if (import.meta.env.DEV) console.warn('[Dashboard] verification resend failed', e); }
+      toast('Verification email sent.', 'success');
+    } catch (e) {
+      toast('Failed to send verification email. Please try again.', 'error');
+      if (import.meta.env.DEV) console.warn('[Dashboard] verification resend failed', e);
+    }
     setVerifying(false);
   };
 
@@ -168,6 +175,11 @@ const Dashboard = () => {
             })}
           </div>
           )}
+
+          {/* Engagement Widget — teachers & admins */}
+          {(isTeacher || isAdmin) && !isPendingViewer && (
+            <EngagementWidget onOpenPanel={(p) => setEngagementPanel(p)} />
+          )}
         </div>
       ) : (
         <div className="animate-fade-in">
@@ -177,6 +189,14 @@ const Dashboard = () => {
           {activeMode === 'finance' && <FinanceSection />}
         </div>
       )}
+
+      {/* Engagement Panels */}
+      {engagementPanel === 'quiz' && <QuizPanel onClose={() => setEngagementPanel(null)} />}
+      {engagementPanel === 'riddle' && <RiddlePanel onClose={() => setEngagementPanel(null)} />}
+      {engagementPanel === 'mood' && <MoodPanel onClose={() => setEngagementPanel(null)} />}
+      {engagementPanel === 'challenge' && <ChallengePanel onClose={() => setEngagementPanel(null)} />}
+      {engagementPanel === 'tips' && <TipsPanel onClose={() => setEngagementPanel(null)} />}
+      {engagementPanel === 'planner' && <PlannerPanel onClose={() => setEngagementPanel(null)} />}
     </Layout>
   );
 };

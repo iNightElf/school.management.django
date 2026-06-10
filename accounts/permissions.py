@@ -71,3 +71,37 @@ def require_permission(permission):
         def has_permission(self, request, view):
             return has_permission(request.user, permission)
     return CheckPermission
+
+
+def is_admin_or_superuser(user):
+    return user.is_superuser or getattr(user, 'role', None) == 'admin'
+
+
+def is_class_teacher_of(user, school_class_id):
+    if is_admin_or_superuser(user):
+        return True
+    teacher_profile = getattr(user, 'teacher_profile', None)
+    if not teacher_profile:
+        return False
+    from teachers.models import ClassTeacher
+    return ClassTeacher.objects.filter(
+        teacher=teacher_profile, school_class_id=school_class_id,
+    ).exists()
+
+
+def can_teach_subject(user, subject_id, school_class_id):
+    if is_admin_or_superuser(user):
+        return True
+    teacher_profile = getattr(user, 'teacher_profile', None)
+    if not teacher_profile:
+        return False
+    if is_class_teacher_of(user, school_class_id):
+        return True
+    from teachers.models import TeacherSubject
+    return TeacherSubject.objects.filter(
+        teacher=teacher_profile, subject_id=subject_id, school_class_id=school_class_id,
+    ).exists()
+
+
+def can_manage_students(user, school_class_id):
+    return is_admin_or_superuser(user) or is_class_teacher_of(user, school_class_id)

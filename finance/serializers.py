@@ -163,8 +163,8 @@ class PeriodCloseSerializer(CamelCaseModelSerializer):
 class ReconciliationSerializer(CamelCaseModelSerializer):
     class Meta:
         model = Reconciliation
-        fields = ['id', 'account', 'fiscal_year', 'system_balance', 'actual_balance',
-                  'difference', 'note', 'reconciled_by', 'created_at']
+        fields = ['id', 'account', 'statement_date', 'closing_balance', 'system_balance',
+                  'difference', 'status', 'notes', 'created_by', 'created_at']
         read_only_fields = ['id', 'created_at', 'system_balance', 'difference']
 
 

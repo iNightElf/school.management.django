@@ -12,7 +12,7 @@ class UserAdmin(BaseUserAdmin):
     ordering = ('email',)
     fieldsets = (
         (None, {'fields': ('email', 'password')}),
-        ('Info', {'fields': ('name', 'role', 'school_name')}),
+        ('Info', {'fields': ('name', 'role', 'image')}),
         ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
     )
     add_fieldsets = (

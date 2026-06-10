@@ -2,9 +2,10 @@ from rest_framework import viewsets
 from .models import Book
 from .serializers import BookSerializer
 from accounts.permissions import require_permission
+from core.audit import AuditLogMixin
 
 
-class BookViewSet(viewsets.ModelViewSet):
+class BookViewSet(AuditLogMixin, viewsets.ModelViewSet):
     queryset = Book.objects.select_related('school_class').all()
     serializer_class = BookSerializer
     filterset_fields = ['school_class_id']

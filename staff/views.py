@@ -5,9 +5,10 @@ from .models import Staff
 from .serializers import StaffSerializer
 from accounts.permissions import require_permission
 from core.mixins import PhotoHandleMixin
+from core.audit import AuditLogMixin
 
 
-class StaffViewSet(PhotoHandleMixin, viewsets.ModelViewSet):
+class StaffViewSet(PhotoHandleMixin, AuditLogMixin, viewsets.ModelViewSet):
     serializer_class = StaffSerializer
     photo_prefix = 'staff'
     filterset_fields = ['role']

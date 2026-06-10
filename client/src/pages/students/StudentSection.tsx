@@ -161,7 +161,7 @@ export default function StudentSection() {
     setArchiveLoading(true);
     try {
       const d = (await api.post(`/classes/${archiveId}/graduate/`)).data;
-      toast(d.message, 'success'); fetchStudents(); fetchClasses();
+      toast(d.message, 'success'); fetchStudents(undefined, true); fetchClasses(true);
     } catch (e: any) { toast(e.response?.data?.error || e.message || 'Error', 'error'); }
     setArchiveId(null);
     setArchiveName('');
@@ -254,7 +254,7 @@ export default function StudentSection() {
               try {
                 await api.post(`/students/${s.id}/ungraduate/`);
                 toast('Student unarchived ✓', 'success');
-                fetchStudents(showGraduated ? { showGraduated: 'true' } : undefined);
+                fetchStudents(showGraduated ? { showGraduated: 'true' } : undefined, true);
               } catch (e: any) { toast(e.response?.data?.error || e.message || 'Error', 'error'); }
             }} className="flex-1 py-1.5 bg-amber-50 text-amber-600 rounded-lg text-xs font-medium hover:bg-amber-100 flex items-center justify-center gap-1"><Archive size={14} /> Unarchive</button>
           ) : (
@@ -262,7 +262,7 @@ export default function StudentSection() {
               try {
                 await api.post(`/students/${s.id}/graduate/`);
                 toast('Student archived ✓', 'success');
-                fetchStudents(showGraduated ? { showGraduated: 'true' } : undefined);
+                fetchStudents(showGraduated ? { showGraduated: 'true' } : undefined, true);
               } catch (e: any) { toast(e.response?.data?.error || e.message || 'Error', 'error'); }
             }} className="flex-1 py-1.5 bg-amber-50 text-amber-600 rounded-lg text-xs font-medium hover:bg-amber-100 flex items-center justify-center gap-1"><Archive size={14} /> Archive</button>
           )}
@@ -276,7 +276,7 @@ export default function StudentSection() {
     <div className="space-y-4">
       <ClassManagerModal open={showClassManager} onClose={() => setShowClassManager(false)} />
       <CameraModal open={showCamera} onClose={() => setShowCamera(false)} onCapture={(d) => { setPhoto(d); setShowCamera(false); }} />
-      <ImportModal open={showImport} onClose={() => setShowImport(false)} onImported={() => fetchStudents()} />
+      <ImportModal open={showImport} onClose={() => setShowImport(false)} onImported={() => fetchStudents(undefined, true)} />
 
       {/* Panel Header */}
         <div className="flex items-center justify-between flex-wrap gap-2">
@@ -470,7 +470,7 @@ export default function StudentSection() {
         </div>
       )}
       {showPromote && promoteYear && (
-        <PromoteModal open={showPromote} targetYearName={promoteYear.name} targetAcademicYearId={promoteYear.id} onClose={() => { setShowPromote(false); setPromoteYear(null); }} onDone={() => { setShowPromote(false); setPromoteYear(null); fetchStudents(); }} />
+        <PromoteModal open={showPromote} targetYearName={promoteYear.name} targetAcademicYearId={promoteYear.id} onClose={() => { setShowPromote(false); setPromoteYear(null); }} onDone={() => { setShowPromote(false); setPromoteYear(null); fetchStudents(undefined, true); fetchClasses(true); }} />
       )}
       <DeleteConfirmModal open={!!deleteId} title="Delete Student" message="This will permanently delete this student and all their results." onConfirm={confirmDelete} onCancel={() => setDeleteId(null)} loading={deleteLoading} />
       <DeleteConfirmModal open={!!archiveId} title="Archive Class" message={`Archive all students in ${archiveName}? This will mark them as graduated.`} onConfirm={confirmArchive} onCancel={() => { setArchiveId(null); setArchiveName(''); }} loading={archiveLoading} />

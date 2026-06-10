@@ -12,8 +12,9 @@ from finance.serializers import (
 )
 from accounts.permissions import require_permission
 from .base import PeriodClosedMixin, _param
+from core.audit import log_audit, AuditLogMixin
 
-class FeeScheduleViewSet(PeriodClosedMixin, viewsets.ModelViewSet):
+class FeeScheduleViewSet(PeriodClosedMixin, AuditLogMixin, viewsets.ModelViewSet):
     queryset = FeeSchedule.objects.select_related('academic_year', 'school_class').all()
     serializer_class = FeeScheduleSerializer
     filterset_fields = ['academic_year_id', 'school_class_id', 'category']
@@ -47,10 +48,13 @@ class FeeScheduleViewSet(PeriodClosedMixin, viewsets.ModelViewSet):
                 )
                 if created:
                     count += 1
+        log_audit('copy_from_year', 'fee_schedule',
+                  details={'from_year': from_year_id, 'to_year': to_year_id, 'copied': count},
+                  request=request)
         return Response({'copied': count})
 
 
-class FeeWaiverViewSet(PeriodClosedMixin, viewsets.ModelViewSet):
+class FeeWaiverViewSet(PeriodClosedMixin, AuditLogMixin, viewsets.ModelViewSet):
     queryset = FeeWaiver.objects.select_related('student', 'fee_schedule').all()
     serializer_class = FeeWaiverSerializer
 
@@ -77,10 +81,11 @@ class FeeWaiverViewSet(PeriodClosedMixin, viewsets.ModelViewSet):
         waiver = self.get_object()
         waiver.active = False
         waiver.save(update_fields=['active'])
+        log_audit('deactivate', 'fee_waiver', entity_id=waiver.pk, request=request)
         return Response(FeeWaiverSerializer(waiver).data)
 
 
-class StudentFeeAssignmentViewSet(PeriodClosedMixin, viewsets.ModelViewSet):
+class StudentFeeAssignmentViewSet(PeriodClosedMixin, AuditLogMixin, viewsets.ModelViewSet):
     queryset = StudentFeeAssignment.objects.select_related('student', 'fee_schedule').all()
     serializer_class = StudentFeeAssignmentSerializer
 
@@ -142,6 +147,9 @@ class StudentFeeAssignmentViewSet(PeriodClosedMixin, viewsets.ModelViewSet):
                 update_fields.append('ends_at')
             assignment.save(update_fields=update_fields)
 
+        log_audit('toggle', 'student_fee_assignment',
+                  entity_id=assignment.pk,
+                  details={'active': data['active']}, request=request)
         return Response(StudentFeeAssignmentSerializer(assignment).data)
 
     @action(detail=False, methods=['post'])
@@ -171,4 +179,7 @@ class StudentFeeAssignmentViewSet(PeriodClosedMixin, viewsets.ModelViewSet):
             ]
             StudentFeeAssignment.objects.bulk_create(new_assignments)
             count = len(new_assignments)
+        log_audit('bulk_assign', 'student_fee_assignment',
+                  details={'class_id': str(data['class_id']), 'fee_schedule_id': str(data['fee_schedule_id']),
+                           'assigned': count}, request=request)
         return Response({'assigned': count})

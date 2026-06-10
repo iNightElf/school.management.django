@@ -4,8 +4,9 @@ from rest_framework.response import Response
 from django.db import transaction as db_transaction
 from .models import Result
 from students.models import Student
-from .serializers import ResultSerializer
-from accounts.permissions import require_permission
+from .serializers import ResultSerializer, SUBJECT_KEY_MAP
+from accounts.permissions import require_permission, can_teach_subject, is_admin_or_superuser
+from core.audit import log_audit
 
 
 class ResultViewSet(viewsets.ModelViewSet):
@@ -20,12 +21,59 @@ class ResultViewSet(viewsets.ModelViewSet):
             data['student'] = student_id
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
+
+        if not is_admin_or_superuser(request.user):
+            self._check_subject_permissions(serializer.validated_data, request.user)
+
         self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
     def perform_create(self, serializer):
-        serializer.save()
+        obj = serializer.save()
+        log_audit('create', 'result', entity_id=obj.pk, request=self.request)
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+
+        if not is_admin_or_superuser(request.user):
+            self._check_subject_permissions(serializer.validated_data, request.user)
+
+        self.perform_update(serializer)
+        log_audit('update', 'result', entity_id=str(instance.pk), request=request)
+        return Response(serializer.data)
+
+    def _check_subject_permissions(self, validated_data, user):
+        from core.models import Subject
+        from rest_framework.exceptions import PermissionDenied
+
+        marks = validated_data.get('marks', {})
+        if not marks:
+            return
+
+        student = validated_data.get('student')
+        if not student:
+            student_id = self.kwargs.get('student_id')
+            if student_id:
+                student = Student.objects.filter(id=student_id).first()
+
+        if not student or not student.school_class_id:
+            return
+
+        class_id = student.school_class_id
+
+        for subject_name in marks:
+            canonical_name = SUBJECT_KEY_MAP.get(subject_name, subject_name)
+            subject = Subject.objects.filter(
+                name=canonical_name, school_class_id=class_id,
+            ).first()
+            if subject and not can_teach_subject(user, subject.id, class_id):
+                raise PermissionDenied(
+                    f'You are not assigned to teach "{canonical_name}" in this class.'
+                )
 
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
@@ -50,8 +98,6 @@ class ResultViewSet(viewsets.ModelViewSet):
             class_id = request.query_params.get('class_id')
         session = request.query_params.get('session')
         term = request.query_params.get('term')
-        
-
 
         if not all([class_id, session]):
             return Response({'error': 'class_id and session required'}, status=400)
@@ -85,4 +131,7 @@ class ResultViewSet(viewsets.ModelViewSet):
                 session=session,
                 term=term,
             ).delete()
+        log_audit('delete_class_results', 'result',
+                  details={'class_id': class_id, 'session': session, 'term': term, 'deleted': deleted},
+                  request=request)
         return Response({'deleted': deleted})

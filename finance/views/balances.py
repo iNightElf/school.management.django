@@ -12,6 +12,7 @@ from finance.serializers import (
 )
 from accounts.permissions import require_permission
 from .base import _param
+from core.audit import log_audit
 
 class OpeningBalanceViewSet(viewsets.ModelViewSet):
     queryset = OpeningBalance.objects.select_related('account').all()
@@ -44,6 +45,7 @@ class OpeningBalanceViewSet(viewsets.ModelViewSet):
                 new_amount=serializer.validated_data.get('amount', old_amount),
                 changed_by=str(self.request.user.id),
             )
+        log_audit('update', 'opening_balance', entity_id=instance.pk, request=self.request)
 
     @action(detail=False, methods=['get'])
     def history(self, request):
@@ -75,6 +77,8 @@ class OpeningBalanceViewSet(viewsets.ModelViewSet):
             balance.amount = history.old_amount
             balance.updated_by = str(request.user.id)
             balance.save()
+        log_audit('revert', 'opening_balance', entity_id=balance.pk,
+                  details={'history_id': str(history_pk)}, request=request)
         return Response(OpeningBalanceSerializer(balance).data)
 
 
@@ -88,11 +92,14 @@ class PeriodCloseViewSet(viewsets.ModelViewSet):
         return [require_permission('finance:admin')()]
 
     def perform_create(self, serializer):
-        serializer.save(closed_by=str(self.request.user.id))
+        obj = serializer.save(closed_by=str(self.request.user.id))
+        log_audit('create', 'period_close', entity_id=obj.pk, request=self.request)
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+        entity_id = str(instance.pk)
         instance.delete()
+        log_audit('delete', 'period_close', entity_id=entity_id, request=request)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 

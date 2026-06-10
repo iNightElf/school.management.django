@@ -5,7 +5,7 @@ import { toast } from '../../components/Toast';
 import CameraModal from '../../components/CameraModal';
 import ImportModal from '../../components/ImportModal';
 import { CardSkeleton } from '../../components/Skeleton';
-import { RefreshCw, Mail, Download, Upload, Camera, Pencil, Trash2, Check, GraduationCap } from 'lucide-react';
+import { RefreshCw, Mail, Download, Upload, Camera, Pencil, Trash2, Check, GraduationCap, BookOpen, Users, X, Plus } from 'lucide-react';
 import { contactLinks } from '../../lib/contacts';
 import DeleteConfirmModal from '../../components/DeleteConfirmModal';
 import { API_URL } from '../../lib/config';
@@ -17,7 +17,7 @@ async function loadJsPDF() {
 }
 
 export default function TeacherSection() {
-  const { teachers, fetchTeachers, loading } = useSchoolStore();
+  const { teachers, fetchTeachers, loading, classes, fetchClasses } = useSchoolStore();
   const role = useAuthStore((s) => s.user?.role);
   const isAdmin = role === 'admin';
 
@@ -32,8 +32,9 @@ export default function TeacherSection() {
   const [form, setForm] = useState({ designation: '', name: '', email: '', contact: '' });
 
   useEffect(() => { document.title = 'Teachers - AL RAWA English School'; }, []);
-  useEffect(() => { 
-    if (teachers.length === 0) fetchTeachers(); 
+  useEffect(() => {
+    if (teachers.length === 0) fetchTeachers();
+    if (classes.length === 0) fetchClasses();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const designations = [...new Set(teachers.map((t: any) => t.designation))];
@@ -71,9 +72,9 @@ export default function TeacherSection() {
       } else {
         await api.post('/teachers/', body);
       }
-      toast(editingId ? 'Teacher updated ✓' : 'Teacher added ✓', 'success');
+      toast(editingId ? 'Teacher updated' : 'Teacher added', 'success');
       resetForm();
-      fetchTeachers();
+      fetchTeachers(undefined, true);
     } catch (e: any) {
       toast(e.response?.data?.error || e.message || 'Error', 'error');
     } finally {
@@ -93,7 +94,7 @@ export default function TeacherSection() {
       toast('Teacher deleted', '', { label: 'Undo', onClick: async () => {
         try {
           await api.post(`/teachers/${idToRestore}/restore/`);
-          toast('Teacher restored ✓', 'success');
+          toast('Teacher restored', 'success');
           fetchTeachers(undefined, true);
         } catch { toast('Could not undo', 'error'); }
       }});
@@ -165,19 +166,49 @@ export default function TeacherSection() {
         {t.email && <div className="text-xs flex items-center justify-center gap-1"><Mail size={11} className="text-school-muted" /> {t.email}</div>}
         {t.contact && <div className="text-xs">{contactLinks(t.contact)}</div>}
       </div>
+      {(t.classTeacherOf?.length > 0 || t.subjectAssignments?.length > 0) && (
+        <div className="mt-2 pt-2 border-t border-school-border space-y-1">
+          {t.classTeacherOf?.length > 0 && (
+            <div className="text-[10px] text-emerald-600 font-medium">
+              <Users size={10} className="inline mr-1" />
+              Class Teacher: {t.classTeacherOf.map((c: any) => c.className).join(', ')}
+            </div>
+          )}
+          {t.subjectAssignments?.length > 0 && (
+            <div className="text-[10px] text-blue-600 font-medium">
+              <BookOpen size={10} className="inline mr-1" />
+              Subjects: {t.subjectAssignments.map((s: any) => `${s.subjectName} (${s.className})`).join(', ')}
+            </div>
+          )}
+        </div>
+      )}
       {isAdmin && (
         <div className="flex gap-2 mt-3 pt-3 border-t border-school-border">
           <button onClick={() => handleEdit(t)} className="flex-1 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-medium hover:bg-blue-100 flex items-center justify-center gap-1"><Pencil size={14} /> Edit</button>
-          <button onClick={() => setDeleteId(t.id)} className="flex-1 py-1.5 bg-red-50 text-red-500 rounded-lg text-xs font-medium hover:bg-red-100 flex items-center justify-center gap-1"><Trash2 size={14} /> Delete</button>
+          <button onClick={() => setAssignmentTeacherId(t.id)} className="flex-1 py-1.5 bg-purple-50 text-purple-600 rounded-lg text-xs font-medium hover:bg-purple-100 flex items-center justify-center gap-1"><BookOpen size={14} /> Assign</button>
+          <button onClick={() => setDeleteId(t.id)} className="flex-1 py-1.5 bg-red-50 text-red-500 rounded-lg text-xs font-medium hover:bg-red-100 flex items-center justify-center gap-1"><Trash2 size={14} /></button>
         </div>
       )}
     </div>
   );
 
+  const [assignmentTeacherId, setAssignmentTeacherId] = useState<string | null>(null);
+  const assignmentTeacher = assignmentTeacherId ? teachers.find((t: any) => t.id === assignmentTeacherId) : null;
+
   return (
     <div className="space-y-4">
       <CameraModal open={showCamera} onClose={() => setShowCamera(false)} onCapture={(d) => { setPhoto(d); setShowCamera(false); }} />
       <ImportModal open={showImport} onClose={() => setShowImport(false)} onImported={() => fetchTeachers()} entity="teacher" />
+
+      {/* Assignment Panel */}
+      {assignmentTeacher && (
+        <AssignmentPanel
+          teacher={assignmentTeacher}
+          classes={classes}
+          fetchTeachers={fetchTeachers}
+          onClose={() => setAssignmentTeacherId(null)}
+        />
+      )}
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -226,7 +257,7 @@ export default function TeacherSection() {
           {isAdmin && <button onClick={() => setShowImport(true)} className="flex items-center gap-1 px-3 py-1.5 border border-school-border rounded-lg text-xs hover:bg-school-paper">
             <Upload size={12} /> Import
           </button>}
-          <button onClick={() => fetchTeachers()} className="flex items-center gap-1 px-3 py-1.5 border border-school-border rounded-lg text-xs hover:bg-school-paper">
+          <button onClick={() => fetchTeachers(undefined, true)} className="flex items-center gap-1 px-3 py-1.5 border border-school-border rounded-lg text-xs hover:bg-school-paper">
             <RefreshCw size={12} /> Refresh
           </button>
         </div>
@@ -268,6 +299,160 @@ export default function TeacherSection() {
         </div>
       )}
       <DeleteConfirmModal open={!!deleteId} title="Delete Teacher" message="This will permanently delete this teacher." onConfirm={confirmDelete} onCancel={() => setDeleteId(null)} loading={deleteLoading} />
+    </div>
+  );
+}
+
+function AssignmentPanel({ teacher, classes, fetchTeachers, onClose }: {
+  teacher: any;
+  classes: any[];
+  fetchTeachers: (p?: any, force?: boolean) => void;
+  onClose: () => void;
+}) {
+  const [classTeacherClasses, setClassTeacherClasses] = useState<any[]>(teacher.classTeacherOf || []);
+  const [subjectAssignments, setSubjectAssignments] = useState<any[]>(teacher.subjectAssignments || []);
+  const [selectedClass, setSelectedClass] = useState('');
+  const [selectedSubject, setSelectedSubject] = useState('');
+  const [classSubjects, setClassSubjects] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const loadClassSubjects = async (classId: string) => {
+    setSelectedClass(classId);
+    setSelectedSubject('');
+    if (!classId) { setClassSubjects([]); return; }
+    try {
+      const res = await api.get(`/subjects/?class_id=${classId}&limit=2000`);
+      setClassSubjects(res.data.results || res.data.data || res.data);
+    } catch { setClassSubjects([]); }
+  };
+
+  const assignClassTeacher = async () => {
+    if (!selectedClass) return toast('Select a class', 'error');
+    setLoading(true);
+    try {
+      await api.post(`/teachers/${teacher.id}/class_teacher/`, { classId: selectedClass });
+      toast('Class teacher assigned', 'success');
+      const cls = classes.find((c: any) => c.id === selectedClass);
+      setClassTeacherClasses([...classTeacherClasses, { classId: selectedClass, className: cls?.name || selectedClass }]);
+      setSelectedClass('');
+      fetchTeachers(undefined, true);
+    } catch (e: any) {
+      toast(e.response?.data?.error || 'Error', 'error');
+    } finally { setLoading(false); }
+  };
+
+  const removeClassTeacher = async (classId: string) => {
+    setLoading(true);
+    try {
+      await api.post(`/teachers/${teacher.id}/remove_class_teacher/`, { classId });
+      toast('Removed from class teacher', 'success');
+      setClassTeacherClasses(classTeacherClasses.filter((c: any) => c.classId !== classId));
+      fetchTeachers(undefined, true);
+    } catch (e: any) {
+      toast(e.response?.data?.error || 'Error', 'error');
+    } finally { setLoading(false); }
+  };
+
+  const assignSubject = async () => {
+    if (!selectedClass || !selectedSubject) return toast('Select class and subject', 'error');
+    setLoading(true);
+    try {
+      await api.post(`/teachers/${teacher.id}/subject_assignment/`, { subjectId: selectedSubject, classId: selectedClass });
+      toast('Subject assigned', 'success');
+      const cls = classes.find((c: any) => c.id === selectedClass);
+      const subj = classSubjects.find((s: any) => s.id === selectedSubject);
+      setSubjectAssignments([...subjectAssignments, {
+        subjectId: selectedSubject,
+        subjectName: subj?.name || selectedSubject,
+        classId: selectedClass,
+        className: cls?.name || selectedClass,
+      }]);
+      setSelectedSubject('');
+      fetchTeachers(undefined, true);
+    } catch (e: any) {
+      toast(e.response?.data?.error || 'Error', 'error');
+    } finally { setLoading(false); }
+  };
+
+  const removeSubject = async (subjectId: string, classId: string) => {
+    setLoading(true);
+    try {
+      await api.post(`/teachers/${teacher.id}/remove_subject/`, { subjectId, classId });
+      toast('Subject removed', 'success');
+      setSubjectAssignments(subjectAssignments.filter((s: any) => !(s.subjectId === subjectId && s.classId === classId)));
+      fetchTeachers(undefined, true);
+    } catch (e: any) {
+      toast(e.response?.data?.error || 'Error', 'error');
+    } finally { setLoading(false); }
+  };
+
+  const availableClasses = classes.filter((c: any) => !classTeacherClasses.some((ct: any) => ct.classId === c.id));
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto shadow-xl">
+        <div className="sticky top-0 bg-white border-b border-school-border p-4 flex items-center justify-between rounded-t-2xl">
+          <div>
+            <h3 className="font-bold text-school-primary">{teacher.name}</h3>
+            <p className="text-xs text-school-muted">Assign classes and subjects</p>
+          </div>
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
+        </div>
+
+        <div className="p-4 space-y-5">
+          {/* Class Teacher Section */}
+          <div>
+            <h4 className="text-sm font-bold text-school-primary mb-2 flex items-center gap-1.5"><Users size={14} /> Class Teacher Of</h4>
+            {classTeacherClasses.length > 0 && (
+              <div className="space-y-1.5 mb-2">
+                {classTeacherClasses.map((ct: any) => (
+                  <div key={ct.classId} className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+                    <span className="text-sm font-medium text-emerald-700">{ct.className}</span>
+                    <button onClick={() => removeClassTeacher(ct.classId)} disabled={loading} className="text-red-500 hover:text-red-700 disabled:opacity-50"><X size={16} /></button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {availableClasses.length > 0 ? (
+              <div className="flex gap-2">
+                <select value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)} className="flex-1 px-3 py-2 border border-school-border rounded-xl text-sm">
+                  <option value="">Select class...</option>
+                  {availableClasses.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                <button onClick={assignClassTeacher} disabled={loading || !selectedClass} className="px-3 py-2 bg-emerald-600 text-white rounded-xl text-sm font-medium disabled:opacity-50 flex items-center gap-1"><Plus size={14} /> Add</button>
+              </div>
+            ) : (
+              <p className="text-xs text-school-muted">All classes assigned</p>
+            )}
+          </div>
+
+          {/* Subject Assignment Section */}
+          <div>
+            <h4 className="text-sm font-bold text-school-primary mb-2 flex items-center gap-1.5"><BookOpen size={14} /> Subject Assignments</h4>
+            {subjectAssignments.length > 0 && (
+              <div className="space-y-1.5 mb-2">
+                {subjectAssignments.map((sa: any) => (
+                  <div key={`${sa.subjectId}-${sa.classId}`} className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                    <span className="text-sm text-blue-700">{sa.subjectName} <span className="text-blue-400">({sa.className})</span></span>
+                    <button onClick={() => removeSubject(sa.subjectId, sa.classId)} disabled={loading} className="text-red-500 hover:text-red-700 disabled:opacity-50"><X size={16} /></button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <select value={selectedClass} onChange={(e) => loadClassSubjects(e.target.value)} className="flex-1 px-3 py-2 border border-school-border rounded-xl text-sm">
+                <option value="">Class...</option>
+                {classes.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <select value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)} disabled={!selectedClass} className="flex-1 px-3 py-2 border border-school-border rounded-xl text-sm disabled:opacity-50">
+                <option value="">Subject...</option>
+                {classSubjects.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+              <button onClick={assignSubject} disabled={loading || !selectedClass || !selectedSubject} className="px-3 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium disabled:opacity-50 flex items-center gap-1"><Plus size={14} /></button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

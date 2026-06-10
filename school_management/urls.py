@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.urls import path, include
 from django.http import JsonResponse, HttpResponseRedirect
 from django.db import connections
-from rest_framework import generics
+from rest_framework import generics, permissions
 
 
 def healthz(request):
@@ -22,7 +22,7 @@ def root_redirect(request):
 
 
 class WakeDBView(generics.GenericAPIView):
-    permission_classes = []
+    permission_classes = [permissions.IsAdminUser]
     def get(self, request):
         from django.db import connection
         connection.cursor()
@@ -43,4 +43,5 @@ urlpatterns = [
     path('api/', include('books.urls')),
     path('api/', include('results.urls')),
     path('api/finance/', include('finance.urls')),
+    path('api/engagement/', include('engagement.urls')),
 ]
