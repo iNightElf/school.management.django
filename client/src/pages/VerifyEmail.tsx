@@ -16,7 +16,7 @@ const VerifyEmail = () => {
       setMessage('No verification token provided.');
       return;
     }
-    api.get(`/auth/verify-email/?token=${token}`)
+    api.post('/auth/verify-email/', { token })
       .then((res) => {
         setStatus('success');
         setMessage(res.data.detail || 'Email verified successfully.');
