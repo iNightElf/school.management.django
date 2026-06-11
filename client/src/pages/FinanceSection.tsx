@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import type { ReactNode, FormEvent } from 'react';
+import DOMPurify from 'dompurify';
 import { useSchoolStore, useAuthStore, useUIStore, api } from '../store';
 import { Clock, BarChart3, AlertTriangle, Users, Upload, Ban, ChevronLeft, ChevronRight, DollarSign, TrendingDown, RefreshCw, BookOpen, Shield, Lock, Scale } from 'lucide-react';
 import { toast } from '../components/Toast';
@@ -159,9 +160,7 @@ function Ledger({ fmt, fetchFinance, fetchFeeSchedules, fetchDashboardSummary, r
       const rawHtml = buildLedgerPrintHtml(allEntries, ledgerAccount, dateFrom, dateTo, res.data.openingBalance, res.data.closingBalance, fmt, res.data.totalDebit, res.data.totalCredit);
       const w = window.open('', '_blank');
       if (!w) { toast('Please allow pop-ups for printing', 'error'); return; }
-      const sanitize = (s: string) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
-      const safeHtml = sanitize(rawHtml).replace(/<script[\s\S]*?<\/script>/gi, '').replace(/on\w+="[^"]*"/gi, '');
-      w.document.write(safeHtml);
+      w.document.write(DOMPurify.sanitize(rawHtml));
       w.document.close();
       w.print();
     } catch { toast('Print failed', 'error'); }

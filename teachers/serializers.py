@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Teacher, ClassTeacher, TeacherSubject
+from core.mixins import PhotoUrlMixin
 
 
 class ClassTeacherSerializer(serializers.ModelSerializer):
@@ -24,7 +25,8 @@ class TeacherSubjectSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at']
 
 
-class TeacherSerializer(serializers.ModelSerializer):
+class TeacherSerializer(PhotoUrlMixin, serializers.ModelSerializer):
+    photo_url_prefix = 'teachers'
     designation = serializers.CharField(read_only=True)
     hasPhoto = serializers.SerializerMethodField()
     photoUrl = serializers.SerializerMethodField()
@@ -42,20 +44,6 @@ class TeacherSerializer(serializers.ModelSerializer):
             'classTeacherOf', 'subjectAssignments',
         ]
         read_only_fields = ['id', 'createdAt']
-
-    def get_hasPhoto(self, obj):
-        return bool(obj.photo_path)
-
-    def get_photoUrl(self, obj):
-        if obj.photo_path:
-            from django.core import signing
-            token = signing.dumps({'id': str(obj.id)}, salt='photo-access')
-            path = f"/api/teachers/{obj.id}/photo/?token={token}"
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(path)
-            return path
-        return None
 
     def get_classTeacherOf(self, obj):
         if not hasattr(obj, '_prefetched_class_teachers'):

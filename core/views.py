@@ -196,19 +196,25 @@ class DashboardSummaryView(generics.GenericAPIView):
     permission_classes = [require_permission('students:read')]
 
     def get(self, request):
+        from django.core.cache import cache
         from students.models import Student
         from teachers.models import Teacher
         from staff.models import Staff
         from .models import SchoolClass
         from books.models import Book
 
-        return Response({
-            'studentCount': Student.objects.filter(deleted_at__isnull=True).count(),
-            'teacherCount': Teacher.objects.filter(deleted_at__isnull=True).count(),
-            'staffCount': Staff.objects.filter(deleted_at__isnull=True).count(),
-            'classCount': SchoolClass.objects.count(),
-            'bookCount': Book.objects.count(),
-        })
+        cache_key = 'dashboard_summary'
+        data = cache.get(cache_key)
+        if data is None:
+            data = {
+                'studentCount': Student.objects.filter(deleted_at__isnull=True).count(),
+                'teacherCount': Teacher.objects.filter(deleted_at__isnull=True).count(),
+                'staffCount': Staff.objects.filter(deleted_at__isnull=True).count(),
+                'classCount': SchoolClass.objects.count(),
+                'bookCount': Book.objects.count(),
+            }
+            cache.set(cache_key, data, 60)
+        return Response(data)
 
 
 class SetupStatusView(generics.GenericAPIView):

@@ -257,7 +257,15 @@ export const useSchoolStore = create<SchoolState>((set, get) => ({
   },
   revertOpeningBalance: async (historyId) => {
     await api.post(`/finance/opening-balances/revert/${historyId}/`);
-    set((s) => ({ _fetchedAt: { ...s._fetchedAt, openingBalances_: 0, openingBalanceHistory_: 0 } }));
+    set((s) => {
+      const newFetchedAt = { ...s._fetchedAt };
+      for (const key of Object.keys(newFetchedAt)) {
+        if (key.startsWith('openingBalances_') || key.startsWith('openingBalanceHistory_')) {
+          newFetchedAt[key] = 0;
+        }
+      }
+      return { _fetchedAt: newFetchedAt };
+    });
     await get().fetchOpeningBalances();
     await get().fetchOpeningBalanceHistory();
   },

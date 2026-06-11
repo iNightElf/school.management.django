@@ -1,5 +1,6 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from django.db import models
 from django.utils import timezone
@@ -45,7 +46,6 @@ class StudentViewSet(PhotoHandleMixin, viewsets.ModelViewSet):
         school_class = serializer.validated_data.get('school_class')
         if school_class and not is_admin_or_superuser(self.request.user):
             if not can_manage_students(self.request.user, school_class.id):
-                from rest_framework.exceptions import PermissionDenied
                 raise PermissionDenied('You are not the class teacher of this class.')
         obj = serializer.save()
         log_audit('create', 'student', entity_id=obj.pk, request=self.request)
@@ -53,7 +53,6 @@ class StudentViewSet(PhotoHandleMixin, viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         if instance.school_class_id and not is_admin_or_superuser(self.request.user):
             if not can_manage_students(self.request.user, instance.school_class_id):
-                from rest_framework.exceptions import PermissionDenied
                 raise PermissionDenied('You are not the class teacher of this class.')
         entity_id = str(instance.pk)
         super().perform_destroy(instance)
@@ -64,7 +63,6 @@ class StudentViewSet(PhotoHandleMixin, viewsets.ModelViewSet):
         student = self.get_object()
         if student.school_class_id and not is_admin_or_superuser(request.user):
             if not can_manage_students(request.user, student.school_class_id):
-                from rest_framework.exceptions import PermissionDenied
                 raise PermissionDenied('You are not the class teacher of this class.')
         student.graduated_at = timezone.now()
         student.save(update_fields=['graduated_at'])
@@ -76,7 +74,6 @@ class StudentViewSet(PhotoHandleMixin, viewsets.ModelViewSet):
         student = self.get_object()
         if student.school_class_id and not is_admin_or_superuser(request.user):
             if not can_manage_students(request.user, student.school_class_id):
-                from rest_framework.exceptions import PermissionDenied
                 raise PermissionDenied('You are not the class teacher of this class.')
         student.graduated_at = None
         student.save(update_fields=['graduated_at'])
@@ -98,7 +95,6 @@ class StudentViewSet(PhotoHandleMixin, viewsets.ModelViewSet):
             return Response({'error': 'class_id required'}, status=400)
         if not is_admin_or_superuser(request.user):
             if not can_manage_students(request.user, class_id):
-                from rest_framework.exceptions import PermissionDenied
                 raise PermissionDenied('You are not the class teacher of this class.')
         count = Student.objects.filter(
             school_class_id=class_id, deleted_at__isnull=True

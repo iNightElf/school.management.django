@@ -1,4 +1,5 @@
 import secrets
+import logging
 from datetime import timedelta
 from django.core.mail import send_mail
 from django.conf import settings
@@ -6,17 +7,39 @@ from django.utils import timezone
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.exceptions import AuthenticationFailed
 from django.contrib.auth import get_user_model
 from django.http import JsonResponse
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .serializers import UserSerializer, UserRoleSerializer, RegisterSerializer
 from .permissions import require_permission
 from .models import EmailVerification
 
 User = get_user_model()
+
+logger = logging.getLogger(__name__)
+
+
+def _send_verification_email(user):
+    token = secrets.token_urlsafe(32)
+    EmailVerification.objects.create(
+        user=user,
+        token=token,
+        expires_at=timezone.now() + timedelta(hours=24),
+    )
+    verify_url = f'{settings.FRONTEND_URL}/verify-email?token={token}'
+    try:
+        send_mail(
+            subject='Verify your email - AL RAWA English School',
+            message=f'Click the link to verify your email:\n\n{verify_url}\n\nThis link expires in 24 hours.',
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user.email],
+            fail_silently=False,
+        )
+    except Exception:
+        logger.exception('Failed to send verification email to %s', user.email)
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -29,6 +52,66 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
+
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        if response.status_code == 200:
+            refresh = response.data.get('refresh')
+            access = response.data.get('access')
+            response.data = {'detail': 'Login successful'}
+            response.set_cookie(
+                settings.SIMPLE_JWT['ACCESS_COOKIE'],
+                access,
+                httponly=True,
+                secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
+                samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
+                max_age=int(settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds()),
+            )
+            response.set_cookie(
+                settings.SIMPLE_JWT['REFRESH_COOKIE'],
+                refresh,
+                httponly=True,
+                secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
+                samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
+                max_age=int(settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds()),
+            )
+        return response
+
+
+class CustomTokenRefreshView(APIView):
+    permission_classes = []
+
+    def post(self, request):
+        refresh_token = request.COOKIES.get(settings.SIMPLE_JWT['REFRESH_COOKIE'])
+        if not refresh_token:
+            return Response({'detail': 'Refresh token not found'}, status=status.HTTP_401_UNAUTHORIZED)
+        try:
+            refresh = RefreshToken(refresh_token)
+            access = str(refresh.access_token)
+            response = Response({'detail': 'Token refreshed'}, status=status.HTTP_200_OK)
+            response.set_cookie(
+                settings.SIMPLE_JWT['ACCESS_COOKIE'],
+                access,
+                httponly=True,
+                secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
+                samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
+                max_age=int(settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds()),
+            )
+            if settings.SIMPLE_JWT.get('ROTATE_REFRESH_TOKENS'):
+                new_refresh = str(refresh)
+                response.set_cookie(
+                    settings.SIMPLE_JWT['REFRESH_COOKIE'],
+                    new_refresh,
+                    httponly=True,
+                    secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
+                    samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
+                    max_age=int(settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds()),
+                )
+            return response
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception('Refresh token failed')
+            return Response({'detail': 'Invalid refresh token'}, status=status.HTTP_401_UNAUTHORIZED)
 
 
 class RegisterView(generics.CreateAPIView):
@@ -48,28 +131,8 @@ class RegisterView(generics.CreateAPIView):
             user.email_verified = True
             user.save(update_fields=['role', 'email_verified'])
         else:
-            self._send_verification(user)
+            _send_verification_email(user)
         return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
-
-    def _send_verification(self, user):
-        token = secrets.token_urlsafe(32)
-        EmailVerification.objects.create(
-            user=user,
-            token=token,
-            expires_at=timezone.now() + timedelta(hours=24),
-        )
-        verify_url = f'{settings.FRONTEND_URL}/verify-email?token={token}'
-        try:
-            send_mail(
-                subject='Verify your email - AL RAWA English School',
-                message=f'Click the link to verify your email:\n\n{verify_url}\n\nThis link expires in 24 hours.',
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[user.email],
-                fail_silently=False,
-            )
-        except Exception as e:
-            import logging
-            logging.getLogger(__name__).error(f'Failed to send verification email to {user.email}: {e}')
 
 
 class MeView(APIView):
@@ -83,6 +146,16 @@ class MeView(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
+
+
+class LogoutView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        response = Response({'detail': 'Logged out'}, status=status.HTTP_200_OK)
+        response.delete_cookie(settings.SIMPLE_JWT['ACCESS_COOKIE'])
+        response.delete_cookie(settings.SIMPLE_JWT['REFRESH_COOKIE'])
+        return response
 
 
 class GetAllUsersView(generics.ListAPIView):
@@ -126,7 +199,8 @@ class AuthGetSessionView(APIView):
 
     def get(self, request):
         try:
-            auth_result = JWTAuthentication().authenticate(request)
+            from accounts.authentication import CookieJWTAuthentication
+            auth_result = CookieJWTAuthentication().authenticate(request)
             if auth_result:
                 user, _ = auth_result
                 return JsonResponse({'user': {
@@ -137,7 +211,7 @@ class AuthGetSessionView(APIView):
                     'image': user.image,
                     'emailVerified': user.email_verified,
                 }})
-        except AuthenticationFailed:
+        except (AuthenticationFailed, Exception):
             pass
         return JsonResponse({'user': None})
 
@@ -162,28 +236,7 @@ class SendVerificationView(APIView):
             return Response({'detail': 'Email already verified.'}, status=400)
 
         EmailVerification.objects.filter(user=user, used=False).update(used=True)
-
-        token = secrets.token_urlsafe(32)
-        EmailVerification.objects.create(
-            user=user,
-            token=token,
-            expires_at=timezone.now() + timedelta(hours=24),
-        )
-
-        verify_url = f'{settings.FRONTEND_URL}/verify-email?token={token}'
-        try:
-            send_mail(
-                subject='Verify your email - AL RAWA English School',
-                message=f'Click the link to verify your email:\n\n{verify_url}\n\nThis link expires in 24 hours.',
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[user.email],
-                fail_silently=False,
-            )
-        except Exception as e:
-            import logging
-            logging.getLogger(__name__).error('Failed to send verification email to %s: %s', user.email, e)
-            return Response({'detail': 'Failed to send verification email. Please try again later.'}, status=500)
-
+        _send_verification_email(user)
         return Response({'detail': 'Verification email sent.'})
 
 

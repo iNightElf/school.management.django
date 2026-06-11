@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import SchoolClass, Subject, AcademicYear, SchoolSetting, AuditLog, Category, StudentIdCounter
+from .models import SchoolClass, Subject, AcademicYear, SchoolSetting, AuditLog, Category
 
 
 class SchoolClassSerializer(serializers.ModelSerializer):

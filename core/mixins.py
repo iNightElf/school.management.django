@@ -11,6 +11,25 @@ from core.supabase_storage import upload_photo, delete_photo, get_signed_url
 logger = logging.getLogger(__name__)
 
 
+class PhotoUrlMixin:
+    """Mixin that provides hasPhoto and photoUrl serializer methods."""
+    photo_url_prefix = ''
+
+    def get_hasPhoto(self, obj):
+        return bool(obj.photo_path)
+
+    def get_photoUrl(self, obj):
+        if obj.photo_path:
+            from django.core import signing
+            token = signing.dumps({'id': str(obj.id)}, salt='photo-access')
+            path = f"/api/{self.photo_url_prefix}/{obj.id}/photo/?token={token}"
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(path)
+            return path
+        return None
+
+
 class PhotoHandleMixin:
     photo_prefix = ''
 
@@ -64,6 +83,7 @@ class PhotoHandleMixin:
                 if str(data.get('id')) != str(pk):
                     return Response({'error': 'Invalid token'}, status=403)
             except Exception:
+                logger.exception('Invalid or expired photo token for pk=%s', pk)
                 return Response({'error': 'Invalid or expired token'}, status=403)
 
         instance = self.get_object()

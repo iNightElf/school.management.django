@@ -3,6 +3,9 @@ from django.urls import path, include
 from django.http import JsonResponse, HttpResponseRedirect
 from django.db import connections
 from rest_framework import generics, permissions
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def healthz(request):
@@ -14,6 +17,7 @@ def health(request):
         connections['default'].cursor()
         return JsonResponse({'status': 'healthy', 'database': 'connected'})
     except Exception:
+        logger.exception('Health check failed: database connection error')
         return JsonResponse({'status': 'unhealthy', 'error': 'Database connection failed'}, status=503)
 
 

@@ -20,7 +20,15 @@ export const createTransactionSchema = z.object({
     return true;
   },
   { message: 'Source and destination accounts must be different for transfers', path: ['destinationAccount'] }
-);
+).superRefine((data, ctx) => {
+  if (data.type === 'INCOME' && !data.feeMonth) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Fee month is required for income transactions',
+      path: ['feeMonth'],
+    });
+  }
+});
 
 export const createStudentSchema = z.object({
   name: z.string().min(1, 'Name is required'),

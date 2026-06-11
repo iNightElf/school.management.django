@@ -1,6 +1,5 @@
 from datetime import date, timedelta
-from django.db.models import Count, Q, F
-from django.utils import timezone
+from django.db.models import Count, Q
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response

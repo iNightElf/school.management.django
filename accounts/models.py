@@ -47,6 +47,8 @@ class User(AbstractUser):
         indexes = [
             models.Index(fields=['role']),
         ]
+        verbose_name = 'user'
+        verbose_name_plural = 'users'
 
     def __str__(self):
         return f"{self.name} ({self.email})"
@@ -64,6 +66,8 @@ class EmailVerification(models.Model):
         indexes = [
             models.Index(fields=['token']),
         ]
+        verbose_name = 'email verification'
+        verbose_name_plural = 'email verifications'
 
     def is_valid(self):
         return not self.used and timezone.now() < self.expires_at

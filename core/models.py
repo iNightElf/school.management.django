@@ -10,6 +10,8 @@ class SchoolClass(models.Model):
 
     class Meta:
         ordering = ['order', 'name']
+        verbose_name = 'school class'
+        verbose_name_plural = 'school classes'
 
     def __str__(self):
         return self.name
@@ -30,6 +32,8 @@ class Subject(models.Model):
             models.UniqueConstraint(fields=['name', 'school_class'], name='unique_subject_per_class'),
         ]
         ordering = ['order', 'name']
+        verbose_name = 'subject'
+        verbose_name_plural = 'subjects'
 
     def __str__(self):
         return f"{self.name} ({self.school_class.name})"
@@ -45,6 +49,8 @@ class AcademicYear(models.Model):
 
     class Meta:
         ordering = ['-start_date']
+        verbose_name = 'academic year'
+        verbose_name_plural = 'academic years'
 
     def __str__(self):
         return self.name
@@ -54,6 +60,10 @@ class SchoolSetting(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     key = models.CharField(max_length=255, unique=True)
     value = models.TextField()
+
+    class Meta:
+        verbose_name = 'school setting'
+        verbose_name_plural = 'school settings'
 
     def __str__(self):
         return self.key
@@ -77,6 +87,8 @@ class AuditLog(models.Model):
             models.Index(fields=['user_id']),
         ]
         ordering = ['-created_at']
+        verbose_name = 'audit log'
+        verbose_name_plural = 'audit logs'
 
     def __str__(self):
         return f"{self.action} on {self.entity_type} by {self.user_id}"
@@ -97,6 +109,8 @@ class Category(models.Model):
             models.UniqueConstraint(fields=['type', 'name'], name='unique_category_type_name'),
         ]
         ordering = ['type', 'name']
+        verbose_name = 'category'
+        verbose_name_plural = 'categories'
 
     def __str__(self):
         return f"{self.name} ({self.type})"

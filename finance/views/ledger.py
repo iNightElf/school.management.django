@@ -11,7 +11,6 @@ from finance.models import (
 )
 from core.models import AcademicYear
 from students.models import Student
-from finance.serializers import TransactionSerializer
 from .base import (
     _internal_accounts, _param, _fiscal_year_from_date,
 )
@@ -156,8 +155,12 @@ class LedgerActionsMixin:
         closing_balance = opening_balance + total_debit - total_credit
         total_rows = len(full_data)
 
-        page_size = min(int(request.query_params.get('limit', 25)), 200)
-        page_num = max(int(request.query_params.get('page', 1)), 1)
+        try:
+            page_size = min(int(request.query_params.get('limit', 25)), 200)
+            page_num = max(int(request.query_params.get('page', 1)), 1)
+        except (ValueError, TypeError):
+            page_size = 25
+            page_num = 1
         start = (page_num - 1) * page_size
         end = start + page_size
         page_data = full_data[start:end]
@@ -288,6 +291,13 @@ class LedgerActionsMixin:
                 paid_by_category_month[cat][month] = pt['total']
 
         result = []
+        waiver_map = {}
+        if final_schedules:
+            for w in FeeWaiver.objects.filter(
+                student=student, fee_schedule__in=final_schedules, active=True
+            ):
+                waiver_map[str(w.fee_schedule_id)] = w
+
         for s in final_schedules:
             fs_id = str(s.id)
             a_start = assignment_dates.get(fs_id, {}).get('assignmentStart')
@@ -316,9 +326,7 @@ class LedgerActionsMixin:
             schedule_paid = paid_by_schedule_period.get(fs_id, {})
             has_allocations = bool(schedule_paid)
 
-            waiver = FeeWaiver.objects.filter(
-                student=student, fee_schedule=s, active=True,
-            ).first()
+            waiver = waiver_map.get(fs_id)
             expected_per_month = float(waiver.value) if waiver else float(s.amount)
             expected_total = expected_per_month * num_valid_months
 

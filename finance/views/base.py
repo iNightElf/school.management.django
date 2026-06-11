@@ -101,9 +101,10 @@ def _check_period_open(fiscal_year):
 
 
 def _fiscal_year_from_date(dt):
-    """Calculate fiscal year from a date using September start (month >= 8 → fy = year+1)."""
+    """Calculate fiscal year from a date using September start (month > 8 → fy = year+1).
+    FISCAL_YEAR_START_MONTH is 0-indexed (8=Sep in JS), so compare with dt.month (> not >=)."""
     from school_management.settings import FISCAL_YEAR_START_MONTH
-    return dt.year + 1 if dt.month >= FISCAL_YEAR_START_MONTH else dt.year
+    return dt.year + 1 if dt.month > FISCAL_YEAR_START_MONTH else dt.year
 
 
 class PeriodClosedMixin:

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
+import DOMPurify from 'dompurify';
 import { useSchoolStore, api } from '../store';
 import { Calendar, BarChart3, Scale, Users, Loader } from 'lucide-react';
 import { toast } from '../components/Toast';
@@ -61,7 +62,7 @@ function printDiv(id: string) {
     .total{font-weight:bold;background:#f0ece3}
     h2{font-size:16px;margin:0 0 4px}h3{font-size:13px;margin:0 0 8px;color:#827c72}
     @media print{body{padding:10px}}
-  </style></head><body>${el.innerHTML}</body></html>`);
+  </style></head><body>${DOMPurify.sanitize(el.innerHTML)}</body></html>`);
   w.document.close(); w.print();
 }
 

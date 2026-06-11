@@ -2,10 +2,12 @@ from datetime import date
 from decimal import Decimal
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from django.db import transaction as db_transaction
 from django.db.models import Sum, Q
 from django.utils import timezone
+from django.core.cache import cache
 
 from finance.models import (
     Transaction, FeeSchedule, FeeWaiver, PaymentAllocation,
@@ -22,6 +24,15 @@ from .base import (
 )
 from .ledger import LedgerActionsMixin
 from core.audit import log_audit
+
+
+def _invalidate_dashboard_cache(fiscal_year=None):
+    """Invalidate dashboard summary cache for one or all fiscal years."""
+    if fiscal_year is not None:
+        cache.delete(f'finance_dashboard_{fiscal_year}')
+    else:
+        for y in range(timezone.now().year - 2, timezone.now().year + 2):
+            cache.delete(f'finance_dashboard_{y}')
 
 
 class TransactionViewSet(LedgerActionsMixin, PeriodClosedMixin, viewsets.ModelViewSet):
@@ -66,7 +77,6 @@ class TransactionViewSet(LedgerActionsMixin, PeriodClosedMixin, viewsets.ModelVi
         if tx_type == 'INCOME':
             fee_month = serializer.validated_data.get('fee_month') or self.request.data.get('feeMonth')
             if not fee_month:
-                from rest_framework.exceptions import ValidationError
                 raise ValidationError({'feeMonth': 'Fee month is required for income transactions.'})
 
         with db_transaction.atomic():
@@ -78,7 +88,6 @@ class TransactionViewSet(LedgerActionsMixin, PeriodClosedMixin, viewsets.ModelVi
 
             allocations = self.request.data.get('allocations')
             if allocations and tx_type == 'INCOME':
-                from rest_framework.exceptions import ValidationError
                 fee_ids = [
                     a.get('feeScheduleId') or a.get('fee_schedule_id')
                     for a in allocations
@@ -89,6 +98,24 @@ class TransactionViewSet(LedgerActionsMixin, PeriodClosedMixin, viewsets.ModelVi
                     for fs in FeeSchedule.objects.filter(id__in=fee_ids)
                 }
                 alloc_objects = []
+                assigned_fee_ids = [
+                    fs_id for fs_id in fee_ids
+                    if fee_map.get(fs_id) and fee_map[fs_id].applicability == 'ASSIGNED_ONLY'
+                ]
+                assignment_map = {}
+                if assigned_fee_ids:
+                    for a in StudentFeeAssignment.objects.filter(
+                        student=tx.student, fee_schedule_id__in=assigned_fee_ids, active=True
+                    ):
+                        assignment_map[str(a.fee_schedule_id)] = a
+
+                waiver_map = {}
+                if fee_ids:
+                    for w in FeeWaiver.objects.filter(
+                        student=tx.student, fee_schedule_id__in=fee_ids, active=True
+                    ):
+                        waiver_map[str(w.fee_schedule_id)] = w
+
                 for alloc in allocations:
                     fs_id = alloc.get('feeScheduleId') or alloc.get('fee_schedule_id')
                     if not fs_id:
@@ -101,9 +128,7 @@ class TransactionViewSet(LedgerActionsMixin, PeriodClosedMixin, viewsets.ModelVi
                     alloc_amount = Decimal(str(alloc.get('amount', 0)))
 
                     if fs.applicability == 'ASSIGNED_ONLY':
-                        assignment = StudentFeeAssignment.objects.filter(
-                            student=tx.student, fee_schedule=fs, active=True,
-                        ).first()
+                        assignment = assignment_map.get(str(fs_id))
                         if not assignment:
                             raise ValidationError({
                                 'allocations': f'You are not assigned to fee "{fs.category}".'
@@ -118,9 +143,7 @@ class TransactionViewSet(LedgerActionsMixin, PeriodClosedMixin, viewsets.ModelVi
                                     'allocations': f'Fee "{fs.category}" has expired. Ended on {assignment.ends_at}.'
                                 })
 
-                    waiver = FeeWaiver.objects.filter(
-                        student=tx.student, fee_schedule=fs, active=True,
-                    ).first()
+                    waiver = waiver_map.get(str(fs_id))
                     if waiver:
                         expected = waiver.value
                     else:
@@ -145,7 +168,6 @@ class TransactionViewSet(LedgerActionsMixin, PeriodClosedMixin, viewsets.ModelVi
             elif tx_type == 'INCOME':
                 fee_schedule_id = self.request.data.get('feeScheduleId') or self.request.data.get('fee_schedule_id')
                 if fee_schedule_id and tx.student_id:
-                    from rest_framework.exceptions import ValidationError
                     try:
                         fs = FeeSchedule.objects.get(id=fee_schedule_id)
                     except FeeSchedule.DoesNotExist:
@@ -221,6 +243,7 @@ class TransactionViewSet(LedgerActionsMixin, PeriodClosedMixin, viewsets.ModelVi
 
             tx.save()
             _account_balances_update(tx)
+        _invalidate_dashboard_cache(tx.fiscal_year)
         log_audit('create', 'transaction', entity_id=tx.pk,
                   details={'type': tx_type, 'amount': str(tx.amount),
                            'source_account': tx.source_account.name if tx.source_account else None,
@@ -271,6 +294,7 @@ class TransactionViewSet(LedgerActionsMixin, PeriodClosedMixin, viewsets.ModelVi
 
             if errors and not results:
                 return Response({'error': 'All rows have duplicate fee months', 'details': errors}, status=status.HTTP_400_BAD_REQUEST)
+            _invalidate_dashboard_cache()
             if errors:
                 return Response({'created': results, 'skipped': errors}, status=status.HTTP_201_CREATED)
             return Response(results, status=status.HTTP_201_CREATED)
@@ -333,6 +357,7 @@ class TransactionViewSet(LedgerActionsMixin, PeriodClosedMixin, viewsets.ModelVi
             reversal.reference_id = f"{reversal_type}-{fy}-{seq:04d}"
             reversal.save()
 
+        _invalidate_dashboard_cache(tx.fiscal_year)
         log_audit('cancel', 'transaction', entity_id=tx.pk,
                   details={'reason': tx.cancel_reason, 'amount': str(tx.amount),
                            'source_account': tx.source_account.name if tx.source_account else None,
@@ -392,27 +417,32 @@ class TransactionViewSet(LedgerActionsMixin, PeriodClosedMixin, viewsets.ModelVi
 
     @action(detail=False, methods=['get'])
     def dashboard_summary(self, request):
+        from django.core.cache import cache
         fy = _param(request, 'fiscal_year', 'fiscalYear') or timezone.now().year
         try:
             fy = int(fy)
         except ValueError:
             fy = timezone.now().year
 
-        agg = Transaction.objects.filter(
-            fiscal_year=fy, is_cancelled=False,
-        ).aggregate(
-            income=Sum('amount', filter=CROSS_BANK_INCOME),
-            expense=Sum('amount', filter=CROSS_BANK_EXPENSE),
-            deposited=Sum('amount', filter=Q(
-                destination_account__name='AL_RAWA_BANK',
-            )),
-        )
-
-        return Response({
-            'fiscalYear': fy,
-            'totalIncome': agg['income'] or Decimal('0'),
-            'totalExpense': agg['expense'] or Decimal('0'),
-            'totalDepositedToBank': agg['deposited'] or Decimal('0'),
-            'depositRemaining': (agg['income'] or Decimal('0')) - (agg['deposited'] or Decimal('0')),
-            'net': (agg['income'] or Decimal('0')) - (agg['expense'] or Decimal('0')),
-        })
+        cache_key = f'finance_dashboard_{fy}'
+        data = cache.get(cache_key)
+        if data is None:
+            agg = Transaction.objects.filter(
+                fiscal_year=fy, is_cancelled=False,
+            ).aggregate(
+                income=Sum('amount', filter=CROSS_BANK_INCOME),
+                expense=Sum('amount', filter=CROSS_BANK_EXPENSE),
+                deposited=Sum('amount', filter=Q(
+                    destination_account__name='AL_RAWA_BANK',
+                )),
+            )
+            data = {
+                'fiscalYear': fy,
+                'totalIncome': agg['income'] or Decimal('0'),
+                'totalExpense': agg['expense'] or Decimal('0'),
+                'totalDepositedToBank': agg['deposited'] or Decimal('0'),
+                'depositRemaining': (agg['income'] or Decimal('0')) - (agg['deposited'] or Decimal('0')),
+                'net': (agg['income'] or Decimal('0')) - (agg['expense'] or Decimal('0')),
+            }
+            cache.set(cache_key, data, 60)
+        return Response(data)

@@ -150,10 +150,12 @@ class ReportView(generics.GenericAPIView):
         accounts = _internal_accounts()
         opening = {}
         closing = {}
+        ob_map = {
+            ob.account_name: ob
+            for ob in OpeningBalance.objects.filter(account__name__in=accounts, fiscal_year=fy)
+        }
         for account in accounts:
-            ob = OpeningBalance.objects.filter(
-                account__name=account, fiscal_year=fy
-            ).first()
+            ob = ob_map.get(account)
             opening[account] = float(ob.amount) if ob else 0
             inc = inc_by_account.get(account, Decimal('0'))
             exp = exp_by_account.get(account, Decimal('0'))

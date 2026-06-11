@@ -11,6 +11,10 @@ class BankAccount(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        verbose_name = 'bank account'
+        verbose_name_plural = 'bank accounts'
+
     def __str__(self):
         return self.display_name
 
@@ -69,6 +73,8 @@ class Transaction(models.Model):
             models.Index(fields=['fee_month', 'fiscal_year']),
             models.Index(fields=['transaction_date', 'transaction_type']),
         ]
+        verbose_name = 'transaction'
+        verbose_name_plural = 'transactions'
 
     def __str__(self):
         return f"{self.transaction_type} - {self.amount} ({self.transaction_date})"
@@ -117,6 +123,8 @@ class FeeSchedule(models.Model):
         indexes = [
             models.Index(fields=['academic_year', 'school_class', 'category']),
         ]
+        verbose_name = 'fee schedule'
+        verbose_name_plural = 'fee schedules'
 
     def __str__(self):
         return f"{self.category} - {self.amount} ({self.academic_year.name})"
@@ -149,6 +157,8 @@ class FeeWaiver(models.Model):
         constraints = [
             models.UniqueConstraint(fields=['student', 'fee_schedule'], name='unique_waiver_per_student_schedule'),
         ]
+        verbose_name = 'fee waiver'
+        verbose_name_plural = 'fee waivers'
 
     def __str__(self):
         return f"{self.student.name} - {self.fee_schedule.category} waiver"
@@ -174,6 +184,8 @@ class StudentFeeAssignment(models.Model):
         indexes = [
             models.Index(fields=['student', 'fee_schedule']),
         ]
+        verbose_name = 'student fee assignment'
+        verbose_name_plural = 'student fee assignments'
 
     def __str__(self):
         return f"{self.student.name} - {self.fee_schedule.category}"
@@ -204,6 +216,8 @@ class PaymentAllocation(models.Model):
         indexes = [
             models.Index(fields=['student', 'period']),
         ]
+        verbose_name = 'payment allocation'
+        verbose_name_plural = 'payment allocations'
 
 
 class ReceiptCounter(models.Model):
@@ -216,6 +230,8 @@ class ReceiptCounter(models.Model):
         constraints = [
             models.UniqueConstraint(fields=['fiscal_year', 'receipt_type'], name='unique_receipt_counter'),
         ]
+        verbose_name = 'receipt counter'
+        verbose_name_plural = 'receipt counters'
 
     def __str__(self):
         return f"{self.receipt_type} - FY{self.fiscal_year}"
@@ -236,6 +252,8 @@ class OpeningBalance(models.Model):
         constraints = [
             models.UniqueConstraint(fields=['fiscal_year', 'account'], name='unique_opening_balance'),
         ]
+        verbose_name = 'opening balance'
+        verbose_name_plural = 'opening balances'
 
     def __str__(self):
         return f"{self.account} - FY{self.fiscal_year}: {self.amount}"
@@ -257,6 +275,11 @@ class OpeningBalanceHistory(models.Model):
         indexes = [
             models.Index(fields=['fiscal_year', 'account']),
         ]
+        verbose_name = 'opening balance history'
+        verbose_name_plural = 'opening balance histories'
+
+    def __str__(self):
+        return f"{self.account} - FY{self.fiscal_year}: {self.old_amount} → {self.new_amount}"
 
 
 class PeriodClose(models.Model):
@@ -265,6 +288,10 @@ class PeriodClose(models.Model):
     closed_at = models.DateTimeField(auto_now_add=True)
     closed_by = models.CharField(max_length=100, blank=True, null=True)
     notes = models.TextField(blank=True, null=True)
+
+    class Meta:
+        verbose_name = 'period close'
+        verbose_name_plural = 'period closes'
 
     def __str__(self):
         return f"FY{self.fiscal_year} closed"
@@ -295,6 +322,8 @@ class Reconciliation(models.Model):
         indexes = [
             models.Index(fields=['created_at']),
         ]
+        verbose_name = 'reconciliation'
+        verbose_name_plural = 'reconciliations'
 
     def __str__(self):
         return f"{self.account} - {self.statement_date} ({self.status})"
@@ -318,6 +347,8 @@ class AccountBalance(models.Model):
         constraints = [
             models.UniqueConstraint(fields=['account', 'fiscal_year', 'month'], name='unique_account_balance'),
         ]
+        verbose_name = 'account balance'
+        verbose_name_plural = 'account balances'
 
     def __str__(self):
         return f"{self.account} - FY{self.fiscal_year} M{self.month}: {self.closing_balance}"

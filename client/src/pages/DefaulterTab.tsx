@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import DOMPurify from 'dompurify';
 import { useSchoolStore, api } from '../store';
 import { toast } from '../components/Toast';
 import { AlertTriangle, Download, Printer, Check, X } from 'lucide-react';
@@ -114,7 +115,7 @@ export default function DefaulterTab() {
       h2{font-size:14px;margin:0}h3{font-size:11px;margin:2px 0 8px;color:#827c72}
       tfoot td{background:#1a1a2e;color:#fff;font-weight:bold;font-size:11px}
       @media print{body{padding:10px}}
-    </style></head><body><h2>AL RAWA English School</h2><h3>Fee Defaulter Report — ${subtitle}</h3>${el.innerHTML}</body></html>`);
+    </style></head><body><h2>AL RAWA English School</h2><h3>Fee Defaulter Report — ${subtitle}</h3>${DOMPurify.sanitize(el.innerHTML)}</body></html>`);
     w.document.close();
     w.print();
   }

@@ -1,51 +1,17 @@
 import { create } from 'zustand';
 import { api } from './api';
 
-function getAccessToken(): string | null {
-  return localStorage.getItem('access_token');
-}
-
-function getRefreshToken(): string | null {
-  return localStorage.getItem('refresh_token');
-}
-
-function setTokens(access: string, refresh: string) {
-  localStorage.setItem('access_token', access);
-  localStorage.setItem('refresh_token', refresh);
-}
-
-function clearTokens() {
-  localStorage.removeItem('access_token');
-  localStorage.removeItem('refresh_token');
-}
-
 export function setupAuthInterceptor(getAuthStore: () => { setState: (s: { user: null }) => void }) {
-  api.interceptors.request.use((config) => {
-    const token = getAccessToken();
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  });
-
   api.interceptors.response.use(
     (response) => response,
     async (error) => {
-      if (error.response?.status === 401) {
-        const refreshToken = getRefreshToken();
-        if (refreshToken) {
-          try {
-            const res = await api.post('/auth/refresh/', { refresh: refreshToken });
-            const { access, refresh: newRefresh } = res.data;
-            setTokens(access, newRefresh || refreshToken);
-            error.config.headers.Authorization = `Bearer ${access}`;
-            return api(error.config);
-          } catch (e) {
-            if (import.meta.env.DEV) console.warn('[store] refresh token failed', e);
-            getAuthStore().setState({ user: null });
-            clearTokens();
-          }
-        } else {
+      if (error.response?.status === 401 && !error.config._retry) {
+        error.config._retry = true;
+        try {
+          await api.post('/auth/refresh/');
+          return api(error.config);
+        } catch (e) {
+          if (import.meta.env.DEV) console.warn('[store] refresh token failed', e);
           getAuthStore().setState({ user: null });
         }
       }
@@ -81,8 +47,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
     loading: true,
 
     login: async (email: string, password: string) => {
-      const res = await api.post('/auth/login/', { email, password });
-      setTokens(res.data.access, res.data.refresh);
+      await api.post('/auth/login/', { email, password });
       await get().fetchSession();
     },
 
@@ -90,11 +55,6 @@ export const useAuthStore = create<AuthState>((set, get) => {
       if (fetching) return;
       fetching = true;
       try {
-        const token = getAccessToken();
-        if (!token) {
-          set({ user: null, loading: false });
-          return;
-        }
         if (get().user) {
           set({ loading: false });
           return;
@@ -110,7 +70,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
     },
 
     logout: async () => {
-      clearTokens();
+      await api.post('/auth/logout/').catch(() => {});
       set({ user: null });
     },
   };

@@ -2,9 +2,11 @@ from rest_framework import serializers
 from django.db import transaction as db_transaction
 from .models import Student
 from core.models import StudentIdCounter
+from core.mixins import PhotoUrlMixin
 
 
-class StudentSerializer(serializers.ModelSerializer):
+class StudentSerializer(PhotoUrlMixin, serializers.ModelSerializer):
+    photo_url_prefix = 'students'
     classId = serializers.UUIDField(source='school_class_id', read_only=True, allow_null=True)
     schoolClass = serializers.UUIDField(source='school_class', required=False, allow_null=True)
     klass = serializers.CharField(source='school_class.name', read_only=True, allow_null=True)
@@ -25,22 +27,8 @@ class StudentSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'studentId', 'createdAt']
 
-    def get_hasPhoto(self, obj):
-        return bool(obj.photo_path)
-
     def get_hasGraduated(self, obj):
         return obj.graduated_at is not None
-
-    def get_photoUrl(self, obj):
-        if obj.photo_path:
-            from django.core import signing
-            token = signing.dumps({'id': str(obj.id)}, salt='photo-access')
-            path = f"/api/students/{obj.id}/photo/?token={token}"
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(path)
-            return path
-        return None
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)

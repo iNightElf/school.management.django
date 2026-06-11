@@ -21,8 +21,10 @@ class AccountTests(TestCase):
     def test_login(self):
         res = self.client.post('/api/auth/login/', {'email': 'admin@test.com', 'password': 'testpass123'})
         self.assertEqual(res.status_code, 200)
-        self.assertIn('access', res.data)
-        self.assertIn('refresh', res.data)
+        self.assertIn('access_token', res.cookies)
+        self.assertIn('refresh_token', res.cookies)
+        self.assertNotIn('access', res.data)
+        self.assertNotIn('refresh', res.data)
 
     def test_login_wrong_password(self):
         res = self.client.post('/api/auth/login/', {'email': 'admin@test.com', 'password': 'wrong'})
@@ -49,9 +51,10 @@ class AccountTests(TestCase):
 
     def test_refresh_token(self):
         refresh = RefreshToken.for_user(self.admin)
-        res = self.client.post('/api/auth/refresh/', {'refresh': str(refresh)})
+        self.client.cookies['refresh_token'] = str(refresh)
+        res = self.client.post('/api/auth/refresh/')
         self.assertEqual(res.status_code, 200)
-        self.assertIn('access', res.data)
+        self.assertIn('access_token', res.cookies)
 
     def test_list_users(self):
         self._auth()
