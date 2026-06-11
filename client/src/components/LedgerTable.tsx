@@ -1,6 +1,6 @@
 interface LedgerEntry {
   id: string;
-  date: string;
+  transactionDate: string;
   transactionType: string;
   description: string;
   debit: number;
@@ -81,7 +81,7 @@ export default function LedgerTable({
               entries.map((entry) => (
                 <tr key={entry.id} className={`hover:bg-school-paper/30 text-xs ${entry.isCancelled || entry.reversalOfId ? 'line-through opacity-50 bg-rose-50/30' : ''}`}>
                   <td className="px-4 py-2.5 whitespace-nowrap font-mono font-bold">
-                    {new Date(entry.date).toLocaleDateString()}
+                    {new Date(entry.transactionDate).toLocaleDateString()}
                   </td>
                   <td className="px-4 py-2.5">
                     <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${entry.transactionType === 'INCOME' ? 'bg-emerald-50 text-emerald-700' : entry.transactionType === 'EXPENSE' ? 'bg-rose-50 text-rose-700' : 'bg-blue-50 text-blue-700'}`}>

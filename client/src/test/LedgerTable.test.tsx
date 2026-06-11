@@ -5,7 +5,7 @@ import LedgerTable from '../components/LedgerTable';
 const mockEntries = [
   {
     id: '1',
-    date: '2026-06-01',
+    transactionDate: '2026-06-01',
     transactionType: 'INCOME',
     description: 'Tuition fee - John',
     debit: 5000,
@@ -14,7 +14,7 @@ const mockEntries = [
   },
   {
     id: '2',
-    date: '2026-06-02',
+    transactionDate: '2026-06-02',
     transactionType: 'EXPENSE',
     description: 'Stationery',
     debit: 0,
@@ -23,7 +23,7 @@ const mockEntries = [
   },
   {
     id: '3',
-    date: '2026-06-03',
+    transactionDate: '2026-06-03',
     transactionType: 'INTERNAL_TRANSFER',
     description: 'Transfer to bank',
     debit: 0,
