@@ -121,6 +121,7 @@ class RegisterView(generics.CreateAPIView):
 
     def create(self, request, *args, **kwargs):
         from django.db import transaction as db_transaction
+        from teachers.models import Teacher
         with db_transaction.atomic():
             is_first = not User.objects.select_for_update().exists()
         serializer = self.get_serializer(data=request.data)
@@ -131,7 +132,15 @@ class RegisterView(generics.CreateAPIView):
             user.email_verified = True
             user.save(update_fields=['role', 'email_verified'])
         else:
-            _send_verification_email(user)
+            existing_teacher = Teacher.objects.filter(email__iexact=user.email, user__isnull=True, deleted_at__isnull=True).first()
+            if existing_teacher:
+                existing_teacher.user = user
+                existing_teacher.save(update_fields=['user'])
+                user.role = 'teacher'
+                user.email_verified = True
+                user.save(update_fields=['role', 'email_verified'])
+            else:
+                _send_verification_email(user)
         return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
 
 
