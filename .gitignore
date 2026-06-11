@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+!.env.production
 pgpass.txt
 
 # Python
@@ -32,3 +33,6 @@ client/dist/
 .DS_Store
 Thumbs.db
 nul
+
+# Old/temp directories
+school-system-temp/
