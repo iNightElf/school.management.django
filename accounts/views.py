@@ -29,7 +29,7 @@ def _send_verification_email(user):
         token=token,
         expires_at=timezone.now() + timedelta(hours=24),
     )
-    verify_url = f'{settings.FRONTEND_URL}/verify-email?token={token}'
+    verify_url = f'{settings.FRONTEND_URL}/#/verify-email?token={token}'
     try:
         send_mail(
             subject='Verify your email - AL RAWA English School',
