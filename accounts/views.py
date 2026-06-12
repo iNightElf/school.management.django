@@ -58,23 +58,11 @@ class CustomTokenObtainPairView(TokenObtainPairView):
         if response.status_code == 200:
             refresh = response.data.get('refresh')
             access = response.data.get('access')
-            response.data = {'detail': 'Login successful'}
-            response.set_cookie(
-                settings.SIMPLE_JWT['ACCESS_COOKIE'],
-                access,
-                httponly=True,
-                secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
-                samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
-                max_age=int(settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds()),
-            )
-            response.set_cookie(
-                settings.SIMPLE_JWT['REFRESH_COOKIE'],
-                refresh,
-                httponly=True,
-                secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
-                samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
-                max_age=int(settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds()),
-            )
+            response.data = {
+                'access': access,
+                'refresh': refresh,
+                'detail': 'Login successful',
+            }
         return response
 
 
@@ -82,32 +70,16 @@ class CustomTokenRefreshView(APIView):
     permission_classes = []
 
     def post(self, request):
-        refresh_token = request.COOKIES.get(settings.SIMPLE_JWT['REFRESH_COOKIE'])
+        refresh_token = request.data.get('refresh') or request.COOKIES.get(settings.SIMPLE_JWT['REFRESH_COOKIE'])
         if not refresh_token:
             return Response({'detail': 'Refresh token not found'}, status=status.HTTP_401_UNAUTHORIZED)
         try:
             refresh = RefreshToken(refresh_token)
             access = str(refresh.access_token)
-            response = Response({'detail': 'Token refreshed'}, status=status.HTTP_200_OK)
-            response.set_cookie(
-                settings.SIMPLE_JWT['ACCESS_COOKIE'],
-                access,
-                httponly=True,
-                secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
-                samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
-                max_age=int(settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds()),
-            )
+            data = {'access': access, 'detail': 'Token refreshed'}
             if settings.SIMPLE_JWT.get('ROTATE_REFRESH_TOKENS'):
-                new_refresh = str(refresh)
-                response.set_cookie(
-                    settings.SIMPLE_JWT['REFRESH_COOKIE'],
-                    new_refresh,
-                    httponly=True,
-                    secure=settings.SIMPLE_JWT['AUTH_COOKIE_SECURE'],
-                    samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
-                    max_age=int(settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds()),
-                )
-            return response
+                data['refresh'] = str(refresh)
+            return Response(data, status=status.HTTP_200_OK)
         except Exception:
             import logging
             logging.getLogger(__name__).exception('Refresh token failed')
@@ -161,10 +133,7 @@ class LogoutView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        response = Response({'detail': 'Logged out'}, status=status.HTTP_200_OK)
-        response.delete_cookie(settings.SIMPLE_JWT['ACCESS_COOKIE'])
-        response.delete_cookie(settings.SIMPLE_JWT['REFRESH_COOKIE'])
-        return response
+        return Response({'detail': 'Logged out'}, status=status.HTTP_200_OK)
 
 
 class GetAllUsersView(generics.ListAPIView):

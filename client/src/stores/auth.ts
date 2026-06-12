@@ -1,32 +1,14 @@
 import { create } from 'zustand';
-import { api } from './api';
-
-export function setupAuthInterceptor(getAuthStore: () => { setState: (s: { user: null }) => void }) {
-  api.interceptors.response.use(
-    (response) => response,
-    async (error) => {
-      if (error.response?.status === 401 && !error.config._retry) {
-        error.config._retry = true;
-        try {
-          await api.post('/auth/refresh/');
-          return api(error.config);
-        } catch (e) {
-          if (import.meta.env.DEV) console.warn('[store] refresh token failed', e);
-          getAuthStore().setState({ user: null });
-        }
-      }
-      return Promise.reject(error);
-    }
-  );
-}
+import axios from 'axios';
+import { api, setTokens, clearTokens, getRefreshToken } from './api';
 
 interface User {
   id: string;
   name: string;
   email: string;
   role: string;
-  emailVerified?: boolean;
   image: string | null;
+  emailVerified?: boolean;
 }
 
 interface AuthState {
@@ -37,23 +19,59 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>;
 }
 
-export const useAuthStore = create<AuthState>((set, get) => {
-  let fetching = false;
+let refreshing: Promise<boolean> | null = null;
 
-  setupAuthInterceptor(() => useAuthStore);
+export const useAuthStore = create<AuthState>((set, get) => {
+  api.interceptors.response.use(
+    (response) => response,
+    async (error) => {
+      const config = error.config;
+      if (error.response?.status === 401 && !config._retry) {
+        config._retry = true;
+
+        if (!refreshing) {
+          refreshing = (async () => {
+            try {
+              const rt = getRefreshToken();
+              if (!rt) return false;
+              const res = await axios.post(
+                `${api.defaults.baseURL}/auth/refresh/`,
+                { refresh: rt },
+              );
+              const { access, refresh: newRefresh } = res.data;
+              setTokens(access, newRefresh || rt);
+              return true;
+            } catch {
+              return false;
+            } finally {
+              refreshing = null;
+            }
+          })();
+        }
+
+        const ok = await refreshing;
+        if (ok) {
+          return api(config);
+        }
+        clearTokens();
+        set({ user: null });
+      }
+      return Promise.reject(error);
+    }
+  );
 
   return {
     user: null,
     loading: true,
 
     login: async (email: string, password: string) => {
-      await api.post('/auth/login/', { email, password });
+      const res = await api.post('/auth/login/', { email, password });
+      const { access, refresh } = res.data;
+      setTokens(access, refresh);
       await get().fetchSession();
     },
 
     fetchSession: async () => {
-      if (fetching) return;
-      fetching = true;
       try {
         if (get().user) {
           set({ loading: false });
@@ -61,16 +79,14 @@ export const useAuthStore = create<AuthState>((set, get) => {
         }
         const res = await api.get('/auth/get-session/');
         set({ user: res.data?.user ?? null, loading: false });
-      } catch (e) {
-        if (import.meta.env.DEV) console.warn("[store] fetchSession failed", e);
+      } catch {
         set({ user: null, loading: false });
-      } finally {
-        fetching = false;
       }
     },
 
     logout: async () => {
       await api.post('/auth/logout/').catch(() => {});
+      clearTokens();
       set({ user: null });
     },
   };
