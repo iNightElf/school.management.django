@@ -43,7 +43,7 @@ interface SchoolState {
   fetchTransactions: (params?: Record<string, string>) => Promise<void>;
   dashboardSummary: { totalIncome: number; totalDepositedToBank: number; depositRemaining: number };
   fetchDashboardSummary: (fiscalYear?: string) => Promise<void>;
-  fetchFeeSchedules: () => Promise<void>;
+  fetchFeeSchedules: (force?: boolean) => Promise<void>;
   fetchOpeningBalances: (year?: string) => Promise<void>;
   setOpeningBalances: (year: string, balances: Record<string, number>) => Promise<void>;
   fetchOpeningBalanceHistory: (year?: string) => Promise<void>;
@@ -223,10 +223,10 @@ export const useSchoolStore = create<SchoolState>((set, get) => ({
     } catch (e) { if (import.meta.env.DEV) console.warn("[store]", e); }
   },
 
-  fetchFeeSchedules: async () => {
+  fetchFeeSchedules: async (force?: boolean) => {
     const key = 'feeSchedules';
     const now = Date.now();
-    if (now - (get()._fetchedAt[key] || 0) < CACHE_TTL) return;
+    if (!force && now - (get()._fetchedAt[key] || 0) < CACHE_TTL) return;
     try { const res = await dedupedFetch(key, () => api.get('/finance/fee-schedules/')); set({ feeSchedules: (res.data?.results || res.data || []), _fetchedAt: { ...get()._fetchedAt, [key]: Date.now() } }); } catch (e) { if (import.meta.env.DEV) console.warn("[store]", e); }
   },
   fetchOpeningBalances: async (year) => {
