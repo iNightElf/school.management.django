@@ -111,10 +111,7 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # CORS — handled by django-cors-headers (alwaysdata alproxy strips proxy-level headers for uWSGI sites)
-CORS_ALLOWED_ORIGINS = os.environ.get(
-    'CORS_ORIGINS',
-    'http://localhost:5173,http://localhost:3000,https://iNightElf.github.io'
-).split(',')
+CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = [
     'accept',
