@@ -34,7 +34,7 @@ jobs:
 
       - run: npm run build
         env:
-          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_API_URL: https://ares.alwaysdata.net/api
 
       - uses: actions/upload-pages-artifact@v3
         with:
