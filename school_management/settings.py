@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'django_filters',
+    'corsheaders',
     'accounts',
     'core',
     'students',
@@ -40,6 +41,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -108,7 +110,22 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# CORS handled at Apache layer via 'Header always set' directives
+# CORS Configuration
+CORS_ALLOWED_ORIGINS = [
+    FRONTEND_URL,
+]
+if os.environ.get('CORS_ORIGINS'):
+    CORS_ALLOWED_ORIGINS += os.environ.get('CORS_ORIGINS').split(',')
+
+CORS_ALLOW_CREDENTIALS = True
+
+CSRF_TRUSTED_ORIGINS = [
+    FRONTEND_URL,
+]
+if os.environ.get('CORS_ORIGINS'):
+    CSRF_TRUSTED_ORIGINS += os.environ.get('CORS_ORIGINS').split(',')
+
+
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
