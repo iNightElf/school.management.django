@@ -34,8 +34,9 @@ const Layout = ({ children }: LayoutProps) => {
 
   const checkHealth = useCallback(async () => {
     try {
-      const res = await api.get('/health/');
-      if (res.status === 200) setConnState('connected');
+      // Use direct fetch to the root backend health endpoint, not the /api base URL
+      const res = await fetch('https://ares.alwaysdata.net/health/', { signal: AbortSignal.timeout(5000) });
+      if (res.ok) setConnState('connected');
       else setConnState('disconnected');
     } catch { setConnState('disconnected'); }
   }, []);
