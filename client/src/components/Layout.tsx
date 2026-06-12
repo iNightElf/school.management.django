@@ -34,8 +34,8 @@ const Layout = ({ children }: LayoutProps) => {
 
   const checkHealth = useCallback(async () => {
     try {
-      const res = await fetch('/health', { signal: AbortSignal.timeout(5000) });
-      if (res.ok) setConnState('connected');
+      const res = await api.get('/health/');
+      if (res.status === 200) setConnState('connected');
       else setConnState('disconnected');
     } catch { setConnState('disconnected'); }
   }, []);
