@@ -159,10 +159,10 @@ const AccessoriesSection = () => {
       toast('Book updated', 'success');
     } catch { toast('Failed to update', 'error'); }
     setEditBook(null);
-    fetchBooks();
-  };
+    fetchBooks(undefined, true);
+    };
 
-  const handleAddBook = async () => {
+    const handleAddBook = async () => {
     if (!newBookData.name.trim()) return toast('Book name required', 'error');
     try {
       const price = Number(newBookData.sell) || 0;
@@ -170,26 +170,26 @@ const AccessoriesSection = () => {
       toast('Book added ✓', 'success');
       setNewBook(false);
       setNewBookData({ name: '', sell: '' });
-      fetchBooks();
+      fetchBooks(undefined, true);
     } catch {
       toast('Failed to add book', 'error');
     }
-  };
+    };
 
-  const confirmDelete = async () => {
+    const confirmDelete = async () => {
     if (!deleteId) return;
     setDeleteLoading(true);
     try {
       await api.delete(`/books/${deleteId}/`);
       toast('Book deleted', 'success');
       setDeleteId(null);
-      fetchBooks();
+      fetchBooks(undefined, true);
     } catch {
-      toast('Failed to delete', 'error');
+      toast('Failed to delete book', 'error');
     } finally {
       setDeleteLoading(false);
     }
-  };
+    };
 
   return (
     <div className="space-y-4">
