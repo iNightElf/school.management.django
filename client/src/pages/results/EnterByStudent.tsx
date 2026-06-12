@@ -142,7 +142,7 @@ export default function EnterByStudent() {
               return (
                 <button key={s.id} onClick={() => { setActiveStudent(s); }} className="bg-white p-4 rounded-2xl border border-school-border hover:shadow-md transition-shadow text-left">
                   <div className="flex items-center gap-3">
-                    {s.photoUrl ? <img src={s.photoUrl} alt="" className="w-10 h-10 rounded-full object-cover border border-school-border" /> : s.hasPhoto ? <img src={`${API_URL}/students/${s.id}/photo`} alt="" className="w-10 h-10 rounded-full object-cover border border-school-border" /> : <div className="w-10 h-10 rounded-full bg-school-primary text-white flex items-center justify-center text-sm"><User size={24} className="text-white" /></div>}
+                    {s.photoUrl ? <img src={s.photoUrl} alt="" className="w-10 h-10 rounded-full object-cover border border-school-border" /> : s.hasPhoto ? <img src={`${API_URL}/students/${s.id}/photo/`} alt="" className="w-10 h-10 rounded-full object-cover border border-school-border" /> : <div className="w-10 h-10 rounded-full bg-school-primary text-white flex items-center justify-center text-sm"><User size={24} className="text-white" /></div>}
                     <div>
                       <div className="font-bold text-sm text-school-primary">{s.name}</div>
                       <div className="text-[11px] text-school-muted">{s.roll ? `Roll: ${s.roll}` : cls.name}</div>
@@ -159,7 +159,7 @@ export default function EnterByStudent() {
         <div className="space-y-4">
           <div className="flex items-center gap-3">
             <button onClick={() => setActiveStudent(null)} className="text-sm text-school-accent hover:underline">← Students</button>
-            {activeStudent.photoUrl ? <img src={activeStudent.photoUrl} alt="" className="w-10 h-10 rounded-full object-cover border border-school-border" /> : activeStudent.hasPhoto ? <img src={`${API_URL}/students/${activeStudent.id}/photo`} alt="" className="w-10 h-10 rounded-full object-cover border border-school-border" /> : <div className="w-10 h-10 rounded-full bg-school-primary text-white flex items-center justify-center text-sm"><User size={24} className="text-white" /></div>}
+            {activeStudent.photoUrl ? <img src={activeStudent.photoUrl} alt="" className="w-10 h-10 rounded-full object-cover border border-school-border" /> : activeStudent.hasPhoto ? <img src={`${API_URL}/students/${activeStudent.id}/photo/`} alt="" className="w-10 h-10 rounded-full object-cover border border-school-border" /> : <div className="w-10 h-10 rounded-full bg-school-primary text-white flex items-center justify-center text-sm"><User size={24} className="text-white" /></div>}
             <div className="flex-1">
               <div className="font-bold text-sm text-school-primary">{activeStudent.name}</div>
               <div className="text-[11px] text-school-muted">{cls.name}{activeStudent.roll ? ` · Roll: ${activeStudent.roll}` : ''}</div>

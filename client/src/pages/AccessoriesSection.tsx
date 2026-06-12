@@ -155,7 +155,7 @@ const AccessoriesSection = () => {
   const handleUpdateBook = async (id: string) => {
     if (!editBook) return;
     try {
-      await api.put(`/books/${id}/`, { name: editBook.name, sell: Number(editBook.sell) || 0 });
+      await api.put(`/books/${id}/`, { name: editBook.name, mrp: Number(editBook.sell) || 0, discounted: Number(editBook.sell) || 0, sell: Number(editBook.sell) || 0 });
       toast('Book updated', 'success');
     } catch { toast('Failed to update', 'error'); }
     setEditBook(null);
@@ -165,7 +165,8 @@ const AccessoriesSection = () => {
   const handleAddBook = async () => {
     if (!newBookData.name.trim()) return toast('Book name required', 'error');
     try {
-      await api.post('/books/', { name: newBookData.name.trim(), sell: Number(newBookData.sell) || 0, classId: selectedClassId });
+      const price = Number(newBookData.sell) || 0;
+      await api.post('/books/', { name: newBookData.name.trim(), mrp: price, discounted: price, sell: price, classId: selectedClassId });
       toast('Book added ✓', 'success');
       setNewBook(false);
       setNewBookData({ name: '', sell: '' });

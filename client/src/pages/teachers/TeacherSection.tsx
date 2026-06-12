@@ -53,7 +53,7 @@ export default function TeacherSection() {
 
   const handleEdit = (t: any) => {
     setForm({ designation: t.designation, name: t.name, email: t.email || '', contact: t.contact || '' });
-    setPhoto(t.photoUrl ? (t.photoUrl.startsWith('http') ? t.photoUrl : `${API_URL.replace('/api', '')}${t.photoUrl}`) : (t.hasPhoto ? `${API_URL}/teachers/${t.id}/photo` : null));
+    setPhoto(t.photoUrl ? (t.photoUrl.startsWith('http') ? t.photoUrl : `${API_URL.replace('/api', '')}${t.photoUrl}`) : (t.hasPhoto ? `${API_URL}/teachers/${t.id}/photo/` : null));
     setEditingId(t.id);
   };
 
@@ -153,7 +153,7 @@ export default function TeacherSection() {
         {t.photoUrl ? (
           <img src={t.photoUrl} alt="" className="w-14 h-14 rounded-full object-cover border-2 border-school-border shadow-sm" />
         ) : t.hasPhoto ? (
-          <img src={`${API_URL}/teachers/${t.id}/photo`} alt="" className="w-14 h-14 rounded-full object-cover border-2 border-school-border shadow-sm" />
+          <img src={`${API_URL}/teachers/${t.id}/photo/`} alt="" className="w-14 h-14 rounded-full object-cover border-2 border-school-border shadow-sm" />
         ) : (
           <div className="w-14 h-14 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-700 text-white flex items-center justify-center shadow-sm"><GraduationCap size={24} className="text-white" /></div>
         )}
@@ -222,7 +222,7 @@ export default function TeacherSection() {
               const photoCache: Record<string, string> = {};
               await Promise.all(filtered.filter((t: any) => t.photoUrl || t.hasPhoto).map(async (t: any) => {
                 try {
-                  const url = t.photoUrl || `${API_URL}/teachers/${t.id}/photo`;
+                  const url = t.photoUrl || `${API_URL}/teachers/${t.id}/photo/`;
                   const r = await api.get(url, { responseType: 'blob' });
                   photoCache[t.id] = await new Promise<string>(res => {
                     const reader = new FileReader();
