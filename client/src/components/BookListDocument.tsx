@@ -15,7 +15,7 @@ interface Props {
 function fmt(n: number) { return n.toLocaleString('en-BD'); }
 
 const BookListDocument = forwardRef<HTMLDivElement, Props>(({ className, books, settings }, ref) => {
-  const total = books.reduce((s, b) => s + b.sell, 0);
+  const total = books.reduce((s, b) => s + Number(b.sell || 0), 0);
 
   return (
     <SchoolDocumentLayout ref={ref} title="Book List" subtitle={`Class: ${className}`} settings={settings}>
@@ -32,7 +32,7 @@ const BookListDocument = forwardRef<HTMLDivElement, Props>(({ className, books, 
             <tr key={i}>
               <td style={{ color: '#9ca3af' }}>{i + 1}</td>
               <td>{b.name}</td>
-              <td style={{ textAlign: 'right', fontFamily: "'Courier New', monospace", fontWeight: 600 }}>৳ {fmt(b.sell)}</td>
+              <td style={{ textAlign: 'right', fontFamily: "'Courier New', monospace", fontWeight: 600 }}>৳ {fmt(Number(b.sell))}</td>
             </tr>
           ))}
         </tbody>

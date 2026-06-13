@@ -26,7 +26,7 @@ const FeeStructureDocument = forwardRef<HTMLDivElement, Props>(({ className, aca
         {academicFees.map(f => (
           <div key={f.category} className="fee-row">
             <span>{f.category}</span>
-            <span className="fee-amount">৳ {fmt(f.amount)}</span>
+            <span className="fee-amount">৳ {fmt(Number(f.amount))}</span>
           </div>
         ))}
         <div className="fee-row total">
@@ -41,7 +41,7 @@ const FeeStructureDocument = forwardRef<HTMLDivElement, Props>(({ className, aca
           {hifzFees.map(f => (
             <div key={f.category} className="fee-row">
               <span>{f.category}</span>
-              <span className="fee-amount">৳ {fmt(f.amount)}</span>
+              <span className="fee-amount">৳ {fmt(Number(f.amount))}</span>
             </div>
           ))}
           <div className="fee-row total">
