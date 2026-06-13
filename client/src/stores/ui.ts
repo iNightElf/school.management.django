@@ -22,7 +22,7 @@ if (useDarkMode.getState().dark) {
   document.documentElement.classList.remove('dark');
 }
 
-type MainMode = null | 'idcard' | 'accessories' | 'result' | 'finance' | 'coordination';
+type MainMode = null | 'idcard' | 'accessories' | 'result' | 'finance';
 type IdSubMode = 'student' | 'teacher' | 'staff';
 
 interface UIState {
