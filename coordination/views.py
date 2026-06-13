@@ -1,7 +1,7 @@
 from django.db import transaction
 from django.db.models import Avg, Max, Min, Count, Q
 from django.utils import timezone
-from rest_framework import viewsets, generics, status
+from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
@@ -427,60 +427,3 @@ class CoordinatorTaskViewSet(viewsets.ModelViewSet):
         task.save(update_fields=['status', 'completed_at'])
         log_audit('complete', 'coordinator_task', task.pk, request=request)
         return Response(CoordinatorTaskSerializer(task).data)
-
-
-class CoordinationDashboardView(generics.GenericAPIView):
-    permission_classes = [require_permission('coordinators:read')]
-
-    def get(self, request):
-        alerts_by_status = dict(
-            Alert.objects.values_list('status').annotate(count=Count('id')).values_list('status', 'count')
-        )
-        alerts_by_type = dict(
-            Alert.objects.values_list('alert_type').annotate(count=Count('id')).values_list('alert_type', 'count')
-        )
-        pending_tasks = CoordinatorTask.objects.exclude(status='completed').count()
-        upcoming_followups = Intervention.objects.filter(
-            followup_date__gte=timezone.now().date(),
-            followup_date__lte=timezone.now().date() + timezone.timedelta(days=7),
-            status='pending',
-        ).count()
-        upcoming_communications = ParentCommunication.objects.filter(
-            followup_date__gte=timezone.now().date(),
-            followup_date__lte=timezone.now().date() + timezone.timedelta(days=7),
-        ).count()
-        pending_reports = TeacherWeeklyReport.objects.filter(status='draft').count()
-        recent_tests = ClassTest.objects.select_related(
-            'school_class', 'subject'
-        ).order_by('-test_date')[:5]
-        recent_tests_data = []
-        for test in recent_tests:
-            marks = list(test.marks.values_list('marks_obtained', flat=True))
-            recent_tests_data.append({
-                'id': str(test.id),
-                'testName': test.test_name,
-                'testDate': str(test.test_date),
-                'className': test.school_class.name,
-                'subjectName': test.subject.name,
-                'term': test.term,
-                'totalMarks': test.total_marks,
-                'averageMarks': round(sum(marks) / len(marks), 1) if marks else 0,
-                'studentCount': len(marks),
-            })
-        return Response({
-            'alertsByStatus': {
-                'open': alerts_by_status.get('open', 0),
-                'pending': alerts_by_status.get('pending', 0),
-                'resolved': alerts_by_status.get('resolved', 0),
-            },
-            'alertsByType': {
-                'attendance': alerts_by_type.get('attendance', 0),
-                'academic': alerts_by_type.get('academic', 0),
-                'behavior': alerts_by_type.get('behavior', 0),
-                'parent': alerts_by_type.get('parent', 0),
-            },
-            'pendingTasks': pending_tasks,
-            'upcomingFollowups': upcoming_followups + upcoming_communications,
-            'pendingReports': pending_reports,
-            'recentTests': recent_tests_data,
-        })

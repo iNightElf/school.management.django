@@ -13,5 +13,4 @@ router.register(r'coordinator-tasks', views.CoordinatorTaskViewSet, basename='co
 
 urlpatterns = [
     path('', include(router.urls)),
-    path('dashboard/', views.CoordinationDashboardView.as_view(), name='coordination-dashboard'),
 ]
