@@ -8,12 +8,11 @@ import IdCardSection from './IdCardSection';
 import AccessoriesSection from './AccessoriesSection';
 import ResultSection from './ResultSection';
 import FinanceSection from './FinanceSection';
-import CoordinationSection from './coordination/CoordinationSection';
 import EngagementWidget, { QuizPanel, RiddlePanel, MoodPanel, ChallengePanel, TipsPanel, PlannerPanel } from './engagement/EngagementWidget';
-import { CreditCard, BookOpen, BarChart3, Wallet, Users, GraduationCap, Building2, Sparkles, ArrowRight, Clock, MailCheck, ClipboardList } from 'lucide-react';
+import { CreditCard, BookOpen, BarChart3, Wallet, Users, GraduationCap, Building2, Sparkles, ArrowRight, Clock, MailCheck } from 'lucide-react';
 import { SCHOOL_LOGO } from '../lib/logo';
 
-type ModeParam = 'idcard' | 'accessories' | 'result' | 'finance' | 'coordination';
+type ModeParam = 'idcard' | 'accessories' | 'result' | 'finance';
 
 function TodaysGreeting() {
   const h = new Date().getHours();
@@ -75,7 +74,6 @@ const Dashboard = () => {
     { key: 'accessories' as ModeParam, label: 'Fees & Books', desc: 'Fee structure & book list', color: 'amber', icon: BookOpen },
     { key: 'result' as ModeParam, label: 'Result', desc: 'Marks & report cards', color: 'green', icon: BarChart3 },
     ...(!isTeacher && !isPendingViewer ? [{ key: 'finance' as ModeParam, label: 'Finance', desc: 'Accounting & fees', color: 'rose', icon: Wallet }] : []),
-    ...((isAdmin || isTeacher) ? [{ key: 'coordination' as ModeParam, label: 'Coordination', desc: 'Alerts, interventions & tracking', color: 'purple', icon: ClipboardList }] : []),
   ];
 
   return (
@@ -189,7 +187,6 @@ const Dashboard = () => {
           {activeMode === 'accessories' && <AccessoriesSection />}
           {activeMode === 'result' && <ResultSection />}
           {activeMode === 'finance' && <FinanceSection />}
-          {activeMode === 'coordination' && <CoordinationSection />}
         </div>
       )}
 

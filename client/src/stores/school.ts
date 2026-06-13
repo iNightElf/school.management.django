@@ -4,8 +4,6 @@ import type {
   Student, Teacher, Staff, Transaction, SchoolClass, Subject,
   FeeSchedule, SchoolSettings, AcademicYear,
   OpeningBalanceHistory, Book, Result,
-  Alert, Intervention, ParentCommunication, TeacherWeeklyReport,
-  ClassTest, CoordinatorTask, SubjectAverage,
 } from '../lib/types';
 
 const CACHE_TTL = 60_000;
@@ -71,34 +69,6 @@ interface SchoolState {
   fetchClassResults: (classId: string, session: string, term?: string) => Promise<void>;
   expenseCategories: string[];
   fetchExpenseCategories: () => Promise<void>;
-
-  // Coordination Hub
-  alerts: Alert[];
-  interventions: Intervention[];
-  parentCommunications: ParentCommunication[];
-  weeklyReports: TeacherWeeklyReport[];
-  classTests: ClassTest[];
-  coordinatorTasks: CoordinatorTask[];
-
-  subjectAverages: SubjectAverage[];
-  fetchAlerts: (params?: Record<string, string>, force?: boolean) => Promise<void>;
-  createAlert: (data: Record<string, unknown>) => Promise<void>;
-  resolveAlert: (id: string) => Promise<void>;
-  fetchInterventions: (params?: Record<string, string>, force?: boolean) => Promise<void>;
-  createIntervention: (data: Record<string, unknown>) => Promise<void>;
-  fetchParentCommunications: (params?: Record<string, string>, force?: boolean) => Promise<void>;
-  createParentCommunication: (data: Record<string, unknown>) => Promise<void>;
-  fetchWeeklyReports: (params?: Record<string, string>, force?: boolean) => Promise<void>;
-  createWeeklyReport: (data: Record<string, unknown>) => Promise<void>;
-  submitWeeklyReport: (id: string) => Promise<void>;
-  fetchClassTests: (params?: Record<string, string>, force?: boolean) => Promise<void>;
-  createClassTest: (data: Record<string, unknown>) => Promise<void>;
-  bulkMarks: (testId: string, marks: Array<{ studentId: string; marksObtained: number }>) => Promise<void>;
-  fetchCoordinatorTasks: (params?: Record<string, string>, force?: boolean) => Promise<void>;
-  createCoordinatorTask: (data: Record<string, unknown>) => Promise<void>;
-  completeCoordinatorTask: (id: string) => Promise<void>;
-
-  fetchSubjectAverages: (classId: string, term: string) => Promise<SubjectAverage[]>;
 }
 
 export const useSchoolStore = create<SchoolState>((set, get) => ({
@@ -129,15 +99,6 @@ export const useSchoolStore = create<SchoolState>((set, get) => ({
   expenseCategories: [],
   dashboardSummary: { totalIncome: 0, totalDepositedToBank: 0, depositRemaining: 0 },
   loading: {},
-
-  // Coordination Hub state
-  alerts: [],
-  interventions: [],
-  parentCommunications: [],
-  weeklyReports: [],
-  classTests: [],
-  coordinatorTasks: [],
-  subjectAverages: [],
 
   fetchDashboardCounts: async () => {
     const key = 'dashboardCounts';
@@ -459,139 +420,6 @@ export const useSchoolStore = create<SchoolState>((set, get) => ({
       const params: any = {};
       if (dateStr) params.date = dateStr;
       const res = await api.get('/engagement/lesson-plans/', { params });
-      return res.data;
-    } catch (e) { if (import.meta.env.DEV) console.warn("[store]", e); return []; }
-  },
-
-  // ── Coordination Hub actions ──
-  fetchAlerts: async (params, force) => {
-    const key = 'alerts';
-    const now = Date.now();
-    if (!force && !params && now - (get()._fetchedAt[key] || 0) < CACHE_TTL) return;
-    set((s) => ({ loading: { ...s.loading, alerts: true } }));
-    try {
-      const res = await dedupedFetch(key, () => api.get('/coordination/alerts/', { params: { limit: '2000', ...params } }));
-      set({ alerts: res.data.results || res.data.data || res.data, _fetchedAt: { ...get()._fetchedAt, [key]: Date.now() } });
-    } catch (e) { if (import.meta.env.DEV) console.warn("[store]", e); }
-    finally { set((s) => ({ loading: { ...s.loading, alerts: false } })); }
-  },
-  createAlert: async (data) => {
-    await api.post('/coordination/alerts/', data);
-    set((s) => ({ _fetchedAt: { ...s._fetchedAt, alerts: 0 } }));
-    await get().fetchAlerts(undefined, true);
-  },
-  resolveAlert: async (id) => {
-    await api.post(`/coordination/alerts/${id}/resolve/`);
-    set((s) => ({ _fetchedAt: { ...s._fetchedAt, alerts: 0 } }));
-    await get().fetchAlerts(undefined, true);
-  },
-
-  fetchInterventions: async (params, force) => {
-    const key = 'interventions';
-    const now = Date.now();
-    if (!force && !params && now - (get()._fetchedAt[key] || 0) < CACHE_TTL) return;
-    set((s) => ({ loading: { ...s.loading, interventions: true } }));
-    try {
-      const res = await dedupedFetch(key, () => api.get('/coordination/interventions/', { params: { limit: '2000', ...params } }));
-      set({ interventions: res.data.results || res.data.data || res.data, _fetchedAt: { ...get()._fetchedAt, [key]: Date.now() } });
-    } catch (e) { if (import.meta.env.DEV) console.warn("[store]", e); }
-    finally { set((s) => ({ loading: { ...s.loading, interventions: false } })); }
-  },
-  createIntervention: async (data) => {
-    await api.post('/coordination/interventions/', data);
-    set((s) => ({ _fetchedAt: { ...s._fetchedAt, interventions: 0 } }));
-    await get().fetchInterventions(undefined, true);
-  },
-
-  fetchParentCommunications: async (params, force) => {
-    const key = 'parentComms';
-    const now = Date.now();
-    if (!force && !params && now - (get()._fetchedAt[key] || 0) < CACHE_TTL) return;
-    set((s) => ({ loading: { ...s.loading, parentComms: true } }));
-    try {
-      const res = await dedupedFetch(key, () => api.get('/coordination/parent-communications/', { params: { limit: '2000', ...params } }));
-      set({ parentCommunications: res.data.results || res.data.data || res.data, _fetchedAt: { ...get()._fetchedAt, [key]: Date.now() } });
-    } catch (e) { if (import.meta.env.DEV) console.warn("[store]", e); }
-    finally { set((s) => ({ loading: { ...s.loading, parentComms: false } })); }
-  },
-  createParentCommunication: async (data) => {
-    await api.post('/coordination/parent-communications/', data);
-    set((s) => ({ _fetchedAt: { ...s._fetchedAt, parentComms: 0 } }));
-    await get().fetchParentCommunications(undefined, true);
-  },
-
-  fetchWeeklyReports: async (params, force) => {
-    const key = 'weeklyReports';
-    const now = Date.now();
-    if (!force && !params && now - (get()._fetchedAt[key] || 0) < CACHE_TTL) return;
-    set((s) => ({ loading: { ...s.loading, weeklyReports: true } }));
-    try {
-      const res = await dedupedFetch(key, () => api.get('/coordination/weekly-reports/', { params: { limit: '2000', ...params } }));
-      set({ weeklyReports: res.data.results || res.data.data || res.data, _fetchedAt: { ...get()._fetchedAt, [key]: Date.now() } });
-    } catch (e) { if (import.meta.env.DEV) console.warn("[store]", e); }
-    finally { set((s) => ({ loading: { ...s.loading, weeklyReports: false } })); }
-  },
-  createWeeklyReport: async (data) => {
-    await api.post('/coordination/weekly-reports/', data);
-    set((s) => ({ _fetchedAt: { ...s._fetchedAt, weeklyReports: 0 } }));
-    await get().fetchWeeklyReports(undefined, true);
-  },
-  submitWeeklyReport: async (id) => {
-    await api.post(`/coordination/weekly-reports/${id}/submit/`);
-    set((s) => ({ _fetchedAt: { ...s._fetchedAt, weeklyReports: 0 } }));
-    await get().fetchWeeklyReports(undefined, true);
-  },
-
-  fetchClassTests: async (params, force) => {
-    const key = 'classTests';
-    const now = Date.now();
-    if (!force && !params && now - (get()._fetchedAt[key] || 0) < CACHE_TTL) return;
-    set((s) => ({ loading: { ...s.loading, classTests: true } }));
-    try {
-      const res = await dedupedFetch(key, () => api.get('/coordination/class-tests/', { params: { limit: '2000', ...params } }));
-      set({ classTests: res.data.results || res.data.data || res.data, _fetchedAt: { ...get()._fetchedAt, [key]: Date.now() } });
-    } catch (e) { if (import.meta.env.DEV) console.warn("[store]", e); }
-    finally { set((s) => ({ loading: { ...s.loading, classTests: false } })); }
-  },
-  createClassTest: async (data) => {
-    await api.post('/coordination/class-tests/', data);
-    set((s) => ({ _fetchedAt: { ...s._fetchedAt, classTests: 0 } }));
-    await get().fetchClassTests(undefined, true);
-  },
-  bulkMarks: async (testId, marks) => {
-    await api.post(`/coordination/class-tests/${testId}/bulk_marks/`, { marks });
-    set((s) => ({ _fetchedAt: { ...s._fetchedAt, classTests: 0 } }));
-    await get().fetchClassTests(undefined, true);
-  },
-
-  fetchCoordinatorTasks: async (params, force) => {
-    const key = 'coordinatorTasks';
-    const now = Date.now();
-    if (!force && !params && now - (get()._fetchedAt[key] || 0) < CACHE_TTL) return;
-    set((s) => ({ loading: { ...s.loading, coordinatorTasks: true } }));
-    try {
-      const res = await dedupedFetch(key, () => api.get('/coordination/coordinator-tasks/', { params: { limit: '2000', ...params } }));
-      set({ coordinatorTasks: res.data.results || res.data.data || res.data, _fetchedAt: { ...get()._fetchedAt, [key]: Date.now() } });
-    } catch (e) { if (import.meta.env.DEV) console.warn("[store]", e); }
-    finally { set((s) => ({ loading: { ...s.loading, coordinatorTasks: false } })); }
-  },
-  createCoordinatorTask: async (data) => {
-    await api.post('/coordination/coordinator-tasks/', data);
-    set((s) => ({ _fetchedAt: { ...s._fetchedAt, coordinatorTasks: 0 } }));
-    await get().fetchCoordinatorTasks(undefined, true);
-  },
-  completeCoordinatorTask: async (id) => {
-    await api.post(`/coordination/coordinator-tasks/${id}/complete/`);
-    set((s) => ({ _fetchedAt: { ...s._fetchedAt, coordinatorTasks: 0 } }));
-    await get().fetchCoordinatorTasks(undefined, true);
-  },
-
-
-
-  fetchSubjectAverages: async (classId, term) => {
-    try {
-      const res = await api.get(`/coordination/class-tests/subject_averages/?class_id=${classId}&term=${term}`);
-      set({ subjectAverages: res.data });
       return res.data;
     } catch (e) { if (import.meta.env.DEV) console.warn("[store]", e); return []; }
   },
