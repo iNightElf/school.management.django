@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSchoolStore } from '../../store';
-import { Plus, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
+import { Plus, CheckCircle, Clock, AlertTriangle, Loader2 } from 'lucide-react';
+import { toast } from '../../components/Toast';
 
 const PRIORITY_COLORS = {
   high: 'bg-red-100 text-red-700 border-red-200',
@@ -13,20 +14,34 @@ const CoordinatorTasksTab = () => {
   const [showForm, setShowForm] = useState(false);
   const [filter, setFilter] = useState<string>('all');
   const [form, setForm] = useState({ title: '', description: '', dueDate: '', priority: 'medium', status: 'pending' });
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => { fetchCoordinatorTasks(); }, []);
 
   const filtered = filter === 'all' ? coordinatorTasks : coordinatorTasks.filter(t => t.status === filter);
 
   const handleSubmit = async () => {
-    if (!form.title) return;
-    await createCoordinatorTask(form);
-    setForm({ title: '', description: '', dueDate: '', priority: 'medium', status: 'pending' });
-    setShowForm(false);
+    if (!form.title) return toast('Task title is required', 'error');
+    setSaving(true);
+    try {
+      await createCoordinatorTask(form);
+      toast('Task created', 'success');
+      setForm({ title: '', description: '', dueDate: '', priority: 'medium', status: 'pending' });
+      setShowForm(false);
+    } catch (e: any) {
+      toast(e.response?.data?.detail || 'Failed to create task', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleComplete = async (id: string) => {
-    await completeCoordinatorTask(id);
+    try {
+      await completeCoordinatorTask(id);
+      toast('Task completed', 'success');
+    } catch {
+      toast('Failed to complete task', 'error');
+    }
   };
 
   return (
@@ -65,7 +80,11 @@ const CoordinatorTasksTab = () => {
             </select>
           </div>
           <div className="flex gap-2">
-            <button onClick={handleSubmit} className="px-4 py-2 bg-school-primary text-white text-sm font-bold rounded-lg hover:bg-school-primary/90 transition-colors">Save</button>
+            <button onClick={handleSubmit} disabled={saving}
+              className="flex items-center gap-2 px-4 py-2 bg-school-primary text-white text-sm font-bold rounded-lg hover:bg-school-primary/90 transition-colors disabled:opacity-50">
+              {saving && <Loader2 size={14} className="animate-spin" />}
+              Save
+            </button>
             <button onClick={() => setShowForm(false)} className="px-4 py-2 bg-gray-100 text-school-muted text-sm font-bold rounded-lg hover:bg-gray-200 transition-colors">Cancel</button>
           </div>
         </div>

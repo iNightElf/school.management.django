@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSchoolStore } from '../../store';
-import { Plus, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
+import { Plus, CheckCircle, Clock, AlertTriangle, Loader2 } from 'lucide-react';
+import { toast } from '../../components/Toast';
 
 const STATUS_ICONS = {
   pending: <Clock size={14} className="text-amber-500" />,
@@ -13,16 +14,25 @@ const InterventionsTab = () => {
   const [showForm, setShowForm] = useState(false);
   const [filter, setFilter] = useState<string>('all');
   const [form, setForm] = useState({ alert: '', actionTaken: '', followupDate: '', remarks: '', status: 'pending' });
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => { fetchInterventions(); fetchAlerts(); }, []);
 
   const filtered = filter === 'all' ? interventions : interventions.filter(i => i.status === filter);
 
   const handleSubmit = async () => {
-    if (!form.alert || !form.actionTaken) return;
-    await createIntervention(form);
-    setForm({ alert: '', actionTaken: '', followupDate: '', remarks: '', status: 'pending' });
-    setShowForm(false);
+    if (!form.alert || !form.actionTaken) return toast('Alert and action taken are required', 'error');
+    setSaving(true);
+    try {
+      await createIntervention(form);
+      toast('Intervention created successfully', 'success');
+      setForm({ alert: '', actionTaken: '', followupDate: '', remarks: '', status: 'pending' });
+      setShowForm(false);
+    } catch (e: any) {
+      toast(e.response?.data?.detail || 'Failed to create intervention', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -67,7 +77,11 @@ const InterventionsTab = () => {
           <textarea placeholder="Remarks (optional)" value={form.remarks} onChange={e => setForm(f => ({ ...f, remarks: e.target.value }))}
             className="w-full px-3 py-2 border border-school-border rounded-lg text-sm dark:bg-[#2a2a3e] dark:text-white" rows={2} />
           <div className="flex gap-2">
-            <button onClick={handleSubmit} className="px-4 py-2 bg-school-primary text-white text-sm font-bold rounded-lg hover:bg-school-primary/90 transition-colors">Save</button>
+            <button onClick={handleSubmit} disabled={saving}
+              className="flex items-center gap-2 px-4 py-2 bg-school-primary text-white text-sm font-bold rounded-lg hover:bg-school-primary/90 transition-colors disabled:opacity-50">
+              {saving && <Loader2 size={14} className="animate-spin" />}
+              Save
+            </button>
             <button onClick={() => setShowForm(false)} className="px-4 py-2 bg-gray-100 text-school-muted text-sm font-bold rounded-lg hover:bg-gray-200 transition-colors">Cancel</button>
           </div>
         </div>

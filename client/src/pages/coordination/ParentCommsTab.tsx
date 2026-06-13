@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSchoolStore } from '../../store';
-import { Plus, Phone, Users, AlertCircle, ArrowUpRight } from 'lucide-react';
+import { Plus, Phone, Users, AlertCircle, ArrowUpRight, Loader2 } from 'lucide-react';
+import { toast } from '../../components/Toast';
 
 const TYPE_ICONS = {
   call: <Phone size={14} className="text-blue-500" />,
@@ -14,16 +15,25 @@ const ParentCommsTab = () => {
   const [showForm, setShowForm] = useState(false);
   const [filter, setFilter] = useState<string>('all');
   const [form, setForm] = useState({ student: '', communicationType: 'call', notes: '', followupDate: '' });
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => { fetchParentCommunications(); fetchStudents(); }, []);
 
   const filtered = filter === 'all' ? parentCommunications : parentCommunications.filter(c => c.communicationType === filter);
 
   const handleSubmit = async () => {
-    if (!form.student || !form.notes) return;
-    await createParentCommunication(form);
-    setForm({ student: '', communicationType: 'call', notes: '', followupDate: '' });
-    setShowForm(false);
+    if (!form.student || !form.notes) return toast('Student and notes are required', 'error');
+    setSaving(true);
+    try {
+      await createParentCommunication(form);
+      toast('Communication entry saved', 'success');
+      setForm({ student: '', communicationType: 'call', notes: '', followupDate: '' });
+      setShowForm(false);
+    } catch (e: any) {
+      toast(e.response?.data?.detail || 'Failed to save entry', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -68,7 +78,11 @@ const ParentCommsTab = () => {
           <textarea placeholder="Notes" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
             className="w-full px-3 py-2 border border-school-border rounded-lg text-sm dark:bg-[#2a2a3e] dark:text-white" rows={3} />
           <div className="flex gap-2">
-            <button onClick={handleSubmit} className="px-4 py-2 bg-school-primary text-white text-sm font-bold rounded-lg hover:bg-school-primary/90 transition-colors">Save</button>
+            <button onClick={handleSubmit} disabled={saving}
+              className="flex items-center gap-2 px-4 py-2 bg-school-primary text-white text-sm font-bold rounded-lg hover:bg-school-primary/90 transition-colors disabled:opacity-50">
+              {saving && <Loader2 size={14} className="animate-spin" />}
+              Save
+            </button>
             <button onClick={() => setShowForm(false)} className="px-4 py-2 bg-gray-100 text-school-muted text-sm font-bold rounded-lg hover:bg-gray-200 transition-colors">Cancel</button>
           </div>
         </div>

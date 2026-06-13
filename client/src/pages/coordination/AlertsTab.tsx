@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSchoolStore } from '../../store';
-import { Plus, CheckCircle, AlertTriangle, Clock } from 'lucide-react';
+import { Plus, CheckCircle, AlertTriangle, Clock, Loader2 } from 'lucide-react';
+import { toast } from '../../components/Toast';
 
 const SEVERITY_COLORS = {
   high: 'bg-red-100 text-red-700 border-red-200',
@@ -18,16 +19,34 @@ const AlertsTab = () => {
   const [showForm, setShowForm] = useState(false);
   const [filter, setFilter] = useState<string>('all');
   const [form, setForm] = useState({ student: '', alertType: 'attendance', title: '', description: '', severity: 'medium' });
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => { fetchAlerts(); fetchStudents(); }, []);
 
   const filtered = filter === 'all' ? alerts : alerts.filter(a => a.status === filter);
 
   const handleSubmit = async () => {
-    if (!form.student || !form.title) return;
-    await createAlert(form);
-    setForm({ student: '', alertType: 'attendance', title: '', description: '', severity: 'medium' });
-    setShowForm(false);
+    if (!form.student || !form.title) return toast('Student and title are required', 'error');
+    setSaving(true);
+    try {
+      await createAlert(form);
+      toast('Alert created successfully', 'success');
+      setForm({ student: '', alertType: 'attendance', title: '', description: '', severity: 'medium' });
+      setShowForm(false);
+    } catch (e: any) {
+      toast(e.response?.data?.detail || 'Failed to create alert', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleResolve = async (id: string) => {
+    try {
+      await resolveAlert(id);
+      toast('Alert resolved', 'success');
+    } catch {
+      toast('Failed to resolve alert', 'error');
+    }
   };
 
   return (
@@ -80,7 +99,11 @@ const AlertsTab = () => {
           <textarea placeholder="Description (optional)" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
             className="w-full px-3 py-2 border border-school-border rounded-lg text-sm dark:bg-[#2a2a3e] dark:text-white" rows={2} />
           <div className="flex gap-2">
-            <button onClick={handleSubmit} className="px-4 py-2 bg-school-primary text-white text-sm font-bold rounded-lg hover:bg-school-primary/90 transition-colors">Save</button>
+            <button onClick={handleSubmit} disabled={saving}
+              className="flex items-center gap-2 px-4 py-2 bg-school-primary text-white text-sm font-bold rounded-lg hover:bg-school-primary/90 transition-colors disabled:opacity-50">
+              {saving && <Loader2 size={14} className="animate-spin" />}
+              Save
+            </button>
             <button onClick={() => setShowForm(false)} className="px-4 py-2 bg-gray-100 text-school-muted text-sm font-bold rounded-lg hover:bg-gray-200 transition-colors">Cancel</button>
           </div>
         </div>
@@ -94,11 +117,11 @@ const AlertsTab = () => {
         {filtered.map(alert => (
           <div key={alert.id} className={`bg-white dark:bg-[#1a1a2e] rounded-xl border border-school-border dark:border-[#2a2a3e] p-4 ${alert.status === 'resolved' ? 'opacity-60' : ''}`}>
             <div className="flex items-start gap-3">
-              <div className="mt-0.5">{STATUS_ICONS[alert.status]}</div>
+              <div className="mt-0.5">{STATUS_ICONS[alert.status as keyof typeof STATUS_ICONS]}</div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-sm font-bold text-school-primary dark:text-[#e0e0e8]">{alert.title}</span>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${SEVERITY_COLORS[alert.severity]}`}>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${SEVERITY_COLORS[alert.severity as keyof typeof SEVERITY_COLORS]}`}>
                     {alert.severity}
                   </span>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 dark:bg-[#2a2a3e] text-school-muted capitalize">
@@ -110,7 +133,7 @@ const AlertsTab = () => {
                 <div className="text-[10px] text-school-muted mt-1">by {alert.createdByName} - {new Date(alert.createdAt).toLocaleDateString()}</div>
               </div>
               {alert.status !== 'resolved' && (
-                <button onClick={() => resolveAlert(alert.id)}
+                <button onClick={() => handleResolve(alert.id)}
                   className="px-2 py-1 bg-green-50 text-green-600 text-[10px] font-bold rounded-lg hover:bg-green-100 transition-colors flex-shrink-0">
                   Resolve
                 </button>

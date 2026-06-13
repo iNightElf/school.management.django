@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useSchoolStore } from '../../store';
-import { Plus, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { TERM_NAMES } from '../../lib/config';
+import { toast } from '../../components/Toast';
 import type { ClassTest } from '../../lib/types';
 
 const TERM_OPTIONS = [
@@ -19,6 +20,8 @@ const ClassTestsTab = () => {
   const [form, setForm] = useState({ schoolClass: '', subject: '', term: '1', testName: '', testDate: '', totalMarks: 100 });
   const [marksData, setMarksData] = useState<Record<string, number>>({});
   const [showAverages, setShowAverages] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [savingMarks, setSavingMarks] = useState(false);
 
   useEffect(() => { fetchClassTests(); fetchClasses(); }, []);
 
@@ -34,10 +37,18 @@ const ClassTestsTab = () => {
   };
 
   const handleCreateTest = async () => {
-    if (!form.schoolClass || !form.subject || !form.testName || !form.testDate) return;
-    await createClassTest(form);
-    setForm({ schoolClass: '', subject: '', term: '1', testName: '', testDate: '', totalMarks: 100 });
-    setShowForm(false);
+    if (!form.schoolClass || !form.subject || !form.testName || !form.testDate) return toast('All fields are required', 'error');
+    setCreating(true);
+    try {
+      await createClassTest(form);
+      toast('Class test created', 'success');
+      setForm({ schoolClass: '', subject: '', term: '1', testName: '', testDate: '', totalMarks: 100 });
+      setShowForm(false);
+    } catch (e: any) {
+      toast(e.response?.data?.detail || 'Failed to create test', 'error');
+    } finally {
+      setCreating(false);
+    }
   };
 
   const handleSelectTest = async (test: ClassTest) => {
@@ -51,9 +62,17 @@ const ClassTestsTab = () => {
 
   const handleSaveMarks = async () => {
     if (!selectedTest) return;
-    const marks = Object.entries(marksData).map(([studentId, marksObtained]) => ({ studentId, marksObtained }));
-    await bulkMarks(selectedTest.id, marks);
-    setSelectedTest(null);
+    setSavingMarks(true);
+    try {
+      const marks = Object.entries(marksData).map(([studentId, marksObtained]) => ({ studentId, marksObtained }));
+      await bulkMarks(selectedTest.id, marks);
+      toast('Marks saved successfully', 'success');
+      setSelectedTest(null);
+    } catch (e: any) {
+      toast(e.response?.data?.detail || 'Failed to save marks', 'error');
+    } finally {
+      setSavingMarks(false);
+    }
   };
 
   const handleLoadAverages = async () => {
@@ -153,7 +172,11 @@ const ClassTestsTab = () => {
               className="px-3 py-2 border border-school-border rounded-lg text-sm dark:bg-[#2a2a3e] dark:text-white" />
           </div>
           <div className="flex gap-2">
-            <button onClick={handleCreateTest} className="px-4 py-2 bg-school-primary text-white text-sm font-bold rounded-lg hover:bg-school-primary/90 transition-colors">Create</button>
+            <button onClick={handleCreateTest} disabled={creating}
+              className="flex items-center gap-2 px-4 py-2 bg-school-primary text-white text-sm font-bold rounded-lg hover:bg-school-primary/90 transition-colors disabled:opacity-50">
+              {creating && <Loader2 size={14} className="animate-spin" />}
+              Create
+            </button>
             <button onClick={() => setShowForm(false)} className="px-4 py-2 bg-gray-100 text-school-muted text-sm font-bold rounded-lg hover:bg-gray-200 transition-colors">Cancel</button>
           </div>
         </div>
@@ -190,8 +213,9 @@ const ClassTestsTab = () => {
               <div className="border-t border-school-border dark:border-[#2a2a3e] p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="text-xs font-bold text-school-muted uppercase">Enter Marks</h4>
-                  <button onClick={handleSaveMarks}
-                    className="px-3 py-1.5 bg-school-primary text-white text-xs font-bold rounded-lg hover:bg-school-primary/90 transition-colors">
+                  <button onClick={handleSaveMarks} disabled={savingMarks}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-school-primary text-white text-xs font-bold rounded-lg hover:bg-school-primary/90 transition-colors disabled:opacity-50">
+                    {savingMarks && <Loader2 size={12} className="animate-spin" />}
                     Save All Marks
                   </button>
                 </div>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSchoolStore, useAuthStore } from '../../store';
-import { Plus, Send } from 'lucide-react';
+import { Plus, Send, Loader2 } from 'lucide-react';
+import { toast } from '../../components/Toast';
 
 const WeeklyReportsTab = () => {
   const { weeklyReports, fetchWeeklyReports, createWeeklyReport, submitWeeklyReport, teachers, fetchTeachers } = useSchoolStore();
@@ -11,18 +12,32 @@ const WeeklyReportsTab = () => {
     classTeacher: '', weekStartDate: '',
     attendanceNotes: '', academicsNotes: '', behaviorNotes: '', parentIssuesNotes: '', recognitionNotes: '',
   });
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => { fetchWeeklyReports(); fetchTeachers(); }, []);
 
   const handleSubmit = async () => {
-    if (!form.classTeacher || !form.weekStartDate) return;
-    await createWeeklyReport(form);
-    setForm({ classTeacher: '', weekStartDate: '', attendanceNotes: '', academicsNotes: '', behaviorNotes: '', parentIssuesNotes: '', recognitionNotes: '' });
-    setShowForm(false);
+    if (!form.classTeacher || !form.weekStartDate) return toast('Teacher and week start date are required', 'error');
+    setSaving(true);
+    try {
+      await createWeeklyReport(form);
+      toast('Draft report saved', 'success');
+      setForm({ classTeacher: '', weekStartDate: '', attendanceNotes: '', academicsNotes: '', behaviorNotes: '', parentIssuesNotes: '', recognitionNotes: '' });
+      setShowForm(false);
+    } catch (e: any) {
+      toast(e.response?.data?.detail || 'Failed to save report', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleSubmitReport = async (id: string) => {
-    await submitWeeklyReport(id);
+    try {
+      await submitWeeklyReport(id);
+      toast('Report submitted successfully', 'success');
+    } catch {
+      toast('Failed to submit report', 'error');
+    }
   };
 
   return (
@@ -40,10 +55,10 @@ const WeeklyReportsTab = () => {
           <div className="grid grid-cols-2 gap-2">
             <select value={form.classTeacher} onChange={e => setForm(f => ({ ...f, classTeacher: e.target.value }))}
               className="px-3 py-2 border border-school-border rounded-lg text-sm dark:bg-[#2a2a3e] dark:text-white">
-              <option value="">Select Class Teacher</option>
-              {teachers.map(t => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
+              <option value="">Select Teacher & Class</option>
+              {teachers.flatMap(t => (t.classTeacherOf || []).map((ct: any) => (
+                <option key={ct.id} value={ct.id}>{t.name} - {ct.className}</option>
+              )))}
             </select>
             <input type="date" value={form.weekStartDate} onChange={e => setForm(f => ({ ...f, weekStartDate: e.target.value }))}
               className="px-3 py-2 border border-school-border rounded-lg text-sm dark:bg-[#2a2a3e] dark:text-white" />
@@ -60,7 +75,11 @@ const WeeklyReportsTab = () => {
               className="w-full px-3 py-2 border border-school-border rounded-lg text-sm dark:bg-[#2a2a3e] dark:text-white" rows={2} />
           ))}
           <div className="flex gap-2">
-            <button onClick={handleSubmit} className="px-4 py-2 bg-school-primary text-white text-sm font-bold rounded-lg hover:bg-school-primary/90 transition-colors">Save Draft</button>
+            <button onClick={handleSubmit} disabled={saving}
+              className="flex items-center gap-2 px-4 py-2 bg-school-primary text-white text-sm font-bold rounded-lg hover:bg-school-primary/90 transition-colors disabled:opacity-50">
+              {saving && <Loader2 size={14} className="animate-spin" />}
+              Save Draft
+            </button>
             <button onClick={() => setShowForm(false)} className="px-4 py-2 bg-gray-100 text-school-muted text-sm font-bold rounded-lg hover:bg-gray-200 transition-colors">Cancel</button>
           </div>
         </div>
