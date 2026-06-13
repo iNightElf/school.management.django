@@ -8,11 +8,12 @@ import IdCardSection from './IdCardSection';
 import AccessoriesSection from './AccessoriesSection';
 import ResultSection from './ResultSection';
 import FinanceSection from './FinanceSection';
+import CoordinationSection from './coordination/CoordinationSection';
 import EngagementWidget, { QuizPanel, RiddlePanel, MoodPanel, ChallengePanel, TipsPanel, PlannerPanel } from './engagement/EngagementWidget';
-import { CreditCard, BookOpen, BarChart3, Wallet, Users, GraduationCap, Building2, Sparkles, ArrowRight, Clock, MailCheck } from 'lucide-react';
+import { CreditCard, BookOpen, BarChart3, Wallet, Users, GraduationCap, Building2, Sparkles, ArrowRight, Clock, MailCheck, ClipboardList } from 'lucide-react';
 import { SCHOOL_LOGO } from '../lib/logo';
 
-type ModeParam = 'idcard' | 'accessories' | 'result' | 'finance';
+type ModeParam = 'idcard' | 'accessories' | 'result' | 'finance' | 'coordination';
 
 function TodaysGreeting() {
   const h = new Date().getHours();
@@ -74,6 +75,7 @@ const Dashboard = () => {
     { key: 'accessories' as ModeParam, label: 'Fees & Books', desc: 'Fee structure & book list', color: 'amber', icon: BookOpen },
     { key: 'result' as ModeParam, label: 'Result', desc: 'Marks & report cards', color: 'green', icon: BarChart3 },
     ...(!isTeacher && !isPendingViewer ? [{ key: 'finance' as ModeParam, label: 'Finance', desc: 'Accounting & fees', color: 'rose', icon: Wallet }] : []),
+    ...((isAdmin || isTeacher) ? [{ key: 'coordination' as ModeParam, label: 'Coordination', desc: 'Alerts, interventions & tracking', color: 'purple', icon: ClipboardList }] : []),
   ];
 
   return (
@@ -159,7 +161,7 @@ const Dashboard = () => {
           <div className="grid grid-cols-2 gap-3">
             {MODULES.map((m) => {
               const Icon = m.icon;
-              const bgMap: Record<string, string> = { blue: 'from-blue-500 to-blue-700', amber: 'from-amber-500 to-orange-700', green: 'from-green-500 to-emerald-700', rose: 'from-rose-500 to-rose-700' };
+              const bgMap: Record<string, string> = { blue: 'from-blue-500 to-blue-700', amber: 'from-amber-500 to-orange-700', green: 'from-green-500 to-emerald-700', rose: 'from-rose-500 to-rose-700', purple: 'from-purple-500 to-purple-700' };
               return (
                 <button key={m.key} onClick={() => handleSetMode(m.key)}
                   className="group relative bg-white dark:bg-[#1a1a2e] p-5 rounded-2xl border border-school-border dark:border-[#2a2a3e] text-left card-shadow overflow-hidden"
@@ -187,6 +189,7 @@ const Dashboard = () => {
           {activeMode === 'accessories' && <AccessoriesSection />}
           {activeMode === 'result' && <ResultSection />}
           {activeMode === 'finance' && <FinanceSection />}
+          {activeMode === 'coordination' && <CoordinationSection />}
         </div>
       )}
 

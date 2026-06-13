@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     'results',
     'finance',
     'engagement',
+    'coordination',
 ]
 
 MIDDLEWARE = [
@@ -104,27 +105,11 @@ LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'Asia/Dhaka'
 USE_I18N = True
 USE_TZ = True
-
+# Static files (CSS, JavaScript, Images)
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
-# CORS Configuration
-CORS_ALLOWED_ORIGINS = [
-    FRONTEND_URL,
-]
-if os.environ.get('CORS_ORIGINS'):
-    CORS_ALLOWED_ORIGINS += os.environ.get('CORS_ORIGINS').split(',')
-
-CORS_ALLOW_CREDENTIALS = True
-
-CSRF_TRUSTED_ORIGINS = [
-    FRONTEND_URL,
-]
-if os.environ.get('CORS_ORIGINS'):
-    CSRF_TRUSTED_ORIGINS += os.environ.get('CORS_ORIGINS').split(',')
-
 
 
 REST_FRAMEWORK = {
@@ -185,6 +170,30 @@ EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
 
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
+
+# CORS Configuration
+from urllib.parse import urlparse
+
+def get_origin(url):
+    parsed = urlparse(url)
+    return f"{parsed.scheme}://{parsed.netloc}"
+
+CORS_ALLOWED_ORIGINS = [
+    get_origin(FRONTEND_URL),
+]
+if os.environ.get('CORS_ORIGINS'):
+    for o in os.environ.get('CORS_ORIGINS').split(','):
+        CORS_ALLOWED_ORIGINS.append(get_origin(o))
+
+CORS_ALLOW_CREDENTIALS = True
+
+CSRF_TRUSTED_ORIGINS = [
+    get_origin(FRONTEND_URL),
+]
+if os.environ.get('CORS_ORIGINS'):
+    for o in os.environ.get('CORS_ORIGINS').split(','):
+        CSRF_TRUSTED_ORIGINS.append(get_origin(o))
+
 
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
 

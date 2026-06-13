@@ -36,3 +36,6 @@ nul
 
 # Old/temp directories
 school-system-temp/
+
+# Documentation
+PRIVATE_APP_INFO.md

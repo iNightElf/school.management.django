@@ -327,3 +327,137 @@ export interface LeaderboardEntry {
   totalAnswers: number;
   accuracy: number;
 }
+
+// ── Coordination Hub ──
+
+export interface Alert {
+  id: string;
+  student: string;
+  studentName: string;
+  className: string;
+  alertType: 'attendance' | 'academic' | 'behavior' | 'parent';
+  title: string;
+  description: string;
+  status: 'open' | 'pending' | 'resolved';
+  severity: 'high' | 'medium' | 'low';
+  createdBy: string | null;
+  createdByName: string | null;
+  createdAt: string;
+  resolvedAt: string | null;
+}
+
+export interface Intervention {
+  id: string;
+  alert: string;
+  alertTitle: string;
+  studentName: string | null;
+  actionTaken: string;
+  followupDate: string | null;
+  remarks: string;
+  status: 'pending' | 'completed' | 'overdue';
+  createdBy: string | null;
+  createdByName: string | null;
+  createdAt: string;
+}
+
+export interface ParentCommunication {
+  id: string;
+  student: string;
+  studentName: string;
+  className: string;
+  communicationType: 'call' | 'meeting' | 'complaint' | 'follow_up';
+  notes: string;
+  followupDate: string | null;
+  createdBy: string | null;
+  createdByName: string | null;
+  createdAt: string;
+}
+
+export interface TeacherWeeklyReport {
+  id: string;
+  classTeacher: string;
+  teacherName: string | null;
+  className: string | null;
+  weekStartDate: string;
+  attendanceNotes: string;
+  academicsNotes: string;
+  behaviorNotes: string;
+  parentIssuesNotes: string;
+  recognitionNotes: string;
+  status: 'draft' | 'submitted';
+  createdAt: string;
+  submittedAt: string | null;
+}
+
+export interface ClassTest {
+  id: string;
+  schoolClass: string;
+  className: string;
+  subject: string;
+  subjectName: string;
+  term: string;
+  testName: string;
+  testDate: string;
+  totalMarks: number;
+  createdBy: string | null;
+  createdByName: string | null;
+  createdAt: string;
+  marks?: ClassTestMark[];
+  averageMarks?: number;
+  highestMarks?: number;
+  lowestMarks?: number;
+  passRate?: number;
+}
+
+export interface SubjectAverage {
+  subjectId: string;
+  subjectName: string;
+  totalTests: number;
+  averageOutOf10: number;
+}
+
+export interface ClassTestMark {
+  id: string;
+  classTest: string;
+  student: string;
+  studentName: string;
+  roll: string;
+  marksObtained: number;
+  percentage?: number;
+}
+
+export interface CoordinatorTask {
+  id: string;
+  title: string;
+  description: string;
+  dueDate: string | null;
+  status: 'pending' | 'in_progress' | 'completed';
+  priority: 'high' | 'medium' | 'low';
+  assignedTo: string | null;
+  assignedToName: string | null;
+  relatedAlert: string | null;
+  relatedAlertTitle: string | null;
+  createdBy: string | null;
+  createdByName: string | null;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+export interface CoordinationDashboard {
+  alertsByStatus: { open: number; pending: number; resolved: number };
+  alertsByType: { attendance: number; academic: number; behavior: number; parent: number };
+  pendingTasks: number;
+  upcomingFollowups: number;
+  pendingReports: number;
+  recentTests: Array<{
+    id: string;
+    testName: string;
+    testDate: string;
+    className: string;
+    subjectName: string;
+    term: string;
+    totalMarks: number;
+    averageMarks: number;
+    studentCount: number;
+  }>;
+}

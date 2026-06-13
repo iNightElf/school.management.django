@@ -1,0 +1,101 @@
+import { useEffect, useState } from 'react';
+import { useSchoolStore } from '../../store';
+import { Plus, Phone, Users, AlertCircle, ArrowUpRight } from 'lucide-react';
+
+const TYPE_ICONS = {
+  call: <Phone size={14} className="text-blue-500" />,
+  meeting: <Users size={14} className="text-green-500" />,
+  complaint: <AlertCircle size={14} className="text-red-500" />,
+  follow_up: <ArrowUpRight size={14} className="text-amber-500" />,
+};
+
+const ParentCommsTab = () => {
+  const { parentCommunications, fetchParentCommunications, createParentCommunication, students, fetchStudents } = useSchoolStore();
+  const [showForm, setShowForm] = useState(false);
+  const [filter, setFilter] = useState<string>('all');
+  const [form, setForm] = useState({ student: '', communicationType: 'call', notes: '', followupDate: '' });
+
+  useEffect(() => { fetchParentCommunications(); fetchStudents(); }, []);
+
+  const filtered = filter === 'all' ? parentCommunications : parentCommunications.filter(c => c.communicationType === filter);
+
+  const handleSubmit = async () => {
+    if (!form.student || !form.notes) return;
+    await createParentCommunication(form);
+    setForm({ student: '', communicationType: 'call', notes: '', followupDate: '' });
+    setShowForm(false);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="font-serif text-lg font-bold text-school-primary dark:text-[#e0e0e8]">Parent Communications</h2>
+        <button onClick={() => setShowForm(!showForm)}
+          className="flex items-center gap-1 px-3 py-2 bg-school-primary text-white text-xs font-bold rounded-lg hover:bg-school-primary/90 transition-colors">
+          <Plus size={14} /> New Entry
+        </button>
+      </div>
+
+      <div className="flex gap-2">
+        {['all', 'call', 'meeting', 'complaint', 'follow_up'].map(s => (
+          <button key={s} onClick={() => setFilter(s)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition-colors ${filter === s ? 'bg-school-primary text-white' : 'bg-white border border-school-border text-school-muted hover:border-school-accent'}`}>
+            {s.replace('_', ' ')}
+          </button>
+        ))}
+      </div>
+
+      {showForm && (
+        <div className="bg-white dark:bg-[#1a1a2e] rounded-xl border border-school-border dark:border-[#2a2a3e] p-4 space-y-3">
+          <select value={form.student} onChange={e => setForm(f => ({ ...f, student: e.target.value }))}
+            className="w-full px-3 py-2 border border-school-border rounded-lg text-sm dark:bg-[#2a2a3e] dark:text-white">
+            <option value="">Select Student</option>
+            {students.map(s => (
+              <option key={s.id} value={s.id}>{s.name} ({s.class})</option>
+            ))}
+          </select>
+          <div className="grid grid-cols-2 gap-2">
+            <select value={form.communicationType} onChange={e => setForm(f => ({ ...f, communicationType: e.target.value }))}
+              className="px-3 py-2 border border-school-border rounded-lg text-sm dark:bg-[#2a2a3e] dark:text-white">
+              <option value="call">Call</option>
+              <option value="meeting">Meeting</option>
+              <option value="complaint">Complaint</option>
+              <option value="follow_up">Follow Up</option>
+            </select>
+            <input type="date" value={form.followupDate} onChange={e => setForm(f => ({ ...f, followupDate: e.target.value }))}
+              className="px-3 py-2 border border-school-border rounded-lg text-sm dark:bg-[#2a2a3e] dark:text-white" />
+          </div>
+          <textarea placeholder="Notes" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+            className="w-full px-3 py-2 border border-school-border rounded-lg text-sm dark:bg-[#2a2a3e] dark:text-white" rows={3} />
+          <div className="flex gap-2">
+            <button onClick={handleSubmit} className="px-4 py-2 bg-school-primary text-white text-sm font-bold rounded-lg hover:bg-school-primary/90 transition-colors">Save</button>
+            <button onClick={() => setShowForm(false)} className="px-4 py-2 bg-gray-100 text-school-muted text-sm font-bold rounded-lg hover:bg-gray-200 transition-colors">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {filtered.length === 0 && <div className="text-center py-8 text-school-muted text-sm">No communications found</div>}
+        {filtered.map(c => (
+          <div key={c.id} className="bg-white dark:bg-[#1a1a2e] rounded-xl border border-school-border dark:border-[#2a2a3e] p-4">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5">{TYPE_ICONS[c.communicationType]}</div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-bold text-school-primary dark:text-[#e0e0e8]">{c.studentName}</span>
+                  <span className="text-xs text-school-muted">- {c.className}</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 dark:bg-[#2a2a3e] text-school-muted capitalize">{c.communicationType.replace('_', ' ')}</span>
+                </div>
+                <div className="text-xs text-school-muted mt-1">{c.notes}</div>
+                {c.followupDate && <div className="text-[10px] text-amber-600 mt-1">Follow-up: {new Date(c.followupDate).toLocaleDateString()}</div>}
+                <div className="text-[10px] text-school-muted mt-1">by {c.createdByName} - {new Date(c.createdAt).toLocaleDateString()}</div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+export default ParentCommsTab;
