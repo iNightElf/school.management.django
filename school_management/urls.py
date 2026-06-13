@@ -48,5 +48,4 @@ urlpatterns = [
     path('api/', include('results.urls')),
     path('api/finance/', include('finance.urls')),
     path('api/engagement/', include('engagement.urls')),
-    path('api/coordination/', include('coordination.urls')),
 ]

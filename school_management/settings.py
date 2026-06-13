@@ -37,7 +37,6 @@ INSTALLED_APPS = [
     'results',
     'finance',
     'engagement',
-    'coordination',
 ]
 
 MIDDLEWARE = [
