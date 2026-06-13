@@ -1,19 +1,17 @@
 import { useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { useUIStore } from '../../store';
-import CoordinationDashboard from './CoordinationDashboard';
 import AlertsTab from './AlertsTab';
 import InterventionsTab from './InterventionsTab';
 import WeeklyReportsTab from './WeeklyReportsTab';
 import ClassTestsTab from './ClassTestsTab';
 import CoordinatorTasksTab from './CoordinatorTasksTab';
 import ParentCommsTab from './ParentCommsTab';
-import { LayoutDashboard, AlertTriangle, Stethoscope, ClipboardList, FileText, ListTodo, Phone } from 'lucide-react';
+import { AlertTriangle, Stethoscope, ClipboardList, FileText, ListTodo, Phone } from 'lucide-react';
 
-type Tab = 'dashboard' | 'alerts' | 'interventions' | 'reports' | 'tests' | 'tasks' | 'comms';
+type Tab = 'alerts' | 'interventions' | 'reports' | 'tests' | 'tasks' | 'comms';
 
 const TABS: { key: Tab; label: string; icon: ReactNode }[] = [
-  { key: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={14} /> },
   { key: 'alerts', label: 'Alerts', icon: <AlertTriangle size={14} /> },
   { key: 'interventions', label: 'Interventions', icon: <Stethoscope size={14} /> },
   { key: 'reports', label: 'Weekly Reports', icon: <ClipboardList size={14} /> },
@@ -23,9 +21,9 @@ const TABS: { key: Tab; label: string; icon: ReactNode }[] = [
 ];
 
 const CoordinationSection = () => {
-  const [activeTab, setActiveTab] = useState<Tab>('dashboard');
+  const [activeTab, setActiveTab] = useState<Tab>('alerts');
   useEffect(() => { document.title = 'Coordination Hub - AL RAWA English School'; }, []);
-  useEffect(() => { useUIStore.getState().registerSwipeBack(() => setActiveTab('dashboard')); }, []);
+  useEffect(() => { useUIStore.getState().registerSwipeBack(() => setActiveTab('alerts')); }, []);
 
   return (
     <div className="space-y-4">
@@ -38,7 +36,6 @@ const CoordinationSection = () => {
         ))}
       </div>
 
-      {activeTab === 'dashboard' && <CoordinationDashboard />}
       {activeTab === 'alerts' && <AlertsTab />}
       {activeTab === 'interventions' && <InterventionsTab />}
       {activeTab === 'reports' && <WeeklyReportsTab />}

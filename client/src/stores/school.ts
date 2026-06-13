@@ -5,7 +5,7 @@ import type {
   FeeSchedule, SchoolSettings, AcademicYear,
   OpeningBalanceHistory, Book, Result,
   Alert, Intervention, ParentCommunication, TeacherWeeklyReport,
-  ClassTest, CoordinatorTask, CoordinationDashboard, SubjectAverage,
+  ClassTest, CoordinatorTask, SubjectAverage,
 } from '../lib/types';
 
 const CACHE_TTL = 60_000;
@@ -79,7 +79,7 @@ interface SchoolState {
   weeklyReports: TeacherWeeklyReport[];
   classTests: ClassTest[];
   coordinatorTasks: CoordinatorTask[];
-  coordinationDashboard: CoordinationDashboard | null;
+
   subjectAverages: SubjectAverage[];
   fetchAlerts: (params?: Record<string, string>, force?: boolean) => Promise<void>;
   createAlert: (data: Record<string, unknown>) => Promise<void>;
@@ -97,7 +97,7 @@ interface SchoolState {
   fetchCoordinatorTasks: (params?: Record<string, string>, force?: boolean) => Promise<void>;
   createCoordinatorTask: (data: Record<string, unknown>) => Promise<void>;
   completeCoordinatorTask: (id: string) => Promise<void>;
-  fetchCoordinationDashboard: (force?: boolean) => Promise<void>;
+
   fetchSubjectAverages: (classId: string, term: string) => Promise<SubjectAverage[]>;
 }
 
@@ -137,7 +137,6 @@ export const useSchoolStore = create<SchoolState>((set, get) => ({
   weeklyReports: [],
   classTests: [],
   coordinatorTasks: [],
-  coordinationDashboard: null,
   subjectAverages: [],
 
   fetchDashboardCounts: async () => {
@@ -587,15 +586,7 @@ export const useSchoolStore = create<SchoolState>((set, get) => ({
     await get().fetchCoordinatorTasks(undefined, true);
   },
 
-  fetchCoordinationDashboard: async (force) => {
-    const key = 'coordinationDashboard';
-    const now = Date.now();
-    if (!force && now - (get()._fetchedAt[key] || 0) < CACHE_TTL) return;
-    try {
-      const res = await dedupedFetch(key, () => api.get('/coordination/dashboard/'));
-      set({ coordinationDashboard: res.data, _fetchedAt: { ...get()._fetchedAt, [key]: Date.now() } });
-    } catch (e) { if (import.meta.env.DEV) console.warn("[store]", e); }
-  },
+
 
   fetchSubjectAverages: async (classId, term) => {
     try {

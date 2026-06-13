@@ -442,22 +442,3 @@ export interface CoordinatorTask {
   createdAt: string;
   completedAt: string | null;
 }
-
-export interface CoordinationDashboard {
-  alertsByStatus: { open: number; pending: number; resolved: number };
-  alertsByType: { attendance: number; academic: number; behavior: number; parent: number };
-  pendingTasks: number;
-  upcomingFollowups: number;
-  pendingReports: number;
-  recentTests: Array<{
-    id: string;
-    testName: string;
-    testDate: string;
-    className: string;
-    subjectName: string;
-    term: string;
-    totalMarks: number;
-    averageMarks: number;
-    studentCount: number;
-  }>;
-}
