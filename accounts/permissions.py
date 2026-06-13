@@ -13,6 +13,7 @@ ROLE_PERMISSIONS = {
         'users:read', 'users:write',
         'audit:read',
         'academic-years:read', 'academic-years:write',
+        'coordinators:read', 'coordinators:write',
     ],
     'teacher': [
         'students:read', 'students:write',
