@@ -13,6 +13,7 @@ const Register = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [registered, setRegistered] = useState(false);
+  const [needsVerification, setNeedsVerification] = useState(false);
   const [setupMode, setSetupMode] = useState<boolean | null>(null);
 
   useEffect(() => { document.title = 'Register - AL RAWA English School'; }, []);
@@ -41,6 +42,7 @@ const Register = () => {
         return;
       }
       setRegistered(true);
+      setNeedsVerification(!setupMode && !res.data?.emailVerified);
     } catch (err: any) {
       const data = err.response?.data;
       if (typeof data === 'string') {
@@ -87,7 +89,7 @@ const Register = () => {
               <p className="text-sm text-school-muted">
                 Account created for<br />
                 <span className="font-semibold text-school-primary">{email}</span>
-                <br />You can now sign in.
+                <br />{needsVerification ? 'Please check your email to verify your account.' : 'You can now sign in.'}
               </p>
               <Link to="/login"
                 className="inline-block w-full bg-gradient-to-r from-school-primary to-school-secondary hover:from-school-secondary hover:to-school-primary text-white font-bold py-4 rounded-xl shadow-lg transition-all text-center"

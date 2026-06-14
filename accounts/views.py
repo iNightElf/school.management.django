@@ -137,8 +137,8 @@ class RegisterView(generics.CreateAPIView):
                 existing_teacher.user = user
                 existing_teacher.save(update_fields=['user'])
                 user.role = 'teacher'
-                user.email_verified = True
-                user.save(update_fields=['role', 'email_verified'])
+                user.save(update_fields=['role'])
+                _send_verification_email(user)
             else:
                 _send_verification_email(user)
         return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
