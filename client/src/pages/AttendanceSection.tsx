@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api, useSchoolStore } from '../store';
-import { useAuthStore } from '../store';
 import Toast, { toast } from '../components/Toast';
 import type {
   SchoolClass, AttendanceRecord, AttendanceMonthResponse,
-  AttendanceSummary, Holiday,
+  AttendanceSummary,
 } from '../lib/types';
 import { TERM_NAMES } from '../lib/config';
 import {
@@ -12,9 +11,9 @@ import {
   ChevronLeft, ChevronRight, Circle,
 } from 'lucide-react';
 
-type StatusType = 'present' | 'absent' | 'late' | 'excused';
+type StatusType = 'present' | 'absent' | 'late' | 'excused' | 'unmarked';
 
-const STATUS_OPTIONS: { key: StatusType; label: string; color: string }[] = [
+const STATUS_OPTIONS: { key: Exclude<StatusType, 'unmarked'>; label: string; color: string }[] = [
   { key: 'present', label: 'Present', color: 'bg-green-500' },
   { key: 'absent', label: 'Absent', color: 'bg-red-500' },
   { key: 'late', label: 'Late', color: 'bg-amber-500' },
@@ -26,17 +25,11 @@ function todayStr() {
   return d.toISOString().split('T')[0];
 }
 
-function formatDate(dateStr: string) {
-  const d = new Date(dateStr + 'T00:00:00');
-  return d.toLocaleDateString('en-BD', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
 function monthName(m: number) {
   return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m - 1] || 'Unknown';
 }
 
 export default function AttendanceSection() {
-  const user = useAuthStore((s) => s.user);
   const { classes, fetchClasses } = useSchoolStore();
   const [classId, setClassId] = useState('');
   const [date, setDate] = useState(todayStr());
@@ -86,7 +79,7 @@ export default function AttendanceSection() {
       if (data.length > 0) {
         const map: Record<string, StatusType> = {};
         for (const r of data) {
-          map[r.student] = r.status;
+          map[r.student] = r.status as StatusType;
         }
         setRecords(map);
         if (data[0].term) setTerm(data[0].term);
@@ -108,8 +101,8 @@ export default function AttendanceSection() {
   };
 
   const cycleStatus = (studentId: string) => {
-    const current = records[studentId] || 'present';
-    const order: StatusType[] = ['present', 'absent', 'late', 'excused'];
+    const current = records[studentId] || 'unmarked';
+    const order: StatusType[] = ['unmarked', 'present', 'absent', 'late', 'excused'];
     const idx = order.indexOf(current);
     const next = order[(idx + 1) % order.length];
     setStudentStatus(studentId, next);
@@ -120,7 +113,14 @@ export default function AttendanceSection() {
       toast('Select a class and date', 'error');
       return;
     }
-    if (Object.keys(records).length === 0) {
+    
+    // Filter out unmarked records before saving
+    const markedRecords: Record<string, string> = {};
+    Object.entries(records).forEach(([sid, status]) => {
+      if (status !== 'unmarked') markedRecords[sid] = status;
+    });
+
+    if (Object.keys(markedRecords).length === 0) {
       toast('Mark at least one student', 'error');
       return;
     }
@@ -131,7 +131,7 @@ export default function AttendanceSection() {
         date,
         term,
         session,
-        records,
+        records: markedRecords,
       });
       toast('Attendance saved', 'success');
     } catch (e: any) {
@@ -178,8 +178,7 @@ export default function AttendanceSection() {
     (s) => s.name.toLowerCase().includes(studentSearch.toLowerCase()),
   );
 
-  const allMarked = students.every((s) => records[s.id]);
-  const markedCount = Object.keys(records).length;
+  const markedCount = Object.values(records).filter(s => s !== 'unmarked').length;
 
   return (
     <div className="space-y-4 animate-fade-in max-w-2xl mx-auto">
@@ -327,7 +326,7 @@ export default function AttendanceSection() {
           {students.length > 0 && (
             <button
               onClick={handleSave}
-              disabled={saving || Object.keys(records).length === 0}
+              disabled={saving || markedCount === 0}
               className="w-full px-4 py-3 bg-school-accent text-white rounded-xl text-sm font-bold hover:bg-school-accent/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {saving ? <Loader2 size={18} className="animate-spin" /> : <CalendarCheck size={18} />}
