@@ -66,7 +66,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
         if response.status_code == 200:
             refresh = response.data.get('refresh')
             access = response.data.get('access')
-            response.data = {'detail': 'Login successful'}
+            response.data = {'access': access, 'refresh': refresh, 'detail': 'Login successful'}
             response.set_cookie(
                 settings.SIMPLE_JWT['ACCESS_COOKIE'],
                 access,
@@ -97,7 +97,10 @@ class CustomTokenRefreshView(APIView):
         try:
             refresh = RefreshToken(refresh_token)
             access = str(refresh.access_token)
-            response = Response({'detail': 'Token refreshed'}, status=status.HTTP_200_OK)
+            data = {'access': access, 'detail': 'Token refreshed'}
+            if settings.SIMPLE_JWT.get('ROTATE_REFRESH_TOKENS'):
+                data['refresh'] = str(refresh)
+            response = Response(data, status=status.HTTP_200_OK)
             response.set_cookie(
                 settings.SIMPLE_JWT['ACCESS_COOKIE'],
                 access,
