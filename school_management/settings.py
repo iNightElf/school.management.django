@@ -157,7 +157,7 @@ SIMPLE_JWT = {
     'REFRESH_COOKIE': 'refresh_token',
     'AUTH_COOKIE_SECURE': not DEBUG,
     'AUTH_COOKIE_HTTP_ONLY': True,
-    'AUTH_COOKIE_SAMESITE': 'Lax',
+    'AUTH_COOKIE_SAMESITE': 'None' if not DEBUG else 'Lax',
 }
 
 FISCAL_YEAR_START_MONTH = 8

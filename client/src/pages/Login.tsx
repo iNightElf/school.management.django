@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
 import { useAuthStore, useDarkMode } from '../store';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { LogIn, ShieldAlert, School, BookOpen, Sun, Moon } from 'lucide-react';
 import { SCHOOL_LOGO } from '../lib/logo';
 
@@ -12,6 +12,7 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const login = useAuthStore((state) => state.login);
   const { dark, toggle: toggleDark } = useDarkMode();
+  const navigate = useNavigate();
 
   useEffect(() => { document.title = 'Login - AL RAWA English School'; }, []);
   useEffect(() => { document.documentElement.classList.toggle('dark', dark); }, [dark]);
@@ -22,6 +23,7 @@ const Login = () => {
     setLoading(true);
     try {
       await login(email, password);
+      navigate('/', { replace: true });
     } catch (err: any) {
       const msg = err.response?.data?.detail || err.response?.data?.error || 'Failed to login. Please try again.';
       setError(msg);
