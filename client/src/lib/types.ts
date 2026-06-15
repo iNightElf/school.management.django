@@ -320,6 +320,55 @@ export interface TeacherStreak {
   totalDaysActive: number;
 }
 
+export interface AttendanceRecord {
+  id: string;
+  student: string;
+  studentName: string;
+  studentRoll: string;
+  school_class: string;
+  date: string;
+  term: string;
+  session: string;
+  status: 'present' | 'absent' | 'late' | 'excused';
+  marked_by: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AttendanceCalendarDay {
+  date: string;
+  weekday: number;
+  type: 'weekend' | 'holiday' | 'de_facto_holiday' | 'marked' | 'unmarked';
+  status?: 'present' | 'absent' | 'late' | 'excused';
+  holiday_name?: string | null;
+}
+
+export interface AttendanceMonthResponse {
+  student: { id: string; name: string; roll: string };
+  year: number;
+  month: number;
+  days: AttendanceCalendarDay[];
+}
+
+export interface AttendanceSummary {
+  present: number;
+  absent: number;
+  late: number;
+  excused: number;
+  total_school_days: number;
+  holidays: number;
+  weekends: number;
+  unmarked: number;
+}
+
+export interface Holiday {
+  id: string;
+  date: string;
+  name: string;
+  type: 'public' | 'school';
+  createdAt: string;
+}
+
 export interface LeaderboardEntry {
   userId: string;
   userName: string;

@@ -6,7 +6,7 @@ from django.db import models
 from django.utils import timezone
 from .models import Student
 from .serializers import StudentSerializer
-from accounts.permissions import require_permission, can_manage_students, is_admin_or_superuser
+from accounts.permissions import require_permission, can_manage_students, is_admin_or_superuser, require_photo_access
 from core.mixins import PhotoHandleMixin
 from core.audit import log_audit
 
@@ -18,8 +18,7 @@ class StudentViewSet(PhotoHandleMixin, viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action == 'photo':
-            from rest_framework.permissions import AllowAny
-            return [AllowAny()]
+            return [require_photo_access('students:read')()]
         if self.action in ['list', 'retrieve', 'class_results']:
             return [require_permission('students:read')()]
         return [require_permission('students:write')()]

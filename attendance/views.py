@@ -1,0 +1,320 @@
+import calendar
+from datetime import date
+from django.db import models
+from django.db import transaction as db_transaction
+from django.utils import timezone
+from rest_framework import viewsets, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.exceptions import NotFound
+
+from .models import AttendanceRecord, Holiday
+from .serializers import (
+    AttendanceRecordSerializer, BatchAttendanceSerializer,
+    AttendanceSummarySerializer, HolidaySerializer,
+)
+from .permissions import CanMarkAttendance
+from students.models import Student
+from core.models import SchoolClass, SchoolSetting
+from accounts.permissions import require_permission, is_admin_or_superuser
+from core.audit import log_audit
+
+
+WEEKEND_DAYS_DEFAULT = '4,5'
+
+
+def _get_weekend_set():
+    try:
+        raw = SchoolSetting.objects.get(key='weekend_days').value
+        return {int(x.strip()) for x in raw.split(',') if x.strip().isdigit()}
+    except SchoolSetting.DoesNotExist:
+        return {int(x) for x in WEEKEND_DAYS_DEFAULT.split(',')}
+
+
+def _get_holiday_dates(year=None, month=None):
+    qs = Holiday.objects.all()
+    if year:
+        qs = qs.filter(date__year=year)
+    if month is not None:
+        qs = qs.filter(date__month=month)
+    return set(qs.values_list('date', flat=True))
+
+
+class AttendanceViewSet(viewsets.GenericViewSet):
+    queryset = AttendanceRecord.objects.select_related('student', 'school_class').all()
+    serializer_class = AttendanceRecordSerializer
+    filterset_fields = ['school_class', 'date', 'term', 'session']
+
+    def get_permissions(self):
+        if self.action in ['list', 'student_month', 'summary']:
+            return [require_permission('students:read')()]
+        return [CanMarkAttendance()]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        class_id = self.request.query_params.get('class_id')
+        date_param = self.request.query_params.get('date')
+        if class_id:
+            qs = qs.filter(school_class_id=class_id)
+        if date_param:
+            qs = qs.filter(date=date_param)
+        return qs
+
+    def list(self, request):
+        class_id = request.query_params.get('class_id')
+        date_param = request.query_params.get('date')
+        if not class_id or not date_param:
+            return Response(
+                {'error': 'class_id and date query params are required'},
+                status=400,
+            )
+        qs = self.get_queryset()
+        serializer = self.get_serializer(qs, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['post'])
+    def batch(self, request):
+        serializer = BatchAttendanceSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        data = serializer.validated_data
+        class_id = data['school_class']
+        att_date = data['date']
+        term = data['term']
+        session = data['session']
+        records = data['records']
+
+        try:
+            school_class = SchoolClass.objects.get(id=class_id)
+        except SchoolClass.DoesNotExist:
+            return Response({'error': 'School class not found'}, status=404)
+
+        student_ids = list(records.keys())
+        existing = Student.objects.filter(id__in=student_ids, school_class_id=class_id)
+        if existing.count() != len(student_ids):
+            return Response(
+                {'error': 'One or more students not found in this class'},
+                status=400,
+            )
+
+        weekend_set = _get_weekend_set()
+        if att_date.weekday() in weekend_set:
+            return Response(
+                {'error': 'Cannot mark attendance on a weekend day'},
+                status=400,
+            )
+
+        holiday_set = _get_holiday_dates(year=att_date.year)
+        if att_date in holiday_set:
+            return Response(
+                {'error': 'Cannot mark attendance on a holiday'},
+                status=400,
+            )
+
+        now = timezone.now()
+        with db_transaction.atomic():
+            for student_id, status_val in records.items():
+                AttendanceRecord.objects.update_or_create(
+                    student_id=student_id,
+                    date=att_date,
+                    defaults={
+                        'school_class': school_class,
+                        'term': term,
+                        'session': session,
+                        'status': status_val,
+                        'marked_by': request.user,
+                    },
+                )
+
+        log_audit(
+            'batch_attendance', 'attendance',
+            details={
+                'class_id': str(class_id), 'date': str(att_date),
+                'term': term, 'session': session, 'count': len(records),
+            },
+            request=request,
+        )
+
+        return Response({'status': 'ok', 'count': len(records)})
+
+    @action(detail=False, methods=['get'])
+    def summary(self, request):
+        student_id = request.query_params.get('student')
+        term = request.query_params.get('term')
+        session = request.query_params.get('session')
+        year = request.query_params.get('year')
+        month = request.query_params.get('month')
+
+        if not student_id or not term or not session:
+            return Response(
+                {'error': 'student, term, and session query params are required'},
+                status=400,
+            )
+
+        try:
+            student = Student.objects.get(id=student_id)
+        except Student.DoesNotExist:
+            raise NotFound('Student not found')
+
+        base_qs = AttendanceRecord.objects.filter(
+            student_id=student_id,
+            term=term,
+            session=session,
+        )
+        if year:
+            base_qs = base_qs.filter(date__year=year)
+        if month is not None:
+            base_qs = base_qs.filter(date__month=month)
+
+        status_counts = base_qs.values('status').annotate(
+            count=models.Count('id'),
+        )
+        counts = {'present': 0, 'absent': 0, 'late': 0, 'excused': 0}
+        for row in status_counts:
+            counts[row['status']] = row['count']
+
+        class_dates = AttendanceRecord.objects.filter(
+            school_class=student.school_class,
+            term=term,
+            session=session,
+        )
+        if year:
+            class_dates = class_dates.filter(date__year=year)
+        if month is not None:
+            class_dates = class_dates.filter(date__month=month)
+
+        class_date_records = class_dates.values('date').annotate(
+            total=models.Count('student', distinct=True),
+            absent_count=models.Count('id', filter=models.Q(status='absent')),
+        )
+
+        weekend_set = _get_weekend_set()
+        known_holidays = _get_holiday_dates(year=year or None, month=month)
+
+        weekend_count = 0
+        holiday_count = 0
+        de_facto_holidays = 0
+        total_days = 0
+
+        for row in class_date_records:
+            d = row['date']
+            if d.weekday() in weekend_set:
+                weekend_count += 1
+                continue
+            if d in known_holidays:
+                holiday_count += 1
+                continue
+            if row['total'] == row['absent_count']:
+                de_facto_holidays += 1
+                continue
+            total_days += 1
+
+        total_attended = sum(counts.values())
+        unmarked = total_days - total_attended
+
+        result = {
+            'present': counts['present'],
+            'absent': counts['absent'],
+            'late': counts['late'],
+            'excused': counts['excused'],
+            'total_school_days': total_days,
+            'holidays': holiday_count + de_facto_holidays,
+            'weekends': weekend_count,
+            'unmarked': max(unmarked, 0),
+        }
+        return Response(AttendanceSummarySerializer(result).data)
+
+    @action(detail=False, methods=['get'])
+    def student_month(self, request, student_id=None):
+        year = request.query_params.get('year')
+        month = request.query_params.get('month')
+
+        if not year or not month:
+            today = timezone.now().date()
+            year = str(today.year)
+            month = str(today.month)
+
+        try:
+            year = int(year)
+            month = int(month)
+        except (ValueError, TypeError):
+            return Response({'error': 'Invalid year or month'}, status=400)
+
+        try:
+            student = Student.objects.get(id=student_id)
+        except Student.DoesNotExist:
+            raise NotFound('Student not found')
+
+        records = AttendanceRecord.objects.filter(
+            student_id=student_id,
+            date__year=year,
+            date__month=month,
+        ).order_by('date')
+
+        weekend_set = _get_weekend_set()
+        known_holidays = _get_holiday_dates(year=year, month=month)
+
+        class_date_records = AttendanceRecord.objects.filter(
+            school_class=student.school_class,
+            date__year=year,
+            date__month=month,
+        ).values('date').annotate(
+            total=models.Count('student', distinct=True),
+            absent_count=models.Count('id', filter=models.Q(status='absent')),
+        )
+        all_absent_dates = {
+            row['date'] for row in class_date_records
+            if row['total'] == row['absent_count']
+        }
+
+        records_by_date = {}
+        for r in records:
+            records_by_date[r.date] = r.status
+
+        _, days_in_month = calendar.monthrange(year, month)
+        calendar_data = []
+        for day in range(1, days_in_month + 1):
+            d = date(year, month, day)
+            entry = {'date': d.isoformat(), 'weekday': d.weekday()}
+
+            if d.weekday() in weekend_set:
+                entry['type'] = 'weekend'
+            elif d in known_holidays:
+                entry['type'] = 'holiday'
+                entry['holiday_name'] = Holiday.objects.filter(date=d).values_list('name', flat=True).first()
+            elif d in all_absent_dates:
+                entry['type'] = 'de_facto_holiday'
+            elif d in records_by_date:
+                entry['type'] = 'marked'
+                entry['status'] = records_by_date[d]
+            else:
+                entry['type'] = 'unmarked'
+
+            calendar_data.append(entry)
+
+        return Response({
+            'student': {'id': str(student.id), 'name': student.name, 'roll': student.roll},
+            'year': year,
+            'month': month,
+            'days': calendar_data,
+        })
+
+
+class HolidayViewSet(viewsets.ModelViewSet):
+    queryset = Holiday.objects.all()
+    serializer_class = HolidaySerializer
+    filterset_fields = ['date', 'type']
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [require_permission('students:read')()]
+        return [CanMarkAttendance()]
+
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        log_audit('create', 'holiday', entity_id=str(instance.pk), request=self.request)
+
+    def perform_destroy(self, instance):
+        entity_id = str(instance.pk)
+        super().perform_destroy(instance)
+        log_audit('delete', 'holiday', entity_id=entity_id, request=self.request)

@@ -81,7 +81,7 @@ class PhotoHandleMixin:
         except (ValueError, OSError) as e:
             logger.error("Photo handle failed for %s/%s: %s", self.photo_prefix, instance.id, e)
 
-    @action(detail=True, methods=['get'], permission_classes=[])
+    @action(detail=True, methods=['get'])
     def photo(self, request, pk=None):
         from django.core import signing
         token = request.query_params.get('token')

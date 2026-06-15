@@ -1,12 +1,13 @@
 import { useNavigate } from 'react-router-dom';
 import { useUIStore, useAuthStore } from '../store';
-import { CreditCard, BookOpen, ClipboardList, Banknote } from 'lucide-react';
+import { CreditCard, BookOpen, ClipboardList, Banknote, CalendarCheck } from 'lucide-react';
 
 const financeRoles = ['admin', 'principal', 'accountant'];
 
 const items = [
   { mode: 'idcard' as const, label: 'ID Card', icon: CreditCard },
   { mode: 'accessories' as const, label: 'Fees', icon: BookOpen },
+  { mode: 'attendance' as const, label: 'Attendance', icon: CalendarCheck },
   { mode: 'result' as const, label: 'Result', icon: ClipboardList },
   { mode: 'finance' as const, label: 'Finance', icon: Banknote, roles: financeRoles },
 ];

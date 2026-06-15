@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     'results',
     'finance',
     'engagement',
+    'attendance',
 ]
 
 MIDDLEWARE = [

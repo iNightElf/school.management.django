@@ -1,4 +1,4 @@
-from rest_framework.permissions import BasePermission
+from rest_framework.permissions import BasePermission, SAFE_METHODS
 
 ROLE_PERMISSIONS = {
     'admin': [
@@ -105,3 +105,12 @@ def can_teach_subject(user, subject_id, school_class_id):
 
 def can_manage_students(user, school_class_id):
     return is_admin_or_superuser(user) or is_class_teacher_of(user, school_class_id)
+
+
+def require_photo_access(permission):
+    class PhotoAccessPermission(BasePermission):
+        def has_permission(self, request, view):
+            if not request.user.is_authenticated:
+                return True
+            return has_permission(request.user, permission)
+    return PhotoAccessPermission

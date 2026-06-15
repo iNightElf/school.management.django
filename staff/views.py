@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import Staff
 from .serializers import StaffSerializer
-from accounts.permissions import require_permission
+from accounts.permissions import require_permission, require_photo_access
 from core.mixins import PhotoHandleMixin
 from core.audit import AuditLogMixin
 
@@ -15,8 +15,7 @@ class StaffViewSet(PhotoHandleMixin, AuditLogMixin, viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action == 'photo':
-            from rest_framework.permissions import AllowAny
-            return [AllowAny()]
+            return [require_photo_access('staff:read')()]
         if self.action in ['list', 'retrieve']:
             return [require_permission('staff:read')()]
         return [require_permission('staff:write')()]

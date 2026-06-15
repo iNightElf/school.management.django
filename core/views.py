@@ -156,6 +156,7 @@ class SettingView(generics.GenericAPIView):
     ALLOWED_SETTING_KEYS = {
         'school_name', 'address', 'phone', 'email', 'website',
         'academic_year', 'exam_type', 'exam_terms',
+        'weekend_days',
     }
 
     def put(self, request):

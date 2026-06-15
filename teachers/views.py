@@ -7,7 +7,7 @@ from .serializers import (
     AssignClassTeacherSerializer, RemoveClassTeacherSerializer,
     AssignSubjectSerializer, RemoveSubjectSerializer,
 )
-from accounts.permissions import require_permission
+from accounts.permissions import require_permission, require_photo_access
 from core.mixins import PhotoHandleMixin
 from core.audit import log_audit
 from core.models import SchoolClass, Subject
@@ -20,8 +20,7 @@ class TeacherViewSet(PhotoHandleMixin, viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action == 'photo':
-            from rest_framework.permissions import AllowAny
-            return [AllowAny()]
+            return [require_photo_access('teachers:read')()]
         if self.action in ['list', 'retrieve']:
             return [require_permission('teachers:read')()]
         return [require_permission('teachers:write')()]
