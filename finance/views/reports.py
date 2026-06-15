@@ -92,14 +92,6 @@ class ReportView(generics.GenericAPIView):
     def _report_agm(self, fy, request):
         qs = Transaction.objects.filter(fiscal_year=fy, is_cancelled=False)
 
-        income_agg = qs.filter(CROSS_BANK_INCOME).aggregate(total=Sum('amount'), count=Count('id'))
-        income = income_agg['total'] or Decimal('0')
-        income_count = income_agg['count'] or 0
-
-        expense_agg = qs.filter(CROSS_BANK_EXPENSE).aggregate(total=Sum('amount'), count=Count('id'))
-        expense = expense_agg['total'] or Decimal('0')
-        expense_count = expense_agg['count'] or 0
-
         cross_bank_q = Q(
             transaction_type='INTERNAL_TRANSFER',
             source_account__name='GLOBAL_FORUM_BANK',
@@ -109,22 +101,37 @@ class ReportView(generics.GenericAPIView):
             source_account__name='AL_RAWA_BANK',
             destination_account__name='GLOBAL_FORUM_BANK',
         )
-        transfer_agg = qs.filter(
-            transaction_type='INTERNAL_TRANSFER',
-        ).exclude(cross_bank_q).aggregate(total=Sum('amount'), count=Count('id'))
-        total_transfers = transfer_agg['total'] or Decimal('0')
-        transfer_count = transfer_agg['count'] or 0
 
-        income_by_cat = list(
-            qs.filter(CROSS_BANK_INCOME).values('category').annotate(
-                total=Sum('amount')
-            ).order_by('category').values_list('category', 'total')
+        non_cross_transfer_q = Q(transaction_type='INTERNAL_TRANSFER') & ~cross_bank_q
+
+        combined_agg = qs.aggregate(
+            income=Sum('amount', filter=CROSS_BANK_INCOME),
+            income_count=Count('id', filter=CROSS_BANK_INCOME),
+            expense=Sum('amount', filter=CROSS_BANK_EXPENSE),
+            expense_count=Count('id', filter=CROSS_BANK_EXPENSE),
+            transfers=Sum('amount', filter=non_cross_transfer_q),
+            transfer_count=Count('id', filter=non_cross_transfer_q),
         )
-        expense_by_cat = list(
-            qs.filter(CROSS_BANK_EXPENSE).values('category').annotate(
-                total=Sum('amount')
-            ).order_by('category').values_list('category', 'total')
-        )
+        income = combined_agg['income'] or Decimal('0')
+        income_count = combined_agg['income_count'] or 0
+        expense = combined_agg['expense'] or Decimal('0')
+        expense_count = combined_agg['expense_count'] or 0
+        total_transfers = combined_agg['transfers'] or Decimal('0')
+        transfer_count = combined_agg['transfer_count'] or 0
+
+        cat_agg = qs.values('category').annotate(
+            income_total=Sum('amount', filter=CROSS_BANK_INCOME),
+            expense_total=Sum('amount', filter=CROSS_BANK_EXPENSE),
+        ).order_by('category')
+
+        income_by_cat = []
+        expense_by_cat = []
+        for row in cat_agg:
+            cat = row['category'] or 'Uncategorized'
+            if row['income_total']:
+                income_by_cat.append([cat, float(row['income_total'])])
+            if row['expense_total']:
+                expense_by_cat.append([cat, float(row['expense_total'])])
 
         inc_by_account = dict(
             qs.filter(CROSS_BANK_INCOME).values(
@@ -137,12 +144,12 @@ class ReportView(generics.GenericAPIView):
             ).annotate(total=Sum('amount')).values_list('source_account__name', 'total')
         )
         transfer_in_by_account = dict(
-            qs.filter(transaction_type='INTERNAL_TRANSFER').exclude(cross_bank_q).values(
+            qs.filter(non_cross_transfer_q).values(
                 'destination_account__name'
             ).annotate(total=Sum('amount')).values_list('destination_account__name', 'total')
         )
         transfer_out_by_account = dict(
-            qs.filter(transaction_type='INTERNAL_TRANSFER').exclude(cross_bank_q).values(
+            qs.filter(non_cross_transfer_q).values(
                 'source_account__name'
             ).annotate(total=Sum('amount')).values_list('source_account__name', 'total')
         )
@@ -170,8 +177,8 @@ class ReportView(generics.GenericAPIView):
             'totalIncome': income,
             'totalExpense': expense,
             'netSurplus': income - expense,
-            'income': [[cat or 'Uncategorized', float(amt)] for cat, amt in income_by_cat],
-            'expense': [[cat or 'Uncategorized', float(amt)] for cat, amt in expense_by_cat],
+            'income': income_by_cat,
+            'expense': expense_by_cat,
             'opening': opening,
             'closing': closing,
             'totalAssets': total_assets,

@@ -20,10 +20,11 @@ from accounts.permissions import require_permission
 from .base import (
     PeriodClosedMixin, CROSS_BANK_INCOME, CROSS_BANK_EXPENSE,
     _internal_accounts, _account_balances_update, _param,
-    _check_period_open, _fiscal_year_from_date
+    _check_period_open, _fiscal_year_from_date,
+    _waiver_expected_amount,
 )
 from .ledger import LedgerActionsMixin
-from core.audit import log_audit
+from core.audit import log_audit, AuditLogMixin
 
 
 def _invalidate_dashboard_cache(fiscal_year=None):
@@ -35,7 +36,7 @@ def _invalidate_dashboard_cache(fiscal_year=None):
             cache.delete(f'finance_dashboard_{y}')
 
 
-class TransactionViewSet(LedgerActionsMixin, PeriodClosedMixin, viewsets.ModelViewSet):
+class TransactionViewSet(AuditLogMixin, LedgerActionsMixin, PeriodClosedMixin, viewsets.ModelViewSet):
     queryset = Transaction.objects.select_related('student', 'source_account', 'destination_account').all()
     serializer_class = TransactionSerializer
     filterset_fields = {
@@ -47,6 +48,18 @@ class TransactionViewSet(LedgerActionsMixin, PeriodClosedMixin, viewsets.ModelVi
         'fee_month': ['exact'],
         'transaction_date': ['gte', 'lte'],
     }
+
+    def perform_update(self, serializer):
+        raise ValidationError(
+            "Financial records are immutable. "
+            "To correct a transaction, cancel it first and create a new entry."
+        )
+
+    def perform_destroy(self, instance):
+        raise ValidationError(
+            "Financial records cannot be deleted. "
+            "Cancel the transaction instead to reverse it."
+        )
 
     def get_permissions(self):
         if self.action in ['list', 'retrieve', 'balances', 'ledger', 'fee_status']:
@@ -144,10 +157,7 @@ class TransactionViewSet(LedgerActionsMixin, PeriodClosedMixin, viewsets.ModelVi
                                 })
 
                     waiver = waiver_map.get(str(fs_id))
-                    if waiver:
-                        expected = waiver.value
-                    else:
-                        expected = fs.amount
+                    expected = _waiver_expected_amount(waiver, fs.amount)
 
                     if alloc_amount != expected:
                         raise ValidationError({
@@ -175,7 +185,7 @@ class TransactionViewSet(LedgerActionsMixin, PeriodClosedMixin, viewsets.ModelVi
                     waiver = FeeWaiver.objects.filter(
                         student=tx.student, fee_schedule=fs, active=True,
                     ).first()
-                    expected = waiver.value if waiver else fs.amount
+                    expected = _waiver_expected_amount(waiver, fs.amount)
                     if tx.amount != expected:
                         raise ValidationError({
                             'amount': f'Amount {tx.amount} does not match expected fee amount {expected}{f" (waiver applied)" if waiver else ""} for "{fs.category}".'

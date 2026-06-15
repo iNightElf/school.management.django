@@ -45,6 +45,163 @@ class FinanceTests(TestCase):
         data.update(kw)
         return data
 
+    # ── Ledger ──
+
+    def test_ledger_returns_data_for_account(self):
+        Transaction.objects.create(
+            transaction_date='2026-06-01', transaction_type='INCOME',
+            amount=1000, description='Fee', student=self.student,
+            destination_account=self.bank_ar, fiscal_year=2026,
+            category='Tuition',
+        )
+        res = self.client.get('/api/finance/ledger/?account=AL_RAWA_BANK')
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('data', res.data)
+        self.assertEqual(len(res.data['data']), 1)
+        self.assertEqual(res.data['totalRows'], 1)
+
+    def test_ledger_running_balance(self):
+        Transaction.objects.create(
+            transaction_date='2026-06-01', transaction_type='INCOME',
+            amount=500, description='First', student=self.student,
+            destination_account=self.bank_ar, fiscal_year=2026,
+        )
+        Transaction.objects.create(
+            transaction_date='2026-06-02', transaction_type='INCOME',
+            amount=300, description='Second', student=self.student,
+            destination_account=self.bank_ar, fiscal_year=2026,
+        )
+        res = self.client.get('/api/finance/ledger/?account=AL_RAWA_BANK')
+        self.assertEqual(res.status_code, 200)
+        data = res.data['data']
+        self.assertEqual(len(data), 2)
+        # First tx: running = opening + 500
+        # Second tx: running = opening + 500 + 300
+        self.assertEqual(data[0]['runningBalance'], data[0]['debit'])
+        expected_second = data[0]['debit'] + data[1]['debit']
+        self.assertEqual(data[1]['runningBalance'], expected_second)
+
+    def test_ledger_excludes_cancelled_from_balance(self):
+        Transaction.objects.create(
+            transaction_date='2026-06-01', transaction_type='INCOME',
+            amount=500, description='Active', student=self.student,
+            destination_account=self.bank_ar, fiscal_year=2026,
+        )
+        cancelled = Transaction.objects.create(
+            transaction_date='2026-06-02', transaction_type='INCOME',
+            amount=300, description='Cancelled', student=self.student,
+            destination_account=self.bank_ar, fiscal_year=2026,
+            is_cancelled=True,
+        )
+        res = self.client.get('/api/finance/ledger/?account=AL_RAWA_BANK')
+        self.assertEqual(res.status_code, 200)
+        data = res.data['data']
+        self.assertEqual(len(data), 2)
+        # Both rows show, but cancelled doesn't affect running balance
+        active_running = data[0]['runningBalance']
+        cancelled_running = data[1]['runningBalance']
+        self.assertEqual(
+            active_running, cancelled_running,
+            "Cancelled transaction should not change running balance"
+        )
+
+    def test_ledger_pagination(self):
+        for i in range(5):
+            Transaction.objects.create(
+                transaction_date=f'2026-06-{i+1:02d}', transaction_type='INCOME',
+                amount=100, description=f'Fee {i}', student=self.student,
+                destination_account=self.bank_ar, fiscal_year=2026,
+            )
+        res = self.client.get('/api/finance/ledger/?account=AL_RAWA_BANK&limit=2&page=1')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(len(res.data['data']), 2)
+        self.assertEqual(res.data['totalRows'], 5)
+        self.assertEqual(res.data['totalPages'], 3)
+
+        res2 = self.client.get('/api/finance/ledger/?account=AL_RAWA_BANK&limit=2&page=2')
+        self.assertEqual(res2.status_code, 200)
+        self.assertEqual(len(res2.data['data']), 2)
+
+    def test_ledger_search(self):
+        Transaction.objects.create(
+            transaction_date='2026-06-01', transaction_type='INCOME',
+            amount=500, description='Tuition payment', student=self.student,
+            destination_account=self.bank_ar, fiscal_year=2026, category='Tuition',
+        )
+        Transaction.objects.create(
+            transaction_date='2026-06-02', transaction_type='INCOME',
+            amount=300, description='Lab fee', student=self.student,
+            destination_account=self.bank_ar, fiscal_year=2026, category='Lab',
+        )
+        res = self.client.get('/api/finance/ledger/?account=AL_RAWA_BANK&search=Tuition')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(len(res.data['data']), 1)
+        self.assertEqual(res.data['totalRows'], 1)
+
+    def test_ledger_date_range(self):
+        Transaction.objects.create(
+            transaction_date='2026-05-01', transaction_type='INCOME',
+            amount=200, description='May', student=self.student,
+            destination_account=self.bank_ar, fiscal_year=2026,
+        )
+        Transaction.objects.create(
+            transaction_date='2026-06-01', transaction_type='INCOME',
+            amount=500, description='June', student=self.student,
+            destination_account=self.bank_ar, fiscal_year=2026,
+        )
+        Transaction.objects.create(
+            transaction_date='2026-07-01', transaction_type='INCOME',
+            amount=300, description='July', student=self.student,
+            destination_account=self.bank_ar, fiscal_year=2026,
+        )
+        res = self.client.get(
+            '/api/finance/ledger/?account=AL_RAWA_BANK&dateFrom=2026-06-01&dateTo=2026-06-30'
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(len(res.data['data']), 1)
+        self.assertEqual(res.data['data'][0]['amount'], 500)
+
+    def test_ledger_expense_tracks_outgoing(self):
+        Transaction.objects.create(
+            transaction_date='2026-06-01', transaction_type='EXPENSE',
+            amount=400, description='Payment', student=self.student,
+            source_account=self.bank_ar, fiscal_year=2026,
+        )
+        res = self.client.get('/api/finance/ledger/?account=AL_RAWA_BANK')
+        self.assertEqual(res.status_code, 200)
+        data = res.data['data']
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]['debit'], 0)
+        self.assertEqual(data[0]['credit'], 400)
+        self.assertEqual(data[0]['runningBalance'], -400)
+
+    def test_ledger_includes_opening_balance(self):
+        Transaction.objects.create(
+            transaction_date='2026-06-01', transaction_type='INCOME',
+            amount=1000, description='Fee', student=self.student,
+            destination_account=self.bank_ar, fiscal_year=2026,
+        )
+        OpeningBalance.objects.create(
+            account=self.bank_ar, fiscal_year=2026, amount=50000,
+        )
+        res = self.client.get('/api/finance/ledger/?account=AL_RAWA_BANK&dateFrom=2026-01-01')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['openingBalance'], 50000)
+
+    def test_ledger_invalid_account(self):
+        res = self.client.get('/api/finance/ledger/?account=INVALID')
+        self.assertEqual(res.status_code, 400)
+
+    def test_ledger_with_camelcase_params(self):
+        Transaction.objects.create(
+            transaction_date='2026-06-01', transaction_type='INCOME',
+            amount=500, description='Test', student=self.student,
+            destination_account=self.bank_ar, fiscal_year=2026,
+        )
+        res = self.client.get('/api/finance/ledger/?account=AL_RAWA_BANK&dateFrom=2026-06-01&dateTo=2026-06-30')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(len(res.data['data']), 1)
+
     # ── Transactions ──
 
     def test_create_transaction(self):
@@ -92,6 +249,30 @@ class FinanceTests(TestCase):
         )
         res = self.client.post(f'/api/finance/transactions/{tx.id}/cancel/', {'reason': 'Again'})
         self.assertEqual(res.status_code, 400)
+
+    def test_transaction_delete_rejected(self):
+        tx = Transaction.objects.create(
+            transaction_date='2026-06-01', transaction_type='INCOME',
+            amount=500, description='Test', student=self.student,
+            destination_account=self.bank_ar, fiscal_year=2026,
+        )
+        res = self.client.delete(f'/api/finance/transactions/{tx.id}/')
+        self.assertEqual(res.status_code, 400)
+        self.assertTrue(Transaction.objects.filter(id=tx.id).exists())
+
+    def test_transaction_protected_from_orm_delete_with_allocations(self):
+        tx = Transaction.objects.create(
+            transaction_date='2026-06-01', transaction_type='INCOME',
+            amount=500, description='Test', student=self.student,
+            destination_account=self.bank_ar, fiscal_year=2026,
+        )
+        PaymentAllocation.objects.create(
+            transaction=tx, fee_schedule=self.fs,
+            student=self.student, period='2026-06', amount=500,
+        )
+        from django.db.models.deletion import ProtectedError
+        with self.assertRaises(ProtectedError):
+            tx.delete()
 
     def test_balances(self):
         Transaction.objects.create(
@@ -373,6 +554,12 @@ class FinanceTests(TestCase):
         )
         self.assertEqual(PaymentAllocation.objects.count(), 1)
 
+    def test_opening_balance_protected_from_bank_delete(self):
+        OpeningBalance.objects.create(account=self.bank_ar, fiscal_year=2026, amount=5000)
+        from django.db.models.deletion import ProtectedError
+        with self.assertRaises(ProtectedError):
+            self.bank_ar.delete()
+
     # ── Opening Balances ──
 
     def test_set_opening_balance(self):
@@ -425,11 +612,94 @@ class FinanceTests(TestCase):
     def test_defaulter_endpoint(self):
         res = self.client.get('/api/finance/defaulter/?year=2026&monthFrom=2026-01&monthTo=2026-06')
         self.assertEqual(res.status_code, 200)
-        self.assertIsInstance(res.data, list)
+        self.assertIn('data', res.data)
+        self.assertIsInstance(res.data['data'], list)
 
     def test_defaulter_with_class_filter(self):
         res = self.client.get('/api/finance/defaulter/?year=2026&className=Class 5')
         self.assertEqual(res.status_code, 200)
+
+    # ── Defaulter Pagination ──
+
+    def test_defaulter_pagination(self):
+        student2 = Student.objects.create(name='Stu2', student_id='S000002', school_class=self.klass, session='2026')
+        res = self.client.get('/api/finance/defaulter/?year=2026&limit=1&page=1&monthFrom=2026-01&monthTo=2026-06')
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('data', res.data)
+        self.assertIn('totalRows', res.data)
+        self.assertEqual(res.data['totalRows'], 2)
+        self.assertEqual(len(res.data['data']), 1)
+
+        res2 = self.client.get('/api/finance/defaulter/?year=2026&limit=1&page=2&monthFrom=2026-01&monthTo=2026-06')
+        self.assertEqual(res2.status_code, 200)
+        self.assertEqual(len(res2.data['data']), 1)
+        self.assertNotEqual(res.data['data'][0]['studentId'], res2.data['data'][0]['studentId'])
+
+    def test_defaulter_pagination_defaults(self):
+        for i in range(3):
+            Student.objects.create(name=f'Stu{i}', student_id=f'S99{i:05d}', school_class=self.klass, session='2026')
+        res = self.client.get('/api/finance/defaulter/?year=2026&monthFrom=2026-01&monthTo=2026-06')
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('data', res.data)
+        self.assertGreaterEqual(len(res.data['data']), 1)
+
+    def test_defaulter_pagination_limits_max(self):
+        res = self.client.get('/api/finance/defaulter/?year=2026&limit=9999&monthFrom=2026-01&monthTo=2026-06')
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('data', res.data)
+
+    # ── AGM Report ──
+
+    def test_agm_report(self):
+        Transaction.objects.create(
+            transaction_date='2026-06-01', transaction_type='INCOME',
+            amount=10000, description='Fee income', student=self.student,
+            destination_account=self.bank_ar, fiscal_year=2026, category='Tuition',
+        )
+        Transaction.objects.create(
+            transaction_date='2026-06-02', transaction_type='EXPENSE',
+            amount=2000, description='Salary', student=self.student,
+            source_account=self.bank_ar, fiscal_year=2026, category='Salary',
+        )
+        res = self.client.get('/api/finance/reports/agm/?fiscal_year=2026')
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('totalIncome', res.data)
+        self.assertIn('totalExpense', res.data)
+        self.assertEqual(float(res.data['totalIncome']), 10000)
+        self.assertEqual(float(res.data['totalExpense']), 2000)
+
+    def test_agm_report_net_surplus(self):
+        Transaction.objects.create(
+            transaction_date='2026-06-01', transaction_type='INCOME',
+            amount=5000, student=self.student,
+            destination_account=self.bank_ar, fiscal_year=2026,
+        )
+        Transaction.objects.create(
+            transaction_date='2026-06-02', transaction_type='EXPENSE',
+            amount=3000, student=self.student,
+            source_account=self.bank_ar, fiscal_year=2026,
+        )
+        res = self.client.get('/api/finance/reports/agm/?fiscal_year=2026')
+        self.assertEqual(float(res.data['netSurplus']), 2000)
+
+    def test_agm_report_camelcase_param(self):
+        Transaction.objects.create(
+            transaction_date='2026-06-01', transaction_type='INCOME',
+            amount=5000, student=self.student,
+            destination_account=self.bank_ar, fiscal_year=2026,
+        )
+        res = self.client.get('/api/finance/reports/agm/?year=2026')
+        self.assertEqual(res.status_code, 200)
+
+    def test_agm_includes_transfer_transactions(self):
+        Transaction.objects.create(
+            transaction_date='2026-06-01', transaction_type='INTERNAL_TRANSFER',
+            amount=3000, source_account=self.bank_gf,
+            destination_account=self.bank_ar, fiscal_year=2026,
+        )
+        res = self.client.get('/api/finance/reports/agm/?fiscal_year=2026')
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('totalTransfers', res.data)
 
     # ── CamelCase Query Params ──
 
@@ -502,7 +772,7 @@ class FinanceTests(TestCase):
         )
         res = self.client.get('/api/finance/defaulter/?year=2026&monthFrom=2026-04&monthTo=2026-06')
         self.assertEqual(res.status_code, 200)
-        data = res.data
+        data = res.data['data']
         if data:
             fees = data[0].get('fees', [])
             fee_names = [f['name'] for f in fees]
@@ -554,7 +824,7 @@ class FinanceTests(TestCase):
     def test_defaulter_with_camelcase_params(self):
         res = self.client.get('/api/finance/defaulter/?className=Class 5&year=2026&monthFrom=2026-01&monthTo=2026-06')
         self.assertEqual(res.status_code, 200)
-        self.assertIsInstance(res.data, list)
+        self.assertIn('data', res.data)
 
     def test_opening_balances_with_camelcase_fiscal_year(self):
         OpeningBalance.objects.create(fiscal_year=2026, account=self.bank_ar, amount=5000)

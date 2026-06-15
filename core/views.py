@@ -2,6 +2,7 @@ import logging
 from rest_framework import viewsets, status, generics
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError
 from django.db.models import Count, Q, Subquery, OuterRef
 from .models import SchoolClass, Subject, AcademicYear, SchoolSetting, AuditLog, Category
 from students.models import Student
@@ -152,8 +153,16 @@ class SettingView(generics.GenericAPIView):
             }
         return Response(settings)
 
+    ALLOWED_SETTING_KEYS = {
+        'school_name', 'address', 'phone', 'email', 'website',
+        'academic_year', 'exam_type', 'exam_terms',
+    }
+
     def put(self, request):
         data = request.data
+        unknown = [k for k in data if k not in self.ALLOWED_SETTING_KEYS and k != 'id']
+        if unknown:
+            raise ValidationError(f"Unknown setting keys: {', '.join(unknown)}")
         for key, value in data.items():
             if key == 'id':
                 continue

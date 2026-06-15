@@ -10,10 +10,8 @@ DEBUG = os.environ.get('DJANGO_DEBUG', 'False').lower() == 'true'
 
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY')
 if not SECRET_KEY:
-    if DEBUG:
-        SECRET_KEY = 'django-insecure-dev-key-for-local-development-only'
-    else:
-        raise ValueError("DJANGO_SECRET_KEY environment variable is required when DEBUG is False.")
+    raise ValueError("DJANGO_SECRET_KEY environment variable is required. "
+                     "Set it in your .env file.")
 
 ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
@@ -133,6 +131,10 @@ REST_FRAMEWORK = {
         'anon': '1000/hour',
         'setup': '5/hour',
         'login': '10/min',
+        'register': '3/hour',
+        'refresh': '10/min',
+        'verify_email': '5/min',
+        'password_reset': '3/hour',
     },
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',
@@ -145,8 +147,8 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=30),
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
     'ROTATE_REFRESH_TOKENS': True,
     'AUTH_HEADER_TYPES': ('Bearer',),
     'AUTH_COOKIE': 'access_token',
@@ -154,7 +156,7 @@ SIMPLE_JWT = {
     'REFRESH_COOKIE': 'refresh_token',
     'AUTH_COOKIE_SECURE': not DEBUG,
     'AUTH_COOKIE_HTTP_ONLY': True,
-    'AUTH_COOKIE_SAMESITE': 'None',
+    'AUTH_COOKIE_SAMESITE': 'Lax',
 }
 
 FISCAL_YEAR_START_MONTH = 8

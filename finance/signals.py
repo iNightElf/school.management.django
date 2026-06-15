@@ -6,16 +6,19 @@ from .models import BankAccount
 
 @receiver(pre_save, sender=Student)
 def sync_transaction_class_name(sender, instance, **kwargs):
-    """Update transaction class_name when a student's class changes."""
-    if instance.pk and instance.school_class_id:
+    """Log class changes but do NOT mutate financial records (immutable)."""
+    if instance.pk:
         try:
             old = sender.objects.get(pk=instance.pk)
             if old.school_class_id != instance.school_class_id:
-                new_class_name = instance.school_class.name if instance.school_class else None
-                from .models import Transaction
-                Transaction.objects.filter(student=instance).exclude(
-                    class_name=new_class_name
-                ).update(class_name=new_class_name)
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(
+                    "Student %s (%s) changed class from %s to %s. "
+                    "Transaction class_name preserved on historical records.",
+                    instance.id, instance.name,
+                    old.school_class_id, instance.school_class_id,
+                )
         except sender.DoesNotExist:
             pass
 

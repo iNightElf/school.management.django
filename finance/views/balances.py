@@ -11,7 +11,7 @@ from finance.serializers import (
     PeriodCloseSerializer, ReconciliationSerializer
 )
 from accounts.permissions import require_permission
-from .base import _param
+from .base import _param, _check_period_open, _fiscal_year_from_date
 from core.audit import log_audit
 
 class OpeningBalanceViewSet(viewsets.ModelViewSet):
@@ -33,8 +33,16 @@ class OpeningBalanceViewSet(viewsets.ModelViewSet):
             return [require_permission('finance:read')()]
         return [require_permission('finance:write')()]
 
+    def perform_create(self, serializer):
+        fy = serializer.validated_data.get('fiscal_year')
+        if fy:
+            _check_period_open(fy)
+        serializer.save()
+
     def perform_update(self, serializer):
         instance = self.get_object()
+        if instance.fiscal_year:
+            _check_period_open(instance.fiscal_year)
         old_amount = instance.amount
         with db_transaction.atomic():
             serializer.save(updated_by=str(self.request.user.id))
@@ -46,6 +54,11 @@ class OpeningBalanceViewSet(viewsets.ModelViewSet):
                 changed_by=str(self.request.user.id),
             )
         log_audit('update', 'opening_balance', entity_id=instance.pk, request=self.request)
+
+    def perform_destroy(self, instance):
+        if instance.fiscal_year:
+            _check_period_open(instance.fiscal_year)
+        instance.delete()
 
     @action(detail=False, methods=['get'])
     def history(self, request):
@@ -69,6 +82,8 @@ class OpeningBalanceViewSet(viewsets.ModelViewSet):
             history = OpeningBalanceHistory.objects.select_related('account').get(pk=history_pk)
         except OpeningBalanceHistory.DoesNotExist:
             raise NotFound("Opening balance history record not found.")
+        if history.fiscal_year:
+            _check_period_open(history.fiscal_year)
         with db_transaction.atomic():
             balance, _ = OpeningBalance.objects.select_related('account').get_or_create(
                 fiscal_year=history.fiscal_year,
@@ -111,3 +126,17 @@ class ReconciliationViewSet(viewsets.ModelViewSet):
         if self.action in ['list', 'retrieve']:
             return [require_permission('finance:read')()]
         return [require_permission('finance:admin')()]
+
+    def perform_create(self, serializer):
+        fy = _fiscal_year_from_date(serializer.validated_data.get('statement_date'))
+        _check_period_open(fy)
+        serializer.save()
+
+    def perform_update(self, serializer):
+        instance = self.get_object()
+        _check_period_open(_fiscal_year_from_date(instance.statement_date))
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        _check_period_open(_fiscal_year_from_date(instance.statement_date))
+        instance.delete()

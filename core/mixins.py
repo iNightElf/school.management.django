@@ -48,6 +48,11 @@ class PhotoHandleMixin:
         instance.deleted_at = timezone.now()
         instance.save(update_fields=['deleted_at'])
 
+    ALLOWED_PHOTO_MIME_PREFIXES = {
+        'data:image/jpeg', 'data:image/png', 'data:image/webp', 'data:image/gif',
+    }
+    MAX_PHOTO_SIZE = 5 * 1024 * 1024
+
     def _handle_photo(self, instance, photo_data):
         if not photo_data:
             if instance.photo_path:
@@ -57,9 +62,16 @@ class PhotoHandleMixin:
             return
         if photo_data.startswith('http'):
             return
+        mime_prefix = photo_data.split(',')[0] if ',' in photo_data else ''
+        if mime_prefix and mime_prefix not in self.ALLOWED_PHOTO_MIME_PREFIXES:
+            logger.error("Rejected photo upload with disallowed MIME type: %s", mime_prefix)
+            return
         path = f"{self.photo_prefix}/{instance.id}.jpg"
         try:
             raw = base64.b64decode(photo_data.split(',', 1)[-1] if ',' in photo_data else photo_data)
+            if len(raw) > self.MAX_PHOTO_SIZE:
+                logger.error("Rejected photo upload of %d bytes (max %d)", len(raw), self.MAX_PHOTO_SIZE)
+                return
             ok = upload_photo(path, raw)
             if not ok:
                 logger.error("Supabase upload returned false for %s/%s", self.photo_prefix, instance.id)

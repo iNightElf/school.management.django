@@ -78,8 +78,9 @@ class FeeWaiverSerializer(CamelCaseModelSerializer):
         model = FeeWaiver
         fields = ['id', 'student', 'studentName', 'fee_schedule', 'feeCategory',
                   'feeScheduleAmount', 'type', 'value', 'reason', 'approved_by',
-                  'active', 'starts_at', 'ends_at', 'created_at']
-        read_only_fields = ['id', 'created_at']
+                  'approved_at', 'approval_status', 'active', 'starts_at',
+                  'ends_at', 'created_at']
+        read_only_fields = ['id', 'created_at', 'approved_at']
 
 
 class StudentFeeAssignmentSerializer(CamelCaseModelSerializer):

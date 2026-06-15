@@ -26,6 +26,25 @@ from finance.serializers import (
 )
 from accounts.permissions import require_permission
 
+
+def _waiver_expected_amount(waiver, fee_schedule_amount):
+    """Compute the expected payment amount given a waiver and fee schedule amount.
+
+    For CUSTOM_AMOUNT waivers, `value` is the exact amount to pay.
+    For PERCENTAGE waivers, `value` is the percentage discount applied to the base amount.
+    Returns `fee_schedule_amount` if no waiver is provided.
+    Accepts waiver as either a model instance or a dict (from .values()).
+    """
+    if not waiver:
+        return fee_schedule_amount
+    waiver_type = waiver.type if hasattr(waiver, 'type') else waiver.get('type')
+    waiver_value = waiver.value if hasattr(waiver, 'value') else waiver.get('value')
+    if waiver_type == 'PERCENTAGE':
+        discount = fee_schedule_amount * (Decimal(str(waiver_value)) / Decimal('100'))
+        return (fee_schedule_amount - discount).quantize(Decimal('0.01'))
+    return Decimal(str(waiver_value))
+
+
 CROSS_BANK_INCOME = Q(transaction_type='INCOME') | (
     Q(transaction_type='INTERNAL_TRANSFER',
       source_account__name='GLOBAL_FORUM_BANK',

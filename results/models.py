@@ -5,7 +5,7 @@ from django.db import models
 class Result(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     student = models.ForeignKey(
-        'students.Student', on_delete=models.CASCADE,
+        'students.Student', on_delete=models.PROTECT,
         related_name='results'
     )
     session = models.CharField(max_length=255, default='')

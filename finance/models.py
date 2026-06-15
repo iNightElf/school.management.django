@@ -42,7 +42,7 @@ class Transaction(models.Model):
     category = models.CharField(max_length=100, blank=True, null=True)
     description = models.TextField(blank=True, null=True)
     student = models.ForeignKey(
-        'students.Student', on_delete=models.SET_NULL,
+        'students.Student', on_delete=models.PROTECT,
         blank=True, null=True, related_name='transactions'
     )
     class_name = models.CharField(max_length=100, blank=True, null=True)
@@ -133,11 +133,18 @@ class FeeSchedule(models.Model):
 class FeeWaiver(models.Model):
     WAIVER_TYPES = [
         ('CUSTOM_AMOUNT', 'Custom Amount'),
+        ('PERCENTAGE', 'Percentage'),
+    ]
+
+    APPROVAL_STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     student = models.ForeignKey(
-        'students.Student', on_delete=models.CASCADE,
+        'students.Student', on_delete=models.PROTECT,
         related_name='fee_waivers'
     )
     fee_schedule = models.ForeignKey(
@@ -148,6 +155,10 @@ class FeeWaiver(models.Model):
     value = models.DecimalField(max_digits=12, decimal_places=2)
     reason = models.TextField(blank=True, null=True)
     approved_by = models.CharField(max_length=100, blank=True, null=True)
+    approved_at = models.DateTimeField(blank=True, null=True)
+    approval_status = models.CharField(
+        max_length=20, choices=APPROVAL_STATUS_CHOICES, default='pending',
+    )
     active = models.BooleanField(default=True)
     starts_at = models.DateField(blank=True, null=True)
     ends_at = models.DateField(blank=True, null=True)
@@ -167,7 +178,7 @@ class FeeWaiver(models.Model):
 class StudentFeeAssignment(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     student = models.ForeignKey(
-        'students.Student', on_delete=models.CASCADE,
+        'students.Student', on_delete=models.PROTECT,
         related_name='student_fee_assignments'
     )
     fee_schedule = models.ForeignKey(
@@ -194,7 +205,7 @@ class StudentFeeAssignment(models.Model):
 class PaymentAllocation(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     transaction = models.ForeignKey(
-        Transaction, on_delete=models.CASCADE,
+        Transaction, on_delete=models.PROTECT,
         related_name='payment_allocations'
     )
     fee_schedule = models.ForeignKey(
@@ -202,7 +213,7 @@ class PaymentAllocation(models.Model):
         blank=True, null=True, related_name='payment_allocations'
     )
     student = models.ForeignKey(
-        'students.Student', on_delete=models.CASCADE,
+        'students.Student', on_delete=models.PROTECT,
         related_name='payment_allocations'
     )
     period = models.CharField(max_length=20, blank=True, null=True)
@@ -241,7 +252,7 @@ class OpeningBalance(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     fiscal_year = models.IntegerField()
     account = models.ForeignKey(
-        BankAccount, on_delete=models.CASCADE,
+        BankAccount, on_delete=models.PROTECT,
         related_name='opening_balances'
     )
     amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -263,7 +274,7 @@ class OpeningBalanceHistory(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     fiscal_year = models.IntegerField()
     account = models.ForeignKey(
-        BankAccount, on_delete=models.CASCADE,
+        BankAccount, on_delete=models.PROTECT,
         related_name='balance_history'
     )
     old_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -306,7 +317,7 @@ class Reconciliation(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     account = models.ForeignKey(
-        BankAccount, on_delete=models.CASCADE,
+        BankAccount, on_delete=models.PROTECT,
         related_name='reconciliations'
     )
     statement_date = models.DateTimeField()
@@ -332,7 +343,7 @@ class Reconciliation(models.Model):
 class AccountBalance(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     account = models.ForeignKey(
-        BankAccount, on_delete=models.CASCADE,
+        BankAccount, on_delete=models.PROTECT,
         related_name='account_balances'
     )
     fiscal_year = models.IntegerField()

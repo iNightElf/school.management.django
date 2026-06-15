@@ -2,6 +2,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.core.cache import cache
 from .models import SchoolClass, Subject, AcademicYear, Category
 from students.models import Student
 
@@ -266,3 +267,21 @@ class PromoteAllTests(TestCase):
         s.refresh_from_db()
         self.assertIsNone(s.school_class)
         self.assertIsNotNone(s.graduated_at)
+
+
+class DashboardCacheTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        _auth(self.client)
+        self.klass = SchoolClass.objects.create(name='Class 5', order=1)
+
+    def test_dashboard_cache_invalidated_on_student_create(self):
+        cache.set('dashboard_summary', {'stale': True}, 60)
+        Student.objects.create(name='Test', student_id='S999001', school_class=self.klass, session='2026')
+        self.assertIsNone(cache.get('dashboard_summary'))
+
+    def test_dashboard_cache_invalidated_on_student_delete(self):
+        s = Student.objects.create(name='Test', student_id='S999002', school_class=self.klass, session='2026')
+        cache.set('dashboard_summary', {'stale': True}, 60)
+        s.delete()
+        self.assertIsNone(cache.get('dashboard_summary'))

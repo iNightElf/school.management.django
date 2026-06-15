@@ -2,6 +2,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db import transaction as db_transaction
+from django.utils import timezone
 
 from finance.models import FeeSchedule, FeeWaiver, StudentFeeAssignment
 from students.models import Student
@@ -57,6 +58,12 @@ class FeeScheduleViewSet(PeriodClosedMixin, AuditLogMixin, viewsets.ModelViewSet
 class FeeWaiverViewSet(PeriodClosedMixin, AuditLogMixin, viewsets.ModelViewSet):
     queryset = FeeWaiver.objects.select_related('student', 'fee_schedule').all()
     serializer_class = FeeWaiverSerializer
+
+    def perform_create(self, serializer):
+        serializer.save(
+            approved_by=str(self.request.user.id),
+            approved_at=timezone.now(),
+        )
 
     def get_queryset(self):
         qs = super().get_queryset()
