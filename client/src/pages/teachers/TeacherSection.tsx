@@ -209,7 +209,6 @@ export default function TeacherSection() {
       toast('PIN set successfully', 'success');
       setPinTeacherId(null);
       setPinValue('');
-      setPinShowSet(false);
     } catch (e: any) {
       toast(e.response?.data?.error || e.message || 'Error', 'error');
     } finally { setPinSubmitting(false); }
