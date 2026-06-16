@@ -6,7 +6,8 @@ import ErrorBoundary from './components/ErrorBoundary'
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch((e) => { if (import.meta.env.DEV) console.warn('[sw] registration failed', e); });
+    const swUrl = `${import.meta.env.BASE_URL}sw.js`.replace(/\/+/g, '/');
+    navigator.serviceWorker.register(swUrl).catch((e) => { if (import.meta.env.DEV) console.warn('[sw] registration failed', e); });
   });
 }
 
