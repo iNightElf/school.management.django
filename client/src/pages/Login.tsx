@@ -118,6 +118,15 @@ const Login = () => {
               New staff?{' '}
               <Link to="/register" className="text-school-accent font-semibold hover:underline">Register here</Link>
             </p>
+
+            <div className="border-t border-school-border/50 pt-4">
+              <Link to="/pin-attendance"
+                className="flex items-center justify-center gap-2 w-full py-2.5 bg-school-paper border border-school-border rounded-xl text-xs font-bold text-school-primary dark:text-[#e0e0e8] hover:bg-school-border/30 dark:hover:bg-white/5 transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                Quick Attendance (Teacher PIN)
+              </Link>
+            </div>
           </form>
         </div>
       </div>

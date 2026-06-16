@@ -7,6 +7,7 @@ import NotFound from './pages/NotFound';
 const Login = lazy(() => import('./pages/Login'));
 const Register = lazy(() => import('./pages/Register'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
+const PinAttendance = lazy(() => import('./pages/PinAttendance'));
 const UserManagement = lazy(() => import('./pages/UserManagement'));
 const AuditLogs = lazy(() => import('./pages/AuditLogs'));
 const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
@@ -40,6 +41,7 @@ const App: React.FC = () => {
           <Route path="/verify-email" element={<VerifyEmail />} />
           <Route path="/users" element={user?.role === 'admin' ? <UserManagement /> : <Navigate to="/" />} />
           <Route path="/audit" element={user?.role === 'admin' ? <AuditLogs /> : <Navigate to="/" />} />
+          <Route path="/pin-attendance" element={<PinAttendance />} />
           <Route path="/m" element={<Navigate to="/?mode=attendance" replace />} />
           <Route path="/" element={user ? <Dashboard /> : <Navigate to="/login" />} />
           <Route path="*" element={<NotFound />} />
