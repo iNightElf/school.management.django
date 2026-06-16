@@ -2,7 +2,7 @@ const CACHE = 'alrawa-v1';
 self.addEventListener('install', (e) => {
   e.waitUntil(
     caches.open(CACHE).then((c) =>
-      c.addAll(['/', '/manifest.json']).catch(() => self.skipWaiting())
+      c.addAll(['./', 'manifest.json']).catch(() => self.skipWaiting())
     )
   );
   self.skipWaiting();
