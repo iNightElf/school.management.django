@@ -46,7 +46,7 @@ class AttendanceViewSet(viewsets.GenericViewSet):
     filterset_fields = ['school_class', 'date', 'term', 'session']
 
     def get_permissions(self):
-        if self.action in ['list', 'student_month', 'summary']:
+        if self.action in ['list', 'student_month', 'summary', 'class_report']:
             return [require_permission('students:read')()]
         return [CanMarkAttendance()]
 
@@ -297,6 +297,90 @@ class AttendanceViewSet(viewsets.GenericViewSet):
             'year': year,
             'month': month,
             'days': calendar_data,
+        })
+
+
+    @action(detail=False, methods=['get'], url_path='class-report')
+    def class_report(self, request):
+        class_id = request.query_params.get('class_id')
+        from_date = request.query_params.get('from')
+        to_date = request.query_params.get('to')
+        term = request.query_params.get('term')
+        session = request.query_params.get('session')
+
+        if not class_id or not from_date or not to_date:
+            return Response(
+                {'error': 'class_id, from, and to query params are required'},
+                status=400,
+            )
+
+        try:
+            school_class = SchoolClass.objects.get(id=class_id)
+        except SchoolClass.DoesNotExist:
+            return Response({'error': 'Class not found'}, status=404)
+
+        students = Student.objects.filter(
+            school_class=school_class,
+            deleted_at__isnull=True,
+        ).order_by('roll', 'name').values('id', 'name', 'roll')
+
+        qs = AttendanceRecord.objects.filter(
+            school_class=school_class,
+            date__gte=from_date,
+            date__lte=to_date,
+        )
+        if term:
+            qs = qs.filter(term=term)
+        if session:
+            qs = qs.filter(session=session)
+
+        records = qs.values('student_id', 'date', 'status')
+
+        dates = sorted(set(r['date'] for r in records))
+        student_ids = [s['id'] for s in students]
+
+        grid: dict[str, dict[str, str]] = {}
+        student_summary: dict[str, dict[str, int]] = {}
+        date_summary: dict[str, dict[str, int]] = {}
+
+        for rec in records:
+            sid = str(rec['student_id'])
+            d = rec['date'].isoformat()
+            st = rec['status']
+
+            grid.setdefault(sid, {})[d] = st
+
+            ss = student_summary.setdefault(sid, {'present': 0, 'absent': 0, 'late': 0, 'excused': 0})
+            if st in ss:
+                ss[st] += 1
+
+            ds = date_summary.setdefault(d, {'present': 0, 'absent': 0, 'late': 0, 'excused': 0})
+            if st in ds:
+                ds[st] += 1
+
+        for sid in student_ids:
+            if sid not in grid:
+                grid[sid] = {}
+            if sid not in student_summary:
+                student_summary[sid] = {'present': 0, 'absent': 0, 'late': 0, 'excused': 0}
+
+        full_summary = {}
+        for sid in student_ids:
+            ss = student_summary[sid]
+            total = ss['present'] + ss['absent'] + ss['late'] + ss['excused']
+            pct = round(ss['present'] / total * 100, 1) if total > 0 else 0.0
+            full_summary[sid] = {**ss, 'total': total, 'pct': pct}
+
+        return Response({
+            'class': {'id': str(school_class.id), 'name': school_class.name},
+            'students': [
+                {'id': str(s['id']), 'name': s['name'], 'roll': s['roll']}
+                for s in students
+            ],
+            'dates': [d.isoformat() for d in dates],
+            'grid': grid,
+            'summary': full_summary,
+            'date_summary': date_summary,
         })
 
 

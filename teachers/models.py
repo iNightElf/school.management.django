@@ -13,6 +13,7 @@ class Teacher(models.Model):
     email = models.EmailField(blank=True, default='')
     contact = models.CharField(max_length=255, blank=True, default='')
     photo_path = models.TextField(blank=True, default='')
+    pin = models.CharField(max_length=128, blank=True, default='')
     deleted_at = models.DateTimeField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

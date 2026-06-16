@@ -3,12 +3,12 @@ import { api, useSchoolStore } from '../store';
 import Toast, { toast } from '../components/Toast';
 import type {
   SchoolClass, AttendanceRecord, AttendanceMonthResponse,
-  AttendanceSummary,
+  AttendanceSummary, ClassAttendanceReport,
 } from '../lib/types';
 import { TERM_NAMES } from '../lib/config';
 import {
   CalendarCheck, Check, X, Clock, AlertCircle, Loader2,
-  ChevronLeft, ChevronRight, Circle,
+  ChevronLeft, ChevronRight, Circle, Download,
 } from 'lucide-react';
 
 type StatusType = 'present' | 'absent' | 'late' | 'excused' | 'unmarked';
@@ -39,7 +39,7 @@ export default function AttendanceSection() {
   const [students, setStudents] = useState<{ id: string; name: string; roll: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [tab, setTab] = useState<'daily' | 'monthly'>('daily');
+  const [tab, setTab] = useState<'daily' | 'monthly' | 'range'>('daily');
 
   useEffect(() => { fetchClasses(); }, []);
 
@@ -148,6 +148,64 @@ export default function AttendanceSection() {
   const [monthStudent, setMonthStudent] = useState<{ id: string; name: string; roll: string } | null>(null);
   const [monthSummary, setMonthSummary] = useState<AttendanceSummary | null>(null);
 
+  // Range Report state
+  const [rangeFrom, setRangeFrom] = useState(() => {
+    const d = new Date(); d.setDate(1); return d.toISOString().split('T')[0];
+  });
+  const [rangeTo, setRangeTo] = useState(() => {
+    const d = new Date(); return d.toISOString().split('T')[0];
+  });
+  const [rangeTerm, setRangeTerm] = useState('1');
+  const [rangeReport, setRangeReport] = useState<ClassAttendanceReport | null>(null);
+  const [rangeLoading, setRangeLoading] = useState(false);
+  const [rangeError, setRangeError] = useState('');
+
+  const loadRangeReport = useCallback(async () => {
+    if (!classId || !rangeFrom || !rangeTo) return;
+    setRangeLoading(true);
+    setRangeError('');
+    try {
+      const res = await api.get('/attendance/class-report/', {
+        params: { class_id: classId, from: rangeFrom, to: rangeTo, term: rangeTerm, session },
+      });
+      setRangeReport(res.data);
+    } catch (e: any) {
+      const msg = e.response?.data?.error || 'Failed to load report';
+      setRangeError(msg);
+      setRangeReport(null);
+    }
+    setRangeLoading(false);
+  }, [classId, rangeFrom, rangeTo, rangeTerm, session]);
+
+  const exportRangeCSV = () => {
+    if (!rangeReport) return;
+    const rows: string[] = [];
+    const header = ['Student', 'Roll', ...rangeReport.dates, 'Present', 'Absent', 'Late', 'Excused', 'Percentage'];
+    rows.push(header.map(c => `"${c}"`).join(','));
+
+    for (const s of rangeReport.students) {
+      const sum = rangeReport.summary[s.id];
+      const dateCells = rangeReport.dates.map(d => {
+        const st = rangeReport.grid[s.id]?.[d] || '';
+        return `"${st}"`;
+      });
+      const row = [
+        `"${s.name}"`, `"${s.roll || ''}""`,
+        ...dateCells,
+        sum.present, sum.absent, sum.late, sum.excused, `${sum.pct}%`,
+      ];
+      rows.push(row.join(','));
+    }
+
+    const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `attendance_${rangeReport.class.name}_${rangeFrom}_${rangeTo}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const fetchMonthData = useCallback(async () => {
     if (!classId) return;
     const sid = monthStudent?.id;
@@ -212,6 +270,14 @@ export default function AttendanceSection() {
           }`}
         >
           Monthly View
+        </button>
+        <button
+          onClick={() => setTab('range')}
+          className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-colors ${
+            tab === 'range' ? 'bg-white dark:bg-school-primary shadow-sm text-school-primary dark:text-white' : 'text-school-muted'
+          }`}
+        >
+          Range Report
         </button>
       </div>
 
@@ -334,7 +400,7 @@ export default function AttendanceSection() {
             </button>
           )}
         </>
-      ) : (
+      ) : tab === 'monthly' ? (
         <>
           {/* Monthly View */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -499,6 +565,117 @@ export default function AttendanceSection() {
             <div className="text-center py-12 text-school-muted text-sm">
               {classId ? 'Search and select a student to view monthly attendance' : 'Select a class to begin'}
             </div>
+          )}
+        </>
+      ) : (
+        <>
+          {/* Range Report */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+            <select
+              value={classId}
+              onChange={(e) => setClassId(e.target.value)}
+              className="w-full px-3 py-2 border border-school-border rounded-xl text-sm focus:outline-none focus:border-school-accent bg-white dark:bg-[#1a1a2e] text-school-primary dark:text-[#e0e0e8] col-span-2 sm:col-span-1"
+            >
+              <option value="">Select Class</option>
+              {classes.map((c: SchoolClass) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+            <input
+              type="date"
+              value={rangeFrom}
+              onChange={(e) => setRangeFrom(e.target.value)}
+              className="w-full px-3 py-2 border border-school-border rounded-xl text-sm focus:outline-none focus:border-school-accent bg-white dark:bg-[#1a1a2e] text-school-primary dark:text-[#e0e0e8]"
+            />
+            <input
+              type="date"
+              value={rangeTo}
+              onChange={(e) => setRangeTo(e.target.value)}
+              className="w-full px-3 py-2 border border-school-border rounded-xl text-sm focus:outline-none focus:border-school-accent bg-white dark:bg-[#1a1a2e] text-school-primary dark:text-[#e0e0e8]"
+            />
+            <select value={rangeTerm} onChange={(e) => setRangeTerm(e.target.value)} className="w-full px-3 py-2 border border-school-border rounded-xl text-sm focus:outline-none focus:border-school-accent bg-white dark:bg-[#1a1a2e] text-school-primary dark:text-[#e0e0e8]">
+              {Object.entries(TERM_NAMES).map(([k, v]) => (
+                <option key={k} value={k}>{v}</option>
+              ))}
+            </select>
+            <button
+              onClick={loadRangeReport}
+              disabled={!classId || !rangeFrom || !rangeTo || rangeLoading}
+              className="w-full px-3 py-2 bg-school-accent text-white rounded-xl text-sm font-bold hover:bg-school-accent/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+            >
+              {rangeLoading ? <Loader2 size={16} className="animate-spin" /> : <CalendarCheck size={16} />}
+              {rangeLoading ? 'Loading...' : 'Load Report'}
+            </button>
+          </div>
+
+          {rangeError && (
+            <div className="text-center py-4 text-red-500 text-sm">{rangeError}</div>
+          )}
+
+          {rangeReport && (
+            <>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-school-muted">
+                  {rangeReport.students.length} students · {rangeReport.dates.length} days
+                </span>
+                <button
+                  onClick={exportRangeCSV}
+                  className="px-3 py-1.5 border border-school-border rounded-xl text-xs font-semibold text-school-primary dark:text-[#e0e0e8] hover:bg-school-paper dark:hover:bg-white/5 transition-colors flex items-center gap-1.5"
+                >
+                  <Download size={14} /> CSV
+                </button>
+              </div>
+              <div className="overflow-x-auto rounded-2xl border border-school-border dark:border-[#2a2a3e]">
+                <table className="w-full text-xs whitespace-nowrap">
+                  <thead>
+                    <tr className="bg-school-paper dark:bg-[#2a2a3e]">
+                      <th className="sticky left-0 z-10 bg-school-paper dark:bg-[#2a2a3e] px-3 py-2 text-left font-bold text-school-muted uppercase tracking-wider min-w-[160px]">Student</th>
+                      <th className="sticky left-[160px] z-10 bg-school-paper dark:bg-[#2a2a3e] px-3 py-2 text-center font-bold text-school-muted uppercase tracking-wider min-w-[44px]">Roll</th>
+                      {rangeReport.dates.map((d) => (
+                        <th key={d} className="px-2 py-2 text-center font-semibold text-school-muted min-w-[36px]">
+                          {new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                        </th>
+                      ))}
+                      <th className="px-2 py-2 text-center font-bold text-green-700 dark:text-green-400 min-w-[28px]">✓</th>
+                      <th className="px-2 py-2 text-center font-bold text-red-700 dark:text-red-400 min-w-[28px]">✗</th>
+                      <th className="px-2 py-2 text-center font-bold text-amber-700 dark:text-amber-400 min-w-[28px]">⏰</th>
+                      <th className="px-2 py-2 text-center font-bold text-blue-700 dark:text-blue-400 min-w-[28px]">ℹ</th>
+                      <th className="px-2 py-2 text-center font-bold text-school-muted min-w-[44px]">%</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rangeReport.students.map((s) => {
+                      const sum = rangeReport.summary[s.id];
+                      return (
+                        <tr key={s.id} className="border-t border-school-border/50 dark:border-[#2a2a3e] hover:bg-school-paper/50 dark:hover:bg-white/5">
+                          <td className="sticky left-0 z-10 bg-white dark:bg-[#1a1a2e] px-3 py-1.5 font-semibold text-school-primary dark:text-[#e0e0e8] truncate max-w-[160px]">{s.name}</td>
+                          <td className="sticky left-[160px] z-10 bg-white dark:bg-[#1a1a2e] px-3 py-1.5 text-center text-school-muted">{s.roll || '—'}</td>
+                          {rangeReport.dates.map((d) => {
+                            const status = rangeReport.grid[s.id]?.[d];
+                            const cellClass = !status ? 'bg-school-border/10'
+                              : status === 'present' ? 'bg-green-100 dark:bg-green-500/20'
+                              : status === 'absent' ? 'bg-red-100 dark:bg-red-500/20'
+                              : status === 'late' ? 'bg-amber-100 dark:bg-amber-500/20'
+                              : 'bg-blue-100 dark:bg-blue-500/20';
+                            const tip = status ? `${s.name} - ${d}: ${status}` : `${s.name} - ${d}: —`;
+                            return (
+                              <td key={d} className={`px-2 py-1.5 text-center ${cellClass}`} title={tip}>
+                                {!status ? '—' : status === 'present' ? '✓' : status === 'absent' ? '✗' : status === 'late' ? '⏰' : 'ℹ'}
+                              </td>
+                            );
+                          })}
+                          <td className="px-2 py-1.5 text-center font-bold text-green-700 dark:text-green-400">{sum.present}</td>
+                          <td className="px-2 py-1.5 text-center font-bold text-red-700 dark:text-red-400">{sum.absent}</td>
+                          <td className="px-2 py-1.5 text-center font-bold text-amber-700 dark:text-amber-400">{sum.late}</td>
+                          <td className="px-2 py-1.5 text-center font-bold text-blue-700 dark:text-blue-400">{sum.excused}</td>
+                          <td className="px-2 py-1.5 text-center font-bold text-school-primary dark:text-[#e0e0e8]">{sum.pct}%</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </>
       )}

@@ -361,6 +361,15 @@ export interface AttendanceSummary {
   unmarked: number;
 }
 
+export interface ClassAttendanceReport {
+  class: { id: string; name: string };
+  students: { id: string; name: string; roll: string }[];
+  dates: string[];
+  grid: Record<string, Record<string, 'present' | 'absent' | 'late' | 'excused'>>;
+  summary: Record<string, { present: number; absent: number; late: number; excused: number; total: number; pct: number }>;
+  date_summary: Record<string, { present: number; absent: number; late: number; excused: number }>;
+}
+
 export interface Holiday {
   id: string;
   date: string;

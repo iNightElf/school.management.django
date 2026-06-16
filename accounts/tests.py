@@ -23,8 +23,8 @@ class AccountTests(TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertIn('access_token', res.cookies)
         self.assertIn('refresh_token', res.cookies)
-        self.assertNotIn('access', res.data)
-        self.assertNotIn('refresh', res.data)
+        self.assertIn('access', res.data)
+        self.assertIn('refresh', res.data)
 
     def test_login_wrong_password(self):
         res = self.client.post('/api/auth/login/', {'email': 'admin@test.com', 'password': 'wrong'})

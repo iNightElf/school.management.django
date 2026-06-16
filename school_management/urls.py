@@ -1,7 +1,8 @@
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import path, include, re_path
 from django.http import JsonResponse, HttpResponseRedirect
 from django.db import connections
+from django.views.generic import TemplateView
 from rest_framework import generics, permissions
 import logging
 
@@ -49,4 +50,12 @@ urlpatterns = [
     path('api/finance/', include('finance.urls')),
     path('api/engagement/', include('engagement.urls')),
     path('api/', include('attendance.urls')),
+    path('api/m/', include('teachers.urls_mobile')),
+    path('m/', TemplateView.as_view(template_name='mobile/index.html'), name='mobile-home'),
+    path('m/manifest.json',
+         TemplateView.as_view(template_name='mobile/manifest.json', content_type='application/manifest+json'),
+         name='mobile-manifest'),
+    path('m/sw.js',
+         TemplateView.as_view(template_name='mobile/sw.js', content_type='application/javascript'),
+         name='mobile-sw'),
 ]
