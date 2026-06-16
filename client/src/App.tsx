@@ -40,6 +40,7 @@ const App: React.FC = () => {
           <Route path="/verify-email" element={<VerifyEmail />} />
           <Route path="/users" element={user?.role === 'admin' ? <UserManagement /> : <Navigate to="/" />} />
           <Route path="/audit" element={user?.role === 'admin' ? <AuditLogs /> : <Navigate to="/" />} />
+          <Route path="/m" element={user ? <Dashboard /> : <Navigate to="/login" />} />
           <Route path="/" element={user ? <Dashboard /> : <Navigate to="/login" />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
