@@ -2,7 +2,7 @@
   "name": "AL RAWA English School",
   "short_name": "AL RAWA",
   "description": "School Management System for AL RAWA English School",
-  "start_url": "./index.html",
+  "start_url": "./index.html#/?mode=attendance",
   "display": "standalone",
   "background_color": "#1a1a2e",
   "theme_color": "#1a1a2e",
