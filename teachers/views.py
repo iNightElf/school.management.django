@@ -7,6 +7,7 @@ from .serializers import (
     AssignClassTeacherSerializer, RemoveClassTeacherSerializer,
     AssignSubjectSerializer, RemoveSubjectSerializer,
 )
+from django.contrib.auth.hashers import make_password
 from accounts.permissions import require_permission, require_photo_access
 from core.mixins import PhotoHandleMixin
 from core.audit import log_audit
@@ -135,3 +136,19 @@ class TeacherViewSet(PhotoHandleMixin, viewsets.ModelViewSet):
                   details={'subject_id': serializer.validated_data['subjectId'],
                            'class_id': serializer.validated_data['classId']}, request=request)
         return Response({'status': 'ok'})
+
+    @action(detail=True, methods=['post'])
+    def set_pin(self, request, pk=None):
+        teacher = self.get_object()
+        pin = request.data.get('pin')
+
+        if not pin or not isinstance(pin, str) or not pin.isdigit() or len(pin) != 6:
+            return Response({'error': 'PIN must be exactly 6 digits'}, status=400)
+
+        teacher.pin = make_password(pin)
+        teacher.save(update_fields=['pin'])
+
+        log_audit('set_teacher_pin', 'teacher', entity_id=str(teacher.pk),
+                  details={'teacher_name': teacher.name}, request=request)
+
+        return Response({'status': 'ok', 'message': 'PIN set successfully'})

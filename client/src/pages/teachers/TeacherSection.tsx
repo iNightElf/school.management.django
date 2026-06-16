@@ -5,7 +5,7 @@ import { toast } from '../../components/Toast';
 import CameraModal from '../../components/CameraModal';
 import ImportModal from '../../components/ImportModal';
 import { CardSkeleton } from '../../components/Skeleton';
-import { RefreshCw, Mail, Download, Upload, Camera, Pencil, Trash2, Check, GraduationCap, BookOpen, Users, X, Plus } from 'lucide-react';
+import { RefreshCw, Mail, Download, Upload, Camera, Pencil, Trash2, Check, GraduationCap, BookOpen, Users, X, Plus, Lock } from 'lucide-react';
 import { contactLinks } from '../../lib/contacts';
 import DeleteConfirmModal from '../../components/DeleteConfirmModal';
 import { API_URL } from '../../lib/config';
@@ -186,6 +186,7 @@ export default function TeacherSection() {
         <div className="flex gap-2 mt-3 pt-3 border-t border-school-border">
           <button onClick={() => handleEdit(t)} className="flex-1 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-medium hover:bg-blue-100 flex items-center justify-center gap-1"><Pencil size={14} /> Edit</button>
           <button onClick={() => setAssignmentTeacherId(t.id)} className="flex-1 py-1.5 bg-purple-50 text-purple-600 rounded-lg text-xs font-medium hover:bg-purple-100 flex items-center justify-center gap-1"><BookOpen size={14} /> Assign</button>
+          <button onClick={() => { setPinTeacherId(t.id); setPinValue(''); }} className="flex-1 py-1.5 bg-amber-50 text-amber-600 rounded-lg text-xs font-medium hover:bg-amber-100 flex items-center justify-center gap-1"><Lock size={14} /> PIN</button>
           <button onClick={() => setDeleteId(t.id)} className="flex-1 py-1.5 bg-red-50 text-red-500 rounded-lg text-xs font-medium hover:bg-red-100 flex items-center justify-center gap-1"><Trash2 size={14} /></button>
         </div>
       )}
@@ -194,6 +195,25 @@ export default function TeacherSection() {
 
   const [assignmentTeacherId, setAssignmentTeacherId] = useState<string | null>(null);
   const assignmentTeacher = assignmentTeacherId ? teachers.find((t: any) => t.id === assignmentTeacherId) : null;
+
+  const [pinTeacherId, setPinTeacherId] = useState<string | null>(null);
+  const [pinValue, setPinValue] = useState('');
+  const [pinSubmitting, setPinSubmitting] = useState(false);
+  const pinTeacher = pinTeacherId ? teachers.find((t: any) => t.id === pinTeacherId) : null;
+
+  const handleSetPin = async () => {
+    if (!pinTeacherId || pinValue.length !== 6 || !/^\d{6}$/.test(pinValue)) return toast('Enter a 6-digit PIN', 'error');
+    setPinSubmitting(true);
+    try {
+      await api.post(`/teachers/${pinTeacherId}/set_pin/`, { pin: pinValue });
+      toast('PIN set successfully', 'success');
+      setPinTeacherId(null);
+      setPinValue('');
+      setPinShowSet(false);
+    } catch (e: any) {
+      toast(e.response?.data?.error || e.message || 'Error', 'error');
+    } finally { setPinSubmitting(false); }
+  };
 
   return (
     <div className="space-y-4">
@@ -299,6 +319,37 @@ export default function TeacherSection() {
         </div>
       )}
       <DeleteConfirmModal open={!!deleteId} title="Delete Teacher" message="This will permanently delete this teacher." onConfirm={confirmDelete} onCancel={() => setDeleteId(null)} loading={deleteLoading} />
+
+      {/* Set PIN Modal */}
+      {pinTeacher && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => { setPinTeacherId(null); setPinValue(''); }}>
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl p-6" onClick={e => e.stopPropagation()}>
+            <div className="text-center mb-4">
+              <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-3"><Lock size={24} className="text-amber-600" /></div>
+              <h3 className="font-bold text-school-primary">Set Mobile PIN</h3>
+              <p className="text-xs text-school-muted mt-1">{pinTeacher.name}</p>
+            </div>
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={6}
+              value={pinValue}
+              onChange={e => setPinValue(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              placeholder="Enter 6-digit PIN"
+              className="w-full px-4 py-3 border-2 border-school-border rounded-xl text-center text-2xl tracking-[0.5em] font-mono focus:outline-none focus:border-amber-500"
+              autoFocus
+              onKeyDown={e => { if (e.key === 'Enter') handleSetPin(); }}
+            />
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => { setPinTeacherId(null); setPinValue(''); }} className="flex-1 py-2.5 border border-school-border rounded-xl text-sm font-medium">Cancel</button>
+              <button onClick={handleSetPin} disabled={pinSubmitting || pinValue.length !== 6} className="flex-1 py-2.5 bg-amber-600 text-white rounded-xl text-sm font-bold disabled:opacity-50 flex items-center justify-center gap-1">
+                {pinSubmitting ? 'Saving...' : <><Lock size={14} /> Set PIN</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
