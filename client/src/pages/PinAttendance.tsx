@@ -24,15 +24,19 @@ function todayStr() {
 async function apiGet(path: string, token: string, params?: Record<string, string>) {
   const url = new URL(`${API_BASE}${path}`);
   if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-  const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` } });
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(url.toString(), { headers });
   if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`);
   return res.json();
 }
 
 async function apiPost(path: string, token: string, body: unknown) {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
   const res = await fetch(`${API_BASE}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    headers,
     body: JSON.stringify(body),
   });
   if (!res.ok) {
