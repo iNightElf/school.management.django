@@ -1,17 +1,22 @@
-const CACHE = 'alrawa-v1';
+const CACHE = 'alrawa-v3';
+const PRECACHE_URLS = ['./', 'manifest.json'];
+
 self.addEventListener('install', (e) => {
-  e.waitUntil(
-    caches.open(CACHE).then((c) =>
-      c.addAll(['./', 'manifest.json']).catch(() => self.skipWaiting())
-    )
-  );
   self.skipWaiting();
+  e.waitUntil(
+    caches.open(CACHE).then((c) => c.addAll(PRECACHE_URLS).catch(() => {}))
+  );
 });
+
 self.addEventListener('activate', (e) => {
-  e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))));
-  self.clients.claim();
+  e.waitUntil(
+    Promise.all([
+      caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))),
+      self.clients.claim(),
+    ])
+  );
 });
-self.addEventListener('message', () => {});
+
 self.addEventListener('fetch', (e) => {
   if (e.request.url.includes('/api/')) return;
   e.respondWith(
