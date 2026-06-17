@@ -116,7 +116,7 @@ export default function PinAttendance() {
     for (let i = queue.length - 1; i >= 0; i--) {
       const item = queue[i];
       try {
-        await apiPost('/attendance/batch/', t, {
+        await apiPost('/m/attendance/batch/', t, {
           school_class: item.school_class, date: item.date, term: item.term, session: item.session, records: item.records,
         });
         queue.splice(i, 1);
@@ -137,7 +137,10 @@ export default function PinAttendance() {
     (async () => {
       try {
         const data: any = await (await fetch(`${API_BASE}/m/teachers/`)).json();
-        setTeachers((data.results || data).map((t: any) => ({ id: t.id, name: t.name })));
+        const list = data.teachers || data.results || data;
+        if (Array.isArray(list)) {
+          setTeachers(list.map((t: any) => ({ id: t.id, name: t.name })));
+        }
       } catch { /* offline */ }
     })();
   }, []);
@@ -156,9 +159,10 @@ export default function PinAttendance() {
     setPinError('');
     try {
       const data: any = await apiPost('/m/auth/pin/', '', { teacher_id: selectedTeacher.id, pin });
-      setToken(data.access);
+      const jwt = data.access || data.token;
+      setToken(jwt);
       setClasses((data.classes || []).map((c: any) => ({ id: c.id, name: c.name })));
-      localStorage.setItem(LS_TOKEN_KEY, data.access);
+      localStorage.setItem(LS_TOKEN_KEY, jwt);
       localStorage.setItem(LS_TEACHER_KEY, JSON.stringify(selectedTeacher));
       setScreen('classes');
     } catch (e: any) {
@@ -192,7 +196,8 @@ export default function PinAttendance() {
     setLoading(true);
     apiGet('/m/students/', token, { class_id: classId })
       .then((data: any) => {
-        const list = (data.results || data).map((s: any) => ({
+        const raw = data.students || data.results || data;
+        const list = (Array.isArray(raw) ? raw : []).map((s: any) => ({
           id: s.id, name: s.name, roll: s.roll || '',
         }));
         list.sort((a: any, b: any) => String(a.roll || '').localeCompare(String(b.roll || ''), undefined, { numeric: true }));
@@ -202,13 +207,13 @@ export default function PinAttendance() {
       .finally(() => { setLoading(false); loadingStudentsRef.current = false; });
   }, [classId, token]);
 
-  // Load existing attendance
+  // Load existing attendance (via mobile endpoint)
   useEffect(() => {
     if (!classId || !date || !token || tab !== 'daily') return;
     (async () => {
       try {
-        const data: any = await apiGet('/attendance/', token, { class_id: classId, date });
-        const list = data.results || data;
+        const data: any = await apiGet('/m/attendance/', token, { class_id: classId, date });
+        const list = Array.isArray(data) ? data : data.results || data;
         if (list.length > 0) {
           const map: Record<string, StatusType> = {};
           for (const r of list) map[r.student] = r.status;
@@ -256,7 +261,7 @@ export default function PinAttendance() {
     }
 
     try {
-      await apiPost('/attendance/batch/', token, payload);
+      await apiPost('/m/attendance/batch/', token, payload);
       setSaving(false);
     } catch {
       // Queue for offline retry
@@ -273,7 +278,7 @@ export default function PinAttendance() {
     setRangeLoading(true);
     setRangeError('');
     try {
-      const data: any = await apiGet('/attendance/class-report/', token, {
+      const data: any = await apiGet('/m/attendance/class-report/', token, {
         class_id: classId, from: rangeFrom, to: rangeTo, term: rangeTerm, session,
       });
       setRangeReport(data as ClassAttendanceReport);
