@@ -3,6 +3,8 @@ import { API_URL } from '../lib/config';
 import type { ClassAttendanceReport } from '../lib/types';
 import { TERM_NAMES } from '../lib/config';
 
+declare function toast(msg: string, type?: 'success' | 'error' | 'info' | 'warning'): void;
+
 const API_BASE = API_URL.replace(/\/+$/, '');
 const LS_QUEUE_KEY = 'pin_attendance_queue';
 const LS_TOKEN_KEY = 'pin_auth_token';
@@ -73,8 +75,8 @@ export default function PinAttendance() {
   const [records, setRecords] = useState<Record<string, StatusType>>({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [syncCount, setSyncCount] = useState(0);
   const [offline, setOffline] = useState(!navigator.onLine);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [tab, setTab] = useState<'daily' | 'range'>('daily');
   const loadingStudentsRef = useRef(false);
 
@@ -127,7 +129,7 @@ export default function PinAttendance() {
       } catch { /* keep for retry */ }
     }
     saveQueue(queue);
-    setSyncCount((c) => c + 1);
+    setRefreshKey((k) => k + 1);
   }, []);
 
   useEffect(() => {
@@ -207,7 +209,7 @@ export default function PinAttendance() {
         list.sort((a: any, b: any) => String(a.roll || '').localeCompare(String(b.roll || ''), undefined, { numeric: true }));
         setStudents(list);
       })
-      .catch(() => {})
+      .catch((e) => toast(e.message, 'error'))
       .finally(() => { setLoading(false); loadingStudentsRef.current = false; });
   }, [classId, token]);
 
@@ -227,9 +229,9 @@ export default function PinAttendance() {
         } else {
           setRecords({});
         }
-      } catch { setRecords({}); }
+      } catch (e) { setRecords({}); if (classId) toast((e as any)?.message || 'Failed to load', 'error'); }
     })();
-  }, [classId, date, token, tab]);
+  }, [classId, date, token, tab, refreshKey]);
 
   function cycleStatus(studentId: string) {
     setRecords((prev) => {
@@ -259,7 +261,7 @@ export default function PinAttendance() {
       const queue = loadQueue();
       queue.unshift({ ...payload, timestamp: Date.now() });
       saveQueue(queue);
-      setSyncCount((c) => c + 1);
+      setRefreshKey((k) => k + 1);
       setSaving(false);
       return;
     }
@@ -267,12 +269,13 @@ export default function PinAttendance() {
     try {
       await apiPost('/m/attendance/batch/', token, payload);
       setSaving(false);
+      setRefreshKey((k) => k + 1);
     } catch {
-      // Queue for offline retry
+      toast('Server unavailable — queued for retry', 'info');
       const queue = loadQueue();
       queue.unshift({ ...payload, timestamp: Date.now() });
       saveQueue(queue);
-      setSyncCount((c) => c + 1);
+      setRefreshKey((k) => k + 1);
       setSaving(false);
     }
   }
@@ -496,11 +499,6 @@ export default function PinAttendance() {
               {offline && '· Offline'}
             </div>
           </div>
-          {syncCount > 0 && !offline && (
-            <div className="px-2 py-1 bg-green-100 dark:bg-green-500/20 rounded-lg text-[10px] font-semibold text-green-700 dark:text-green-400">
-              Synced
-            </div>
-          )}
           {offline && (
             <div className="px-2 py-1 bg-amber-100 dark:bg-amber-500/20 rounded-lg text-[10px] font-semibold text-amber-700 dark:text-amber-400">
               Offline
@@ -573,10 +571,13 @@ export default function PinAttendance() {
                   {queueCount} record{queueCount > 1 ? 's' : ''} pending sync
                 </span>
                 {!offline && (
-                  <button onClick={syncQueue} className="ml-auto px-2 py-1 bg-amber-500 text-white text-[10px] font-bold rounded-lg hover:bg-amber-600 transition-colors">
+                  <button onClick={syncQueue} className="px-2 py-1 bg-amber-500 text-white text-[10px] font-bold rounded-lg hover:bg-amber-600 transition-colors">
                     Sync Now
                   </button>
                 )}
+                <button onClick={() => { saveQueue([]); setRefreshKey((k) => k + 1); toast('Queue cleared', 'info'); }} className="px-2 py-1 border border-amber-300 dark:border-amber-500/30 text-amber-700 dark:text-amber-400 text-[10px] font-bold rounded-lg hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors">
+                  Clear
+                </button>
               </div>
             )}
 
