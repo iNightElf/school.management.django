@@ -1,9 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { API_URL } from '../lib/config';
+import Toast, { toast } from '../components/Toast';
+import { API_URL, TERM_NAMES } from '../lib/config';
 import type { ClassAttendanceReport } from '../lib/types';
-import { TERM_NAMES } from '../lib/config';
-
-declare function toast(msg: string, type?: 'success' | 'error' | 'info' | 'warning'): void;
 
 const API_BASE = API_URL.replace(/\/+$/, '');
 const LS_QUEUE_KEY = 'pin_attendance_queue';
@@ -56,8 +54,11 @@ function saveQueue(queue: QueuedRecord[]) {
   localStorage.setItem(LS_QUEUE_KEY, JSON.stringify(queue));
 }
 
+function safeToast(msg: string, type?: 'success' | 'error' | 'info' | '') {
+  try { toast(msg, type); } catch { /* toast component not mounted */ }
+}
+
 export default function PinAttendance() {
-  // Screen: 'teachers' | 'pin' | 'classes' | 'attendance'
   const [screen, setScreen] = useState<'teachers' | 'pin' | 'classes' | 'attendance'>('teachers');
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [teacherSearch, setTeacherSearch] = useState('');
@@ -78,9 +79,7 @@ export default function PinAttendance() {
   const [offline, setOffline] = useState(!navigator.onLine);
   const [refreshKey, setRefreshKey] = useState(0);
   const [tab, setTab] = useState<'daily' | 'range'>('daily');
-  const loadingStudentsRef = useRef(false);
 
-  // Range report state
   const [rangeFrom, setRangeFrom] = useState(() => {
     const d = new Date(); d.setDate(1); return d.toISOString().split('T')[0];
   });
@@ -90,7 +89,8 @@ export default function PinAttendance() {
   const [rangeLoading, setRangeLoading] = useState(false);
   const [rangeError, setRangeError] = useState('');
 
-  // Restore saved session
+  const loadingStudentsRef = useRef(false);
+
   useEffect(() => {
     const savedToken = localStorage.getItem(LS_TOKEN_KEY);
     const savedTeacher = localStorage.getItem(LS_TEACHER_KEY);
@@ -101,7 +101,6 @@ export default function PinAttendance() {
     }
   }, []);
 
-  // Online/offline detection
   useEffect(() => {
     const handler = () => setOffline(!navigator.onLine);
     window.addEventListener('online', handler);
@@ -112,7 +111,6 @@ export default function PinAttendance() {
     };
   }, []);
 
-  // Sync queued records when online
   const syncQueue = useCallback(async () => {
     if (!navigator.onLine) return;
     const queue = loadQueue();
@@ -138,7 +136,6 @@ export default function PinAttendance() {
     return () => clearInterval(interval);
   }, [syncQueue]);
 
-  // Load teachers on mount
   useEffect(() => {
     (async () => {
       try {
@@ -150,6 +147,10 @@ export default function PinAttendance() {
       } catch { /* offline */ }
     })();
   }, []);
+
+  function goToTeacherList() {
+    setScreen('teachers');
+  }
 
   function selectTeacher(t: Teacher) {
     setSelectedTeacher(t);
@@ -189,12 +190,12 @@ export default function PinAttendance() {
     setSelectedTeacher(null);
     setClasses([]);
     setClassId('');
+    setDate(todayStr());
     setStudents([]);
     setRecords({});
     setScreen('teachers');
   }
 
-  // Fetch students when class changes
   useEffect(() => {
     if (!classId || !token) return;
     if (loadingStudentsRef.current) return;
@@ -209,11 +210,10 @@ export default function PinAttendance() {
         list.sort((a: any, b: any) => String(a.roll || '').localeCompare(String(b.roll || ''), undefined, { numeric: true }));
         setStudents(list);
       })
-      .catch((e) => toast(e.message, 'error'))
+      .catch((e) => safeToast(e.message, 'error'))
       .finally(() => { setLoading(false); loadingStudentsRef.current = false; });
   }, [classId, token]);
 
-  // Load existing attendance (via mobile endpoint)
   useEffect(() => {
     if (!classId || !date || !token || tab !== 'daily') return;
     (async () => {
@@ -229,7 +229,10 @@ export default function PinAttendance() {
         } else {
           setRecords({});
         }
-      } catch (e) { setRecords({}); if (classId) toast((e as any)?.message || 'Failed to load', 'error'); }
+      } catch (e) {
+        setRecords({});
+        if (classId) safeToast((e as any)?.message || 'Failed to load attendance', 'error');
+      }
     })();
   }, [classId, date, token, tab, refreshKey]);
 
@@ -257,25 +260,22 @@ export default function PinAttendance() {
     setSaving(true);
     const payload = { school_class: classId, date, term, session, records: markedRecords };
 
-    if (!navigator.onLine) {
-      const queue = loadQueue();
-      queue.unshift({ ...payload, timestamp: Date.now() });
-      saveQueue(queue);
-      setRefreshKey((k) => k + 1);
-      setSaving(false);
-      return;
-    }
-
     try {
+      if (!navigator.onLine) {
+        const queue = loadQueue();
+        queue.unshift({ ...payload, timestamp: Date.now() });
+        saveQueue(queue);
+        return;
+      }
+
       await apiPost('/m/attendance/batch/', token, payload);
-      setSaving(false);
       setRefreshKey((k) => k + 1);
     } catch {
-      toast('Server unavailable — queued for retry', 'info');
+      safeToast('Server unavailable — queued for retry', 'info');
       const queue = loadQueue();
       queue.unshift({ ...payload, timestamp: Date.now() });
       saveQueue(queue);
-      setRefreshKey((k) => k + 1);
+    } finally {
       setSaving(false);
     }
   }
@@ -298,7 +298,6 @@ export default function PinAttendance() {
 
   const markedCount = Object.values(records).filter(s => s !== 'unmarked').length;
   const queueCount = loadQueue().length;
-
   const filteredTeachers = teachers.filter((t) =>
     t.name.toLowerCase().includes(teacherSearch.toLowerCase())
   );
@@ -306,7 +305,6 @@ export default function PinAttendance() {
   if (screen === 'teachers') {
     return (
       <div className="min-h-screen bg-school-paper dark:bg-[#0f0f1a] flex flex-col">
-        {/* Header */}
         <div className="bg-gradient-to-br from-school-primary via-school-secondary to-school-accent2 p-5 pb-8 text-white">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 bg-white/15 rounded-xl flex items-center justify-center">
@@ -320,8 +318,6 @@ export default function PinAttendance() {
           {!offline && <p className="text-xs text-white/50">Select your name to begin</p>}
           {offline && <p className="text-xs text-amber-200">Offline mode — showing cached data</p>}
         </div>
-
-        {/* Search */}
         <div className="px-4 -mt-4 mb-3">
           <input
             type="text"
@@ -331,8 +327,6 @@ export default function PinAttendance() {
             className="w-full px-4 py-2.5 border border-school-border rounded-xl text-sm focus:outline-none focus:border-school-accent bg-white dark:bg-[#1a1a2e] text-school-primary dark:text-[#e0e0e8] shadow-sm"
           />
         </div>
-
-        {/* Teacher List */}
         <div className="flex-1 px-4 pb-4 overflow-y-auto">
           {filteredTeachers.length === 0 ? (
             <div className="text-center py-12 text-school-muted text-sm">
@@ -355,6 +349,7 @@ export default function PinAttendance() {
             </div>
           )}
         </div>
+        <Toast />
       </div>
     );
   }
@@ -364,7 +359,7 @@ export default function PinAttendance() {
       <div className="min-h-screen bg-school-paper dark:bg-[#0f0f1a] flex flex-col">
         <div className="bg-gradient-to-br from-school-primary via-school-secondary to-school-accent2 p-5 pb-8 text-white">
           <div className="flex items-center gap-3 mb-3">
-            <button onClick={() => setScreen('teachers')} className="w-10 h-10 bg-white/15 rounded-xl flex items-center justify-center hover:bg-white/25 transition-colors">
+            <button onClick={goToTeacherList} className="w-10 h-10 bg-white/15 rounded-xl flex items-center justify-center hover:bg-white/25 transition-colors">
               <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
             </button>
             <div>
@@ -373,10 +368,8 @@ export default function PinAttendance() {
             </div>
           </div>
         </div>
-
         <div className="flex-1 flex flex-col items-center justify-center px-6 -mt-4">
           <div className="bg-white dark:bg-[#1a1a2e] rounded-2xl border border-school-border dark:border-[#2a2a3e] p-8 w-full max-w-xs shadow-sm">
-            {/* PIN Dots */}
             <div className="flex justify-center gap-3 mb-6">
               {[0, 1, 2, 3, 4, 5].map((i) => (
                 <div
@@ -389,12 +382,9 @@ export default function PinAttendance() {
                 />
               ))}
             </div>
-
             {pinError && (
               <p className="text-center text-red-500 text-sm mb-4 font-semibold">{pinError}</p>
             )}
-
-            {/* Number Pad */}
             <div className="grid grid-cols-3 gap-3 max-w-[240px] mx-auto">
               {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
                 <button
@@ -419,8 +409,6 @@ export default function PinAttendance() {
                 <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zM18 9l-6 6M12 9l6 6"/></svg>
               </button>
             </div>
-
-            {/* Submit */}
             <button
               onClick={handlePinSubmit}
               disabled={pin.length !== 6 || pinLoading}
@@ -432,6 +420,7 @@ export default function PinAttendance() {
             </button>
           </div>
         </div>
+        <Toast />
       </div>
     );
   }
@@ -453,7 +442,6 @@ export default function PinAttendance() {
             </button>
           </div>
         </div>
-
         <div className="flex-1 px-4 pt-4 pb-4 -mt-4">
           {classes.length === 0 ? (
             <div className="text-center py-12 text-school-muted text-sm">No classes assigned</div>
@@ -477,14 +465,13 @@ export default function PinAttendance() {
             </div>
           )}
         </div>
+        <Toast />
       </div>
     );
   }
 
-  // Attendance screen
   return (
     <div className="min-h-screen bg-school-paper dark:bg-[#0f0f1a] flex flex-col">
-      {/* Top bar */}
       <div className="sticky top-0 z-20 bg-white dark:bg-[#1a1a2e] border-b border-school-border dark:border-[#2a2a3e]">
         <div className="flex items-center gap-3 px-4 py-3">
           <button onClick={() => setScreen('classes')} className="w-9 h-9 rounded-xl bg-school-paper dark:bg-[#2a2a3e] flex items-center justify-center hover:bg-school-border/50 dark:hover:bg-white/10 transition-colors flex-shrink-0">
@@ -505,8 +492,6 @@ export default function PinAttendance() {
             </div>
           )}
         </div>
-
-        {/* Tab bar */}
         <div className="flex px-4 pb-2 gap-1">
           <button
             onClick={() => setTab('daily')}
@@ -530,7 +515,6 @@ export default function PinAttendance() {
       <div className="flex-1 px-4 pt-3 pb-6 overflow-y-auto space-y-3 max-w-xl mx-auto w-full">
         {tab === 'daily' ? (
           <>
-            {/* Controls */}
             <div className="grid grid-cols-3 gap-2">
               <input
                 type="date"
@@ -552,7 +536,6 @@ export default function PinAttendance() {
               placeholder="Session"
             />
 
-            {/* Action Bar */}
             {students.length > 0 && (
               <div className="flex items-center justify-between">
                 <button onClick={markAllPresent} className="px-3 py-1.5 border border-school-border rounded-xl text-xs font-semibold text-school-primary dark:text-[#e0e0e8] hover:bg-school-paper dark:hover:bg-white/5 transition-colors flex items-center gap-1.5">
@@ -563,7 +546,6 @@ export default function PinAttendance() {
               </div>
             )}
 
-            {/* Sync queue status */}
             {queueCount > 0 && (
               <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl px-4 py-2 flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
@@ -575,13 +557,12 @@ export default function PinAttendance() {
                     Sync Now
                   </button>
                 )}
-                <button onClick={() => { saveQueue([]); setRefreshKey((k) => k + 1); toast('Queue cleared', 'info'); }} className="px-2 py-1 border border-amber-300 dark:border-amber-500/30 text-amber-700 dark:text-amber-400 text-[10px] font-bold rounded-lg hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors">
+                <button onClick={() => { saveQueue([]); setRefreshKey((k) => k + 1); safeToast('Queue cleared', 'info'); }} className="px-2 py-1 border border-amber-300 dark:border-amber-500/30 text-amber-700 dark:text-amber-400 text-[10px] font-bold rounded-lg hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors">
                   Clear
                 </button>
               </div>
             )}
 
-            {/* Student grid */}
             {loading ? (
               <div className="flex justify-center py-12">
                 <div className="w-7 h-7 border-3 border-school-primary/20 border-t-school-primary rounded-full animate-spin" />
@@ -605,7 +586,6 @@ export default function PinAttendance() {
                     : status === 'late' ? 'text-amber-600'
                     : status === 'excused' ? 'text-blue-600'
                     : 'text-school-muted';
-
                   return (
                     <button
                       key={s.id}
@@ -630,7 +610,6 @@ export default function PinAttendance() {
               </div>
             )}
 
-            {/* Save Button */}
             {students.length > 0 && (
               <button
                 onClick={handleSave}
@@ -648,7 +627,6 @@ export default function PinAttendance() {
           </>
         ) : (
           <>
-            {/* Range Report */}
             <div className="grid grid-cols-2 gap-2">
               <input
                 type="date"
@@ -748,6 +726,7 @@ export default function PinAttendance() {
           </>
         )}
       </div>
+      <Toast />
     </div>
   );
 }
