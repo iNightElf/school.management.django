@@ -94,9 +94,15 @@ export default function PinAttendance() {
   useEffect(() => {
     const savedToken = localStorage.getItem(LS_TOKEN_KEY);
     const savedTeacher = localStorage.getItem(LS_TEACHER_KEY);
+    const savedClasses = localStorage.getItem('pin_classes');
     if (savedToken && savedTeacher) {
       setToken(savedToken);
       setSelectedTeacher(JSON.parse(savedTeacher));
+      if (savedClasses) {
+        try {
+          setClasses(JSON.parse(savedClasses));
+        } catch { /* ignore */ }
+      }
       setScreen('classes');
     }
   }, []);
@@ -142,9 +148,18 @@ export default function PinAttendance() {
         const data: any = await (await fetch(`${API_BASE}/m/teachers/`)).json();
         const list = data.teachers || data.results || data;
         if (Array.isArray(list)) {
-          setTeachers(list.map((t: any) => ({ id: t.id, name: t.name })));
+          const mapped = list.map((t: any) => ({ id: t.id, name: t.name }));
+          setTeachers(mapped);
+          localStorage.setItem('pin_teachers', JSON.stringify(mapped));
         }
-      } catch { /* offline */ }
+      } catch {
+        const cached = localStorage.getItem('pin_teachers');
+        if (cached) {
+          try {
+            setTeachers(JSON.parse(cached));
+          } catch { /* ignore */ }
+        }
+      }
     })();
   }, []);
 
@@ -168,9 +183,11 @@ export default function PinAttendance() {
       const data: any = await apiPost('/m/auth/pin/', '', { teacher_id: selectedTeacher.id, pin });
       const jwt = data.access || data.token;
       setToken(jwt);
-      setClasses((data.classes || []).map((c: any) => ({ id: c.id, name: c.name })));
+      const mappedClasses = (data.classes || []).map((c: any) => ({ id: c.id, name: c.name }));
+      setClasses(mappedClasses);
       localStorage.setItem(LS_TOKEN_KEY, jwt);
       localStorage.setItem(LS_TEACHER_KEY, JSON.stringify(selectedTeacher));
+      localStorage.setItem('pin_classes', JSON.stringify(mappedClasses));
       setScreen('classes');
     } catch (e: any) {
       setPinError(e.message || 'Invalid PIN');
@@ -186,6 +203,7 @@ export default function PinAttendance() {
   function logout() {
     localStorage.removeItem(LS_TOKEN_KEY);
     localStorage.removeItem(LS_TEACHER_KEY);
+    localStorage.removeItem('pin_classes');
     setToken('');
     setSelectedTeacher(null);
     setClasses([]);
@@ -209,8 +227,21 @@ export default function PinAttendance() {
         }));
         list.sort((a: any, b: any) => String(a.roll || '').localeCompare(String(b.roll || ''), undefined, { numeric: true }));
         setStudents(list);
+        localStorage.setItem(`pin_students_${classId}`, JSON.stringify(list));
       })
-      .catch((e) => safeToast(e.message, 'error'))
+      .catch((e) => {
+        const cached = localStorage.getItem(`pin_students_${classId}`);
+        if (cached) {
+          try {
+            setStudents(JSON.parse(cached));
+            safeToast('Loaded students from cache (offline)', 'info');
+          } catch {
+            safeToast(e.message, 'error');
+          }
+        } else {
+          safeToast(e.message, 'error');
+        }
+      })
       .finally(() => { setLoading(false); loadingStudentsRef.current = false; });
   }, [classId, token]);
 
@@ -226,12 +257,36 @@ export default function PinAttendance() {
           setRecords(map);
           if (list[0].term) setTerm(list[0].term);
           if (list[0].session) setSession(list[0].session);
+          localStorage.setItem(`pin_attendance_${classId}_${date}`, JSON.stringify({
+            records: map,
+            term: list[0].term || '1',
+            session: list[0].session || String(new Date().getFullYear())
+          }));
         } else {
           setRecords({});
+          localStorage.setItem(`pin_attendance_${classId}_${date}`, JSON.stringify({
+            records: {},
+            term: '1',
+            session: String(new Date().getFullYear())
+          }));
         }
       } catch (e) {
-        setRecords({});
-        if (classId) safeToast((e as any)?.message || 'Failed to load attendance', 'error');
+        const cached = localStorage.getItem(`pin_attendance_${classId}_${date}`);
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            setRecords(parsed.records || {});
+            if (parsed.term) setTerm(parsed.term);
+            if (parsed.session) setSession(parsed.session);
+            safeToast('Loaded existing attendance from cache (offline)', 'info');
+          } catch {
+            setRecords({});
+            safeToast((e as any)?.message || 'Failed to load attendance', 'error');
+          }
+        } else {
+          setRecords({});
+          if (classId) safeToast((e as any)?.message || 'Failed to load attendance', 'error');
+        }
       }
     })();
   }, [classId, date, token, tab, refreshKey]);

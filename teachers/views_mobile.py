@@ -18,8 +18,14 @@ logger = logging.getLogger(__name__)
 WEEKEND_DAYS_DEFAULT = '4,5'
 
 
+from datetime import timedelta
+
+class PinAccessToken(AccessToken):
+    lifetime = timedelta(hours=24)
+
+
 def _make_pin_token(teacher):
-    token = AccessToken()
+    token = PinAccessToken()
     token['teacher_id'] = str(teacher.id)
     token['teacher_name'] = teacher.name
     token['pin_auth'] = True
@@ -209,13 +215,19 @@ def mobile_batch_attendance(request):
         return Response({'error': 'Authentication required'}, status=401)
 
     class_id = request.data.get('school_class')
-    att_date = request.data.get('date')
+    date_str = request.data.get('date')
     term = request.data.get('term')
     session_data = request.data.get('session')
     records = request.data.get('records')
 
-    if not class_id or not att_date or not records:
+    if not class_id or not date_str or not records:
         return Response({'error': 'school_class, date, and records are required'}, status=400)
+
+    from datetime import datetime
+    try:
+        att_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except (ValueError, TypeError):
+        return Response({'error': 'Invalid date format (YYYY-MM-DD)'}, status=400)
 
     if not isinstance(records, dict) or len(records) == 0:
         return Response({'error': 'records must be a non-empty object'}, status=400)

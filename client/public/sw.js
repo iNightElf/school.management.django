@@ -18,8 +18,26 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
-  if (e.request.url.includes('/api/')) return;
+  if (e.request.method !== 'GET' || e.request.url.includes('/api/')) return;
+  if (!e.request.url.startsWith('http')) return;
+
   e.respondWith(
-    caches.match(e.request).then((r) => r || fetch(e.request).catch(() => new Response('', { status: 503 })))
+    caches.match(e.request).then((cachedResponse) => {
+      if (cachedResponse) {
+        return cachedResponse;
+      }
+      return fetch(e.request).then((response) => {
+        if (!response || response.status !== 200) {
+          return response;
+        }
+        const responseToCache = response.clone();
+        caches.open(CACHE).then((cache) => {
+          cache.put(e.request, responseToCache);
+        });
+        return response;
+      }).catch(() => {
+        return new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain' } });
+      });
+    })
   );
 });

@@ -1,0 +1,12 @@
+#!/bin/bash
+set -e
+GIT_DIR=/home/ares/school.management.django.git
+GIT_WORK_TREE=/home/ares/school.management.django
+export GIT_DIR GIT_WORK_TREE
+git checkout -f main
+cd /home/ares/school.management.django
+rm -rf client .git
+/usr/alwaysdata/python/3.12/bin/pip install --no-cache-dir -r requirements-production.txt --quiet 2>&1
+/usr/alwaysdata/python/3.12/bin/python manage.py migrate --noinput 2>&1
+/usr/alwaysdata/python/3.12/bin/python manage.py collectstatic --noinput 2>&1
+cp /home/ares/school.management.django/school_management/wsgi.py /home/ares/school_management.wsgi

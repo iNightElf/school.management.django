@@ -1,0 +1,4 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - heading "Attendance" [level=1] [ref=e3]
+  - textbox "Search teachers..." [ref=e6]

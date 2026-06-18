@@ -24,6 +24,17 @@ const App: React.FC = () => {
   const { user, loading, fetchSession } = useAuthStore();
 
   useEffect(() => {
+    const isPWA = window.location.search.includes('pwa=true') || 
+                  window.location.search.includes('mode=pwa') || 
+                  window.matchMedia('(display-mode: standalone)').matches || 
+                  (navigator as any).standalone;
+    const currentHash = window.location.hash;
+    if (isPWA && (currentHash === '' || currentHash === '#/' || currentHash === '#/login')) {
+      window.location.hash = '#/pin-attendance';
+    }
+  }, []);
+
+  useEffect(() => {
     fetchSession();
   }, [fetchSession]);
 
