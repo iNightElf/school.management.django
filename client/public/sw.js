@@ -1,4 +1,4 @@
-const CACHE = 'alrawa-v3';
+const CACHE = 'alrawa-v4';
 const PRECACHE_URLS = ['./', 'manifest.json'];
 
 self.addEventListener('install', (e) => {

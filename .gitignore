@@ -39,3 +39,7 @@ school-system-temp/
 
 # Documentation
 PRIVATE_APP_INFO.md
+
+# Tooling artifacts
+.playwright-mcp/
+.commandcode/
