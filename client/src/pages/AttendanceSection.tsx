@@ -405,15 +405,13 @@ export default function AttendanceSection() {
 
         {/* Report section */}
         <>
-          <div className="flex bg-school-border/30 dark:bg-[#2a2a3e]/50 rounded-xl p-1">
-            <button onClick={function () { setRptTab('daily'); }}
-              className={'flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors ' + (rptTab === 'daily' ? 'bg-white dark:bg-school-primary shadow-sm text-school-primary dark:text-white' : 'text-school-muted')}>
-              Daily Report
-            </button>
-            <button onClick={function () { setRptTab('monthly'); }}
-              className={'flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors ' + (rptTab === 'monthly' ? 'bg-white dark:bg-school-primary shadow-sm text-school-primary dark:text-white' : 'text-school-muted')}>
-              Monthly Report
-            </button>
+          <div className="flex items-center gap-2">
+            <FileText size={16} className="text-school-muted shrink-0" />
+            <select value={rptTab} onChange={function (e) { setRptTab(e.target.value as RptTab); }}
+              className="flex-1 px-3 py-2 border border-school-border rounded-xl text-sm focus:outline-none focus:border-school-accent bg-white dark:bg-[#1a1a2e] text-school-primary dark:text-[#e0e0e8]">
+              <option value="daily">Daily Report</option>
+              <option value="monthly">Monthly Report</option>
+            </select>
           </div>
 
           {/* Daily Report */}

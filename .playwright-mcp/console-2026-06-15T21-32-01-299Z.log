@@ -1,6 +1,0 @@
-[      99ms] [ERROR] A bad HTTP response code (404) was received when fetching the script. @ :0
-[     115ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://inightelf.github.io/favicon.png:0
-[     118ms] [WARNING] Error while trying to use the following icon from the Manifest: https://inightelf.github.io/favicon.png (Download error or resource isn't a valid image) @ https://inightelf.github.io/school.management.django/:0
-[     843ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ https://inightelf.github.io/school.management.django/#/login:0
-[   33330ms] [ERROR] Failed to load resource: the server responded with a status of 401 () @ https://ares.alwaysdata.net/api/auth/login/:0
-[  389416ms] [ERROR] Failed to load resource: the server responded with a status of 401 () @ https://ares.alwaysdata.net/api/auth/login/:0
