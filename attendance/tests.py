@@ -1,11 +1,12 @@
-from datetime import date
+from datetime import date, timedelta
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 from django.contrib.auth import get_user_model
-from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 from students.models import Student
 from core.models import SchoolClass, SchoolSetting
+from teachers.models import Teacher, ClassTeacher
 from .models import AttendanceRecord, Holiday
 
 User = get_user_model()
@@ -198,3 +199,90 @@ class AttendanceTests(TestCase):
         res = self.client.delete(f'/api/holidays/{hid}/')
         self.assertEqual(res.status_code, 204)
         self.assertEqual(Holiday.objects.count(), 0)
+
+
+class MobileRangeReportTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.klass = SchoolClass.objects.create(name='RR Class', order=2)
+        self.teacher = Teacher.objects.create(name='PIN Teacher', designation='T')
+        ClassTeacher.objects.create(teacher=self.teacher, school_class=self.klass)
+        self.s1 = Student.objects.create(
+            name='Alice', student_id='RR0001',
+            school_class=self.klass, session='2026',
+        )
+        self.s2 = Student.objects.create(
+            name='Bob', student_id='RR0002',
+            school_class=self.klass, session='2026',
+        )
+        today = timezone.now().date()
+        while today.weekday() in (4, 5):
+            today = today.replace(day=today.day - 1)
+        self.at_day = today
+
+    def _pin_token(self):
+        tok = AccessToken()
+        tok['teacher_id'] = str(self.teacher.id)
+        tok['pin_auth'] = True
+        tok.set_exp('exp', lifetime=timedelta(hours=1))
+        return str(tok)
+
+    def test_mobile_class_report_empty(self):
+        token = self._pin_token()
+        url = (
+            '/api/m/attendance/class-report/'
+            f'?class_id={self.klass.id}&from=2026-01-01&to=2026-12-31&term=1&session=2026'
+        )
+        res = self.client.get(url, HTTP_AUTHORIZATION=f'Bearer {token}')
+        self.assertEqual(res.status_code, 200, msg=res.content[:500])
+        self.assertIn('students', res.data)
+        self.assertIn('dates', res.data)
+        self.assertEqual(len(res.data['students']), 2)
+
+    def test_mobile_class_report_with_records(self):
+        AttendanceRecord.objects.create(
+            student=self.s1, school_class=self.klass,
+            date=self.at_day, term='1', session='2026', status='present',
+        )
+        AttendanceRecord.objects.create(
+            student=self.s2, school_class=self.klass,
+            date=self.at_day, term='1', session='2026', status='absent',
+        )
+        token = self._pin_token()
+        url = (
+            '/api/m/attendance/class-report/'
+            f'?class_id={self.klass.id}'
+            f'&from=2026-01-01&to={self.at_day.year + 1}-12-31&term=1&session=2026'
+        )
+        res = self.client.get(url, HTTP_AUTHORIZATION=f'Bearer {token}')
+        self.assertEqual(res.status_code, 200, msg=res.content[:500])
+        self.assertIn(str(self.s1.id), res.data['grid'])
+        self.assertEqual(res.data['grid'][str(self.s1.id)][str(self.at_day)], 'present')
+        self.assertEqual(res.data['grid'][str(self.s2.id)][str(self.at_day)], 'absent')
+
+    def test_mobile_batch_then_class_report(self):
+        token = self._pin_token()
+        batch_url = '/api/m/attendance/batch/'
+        batch_res = self.client.post(
+            batch_url,
+            {
+                'school_class': str(self.klass.id),
+                'date': self.at_day.isoformat(),
+                'term': '1',
+                'session': '2026',
+                'records': {str(self.s1.id): 'present', str(self.s2.id): 'absent'},
+            },
+            format='json',
+            HTTP_AUTHORIZATION=f'Bearer {token}',
+        )
+        self.assertEqual(batch_res.status_code, 200, msg=batch_res.content[:500])
+        report_url = (
+            '/api/m/attendance/class-report/'
+            f'?class_id={self.klass.id}'
+            f'&from=2026-01-01&to={self.at_day.year + 1}-12-31&term=1&session=2026'
+        )
+        report_res = self.client.get(report_url, HTTP_AUTHORIZATION=f'Bearer {token}')
+        self.assertEqual(report_res.status_code, 200, msg=report_res.content[:500])
+        self.assertEqual(report_res.data['summary'][str(self.s1.id)]['present'], 1)
+        self.assertEqual(report_res.data['summary'][str(self.s2.id)]['absent'], 1)
+

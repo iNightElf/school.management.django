@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Toast, { toast } from '../components/Toast';
+import { setTokens } from '../stores/api';
 import { API_URL, TERM_NAMES } from '../lib/config';
 import type { ClassAttendanceReport } from '../lib/types';
 
@@ -21,11 +22,12 @@ function todayStr() {
   return new Date().toISOString().split('T')[0];
 }
 
-async function apiGet(path: string, token: string, params?: Record<string, string>) {
+async function apiGet(path: string, token: string = import.meta.env.VITE_API_TOKEN || '', params?: Record<string, string>) {
   const url = new URL(`${API_BASE}${path}`);
   if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
   const headers: Record<string, string> = {};
-  if (token) headers.Authorization = `Bearer ${token}`;
+  const authToken = token || import.meta.env.VITE_API_TOKEN || '';
+  if (authToken) headers.Authorization = `Bearer ${authToken}`;
   const res = await fetch(url.toString(), { headers });
   if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`);
   return res.json();
@@ -145,7 +147,7 @@ export default function PinAttendance() {
   useEffect(() => {
     (async () => {
       try {
-        const data: any = await (await fetch(`${API_BASE}/m/teachers/`)).json();
+        const data: any = await apiGet('/m/teachers/', token);
         const list = data.teachers || data.results || data;
         if (Array.isArray(list)) {
           const mapped = list.map((t: any) => ({ id: t.id, name: t.name }));
@@ -180,8 +182,9 @@ export default function PinAttendance() {
     setPinLoading(true);
     setPinError('');
     try {
-      const data: any = await apiPost('/m/auth/pin/', '', { teacher_id: selectedTeacher.id, pin });
+      const data = await apiPost('/m/auth/pin/', '', { teacher_id: selectedTeacher.id, pin });
       const jwt = data.access || data.token;
+      setTokens(jwt, null);
       setToken(jwt);
       const mappedClasses = (data.classes || []).map((c: any) => ({ id: c.id, name: c.name }));
       setClasses(mappedClasses);
