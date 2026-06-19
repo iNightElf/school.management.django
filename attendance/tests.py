@@ -92,11 +92,11 @@ class AttendanceTests(TestCase):
             'date': today.isoformat(),
             'term': '1',
             'session': '2026',
-            'records': {str(self.s1.id): 'late'},
+            'records': {str(self.s1.id): 'absent'},
         }, format='json')
         self.assertEqual(res.status_code, 200)
         self.assertEqual(
-            AttendanceRecord.objects.get(student=self.s1).status, 'late',
+            AttendanceRecord.objects.get(student=self.s1).status, 'absent',
         )
         self.assertEqual(AttendanceRecord.objects.count(), 1)
 

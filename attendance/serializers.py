@@ -32,9 +32,7 @@ class BatchAttendanceSerializer(serializers.Serializer):
     term = serializers.CharField()
     session = serializers.CharField()
     records = serializers.DictField(
-        child=serializers.ChoiceField(choices=[
-            'present', 'absent', 'late', 'excused',
-        ]),
+        child=serializers.ChoiceField(choices=['present', 'absent']),
     )
 
     def validate_records(self, value):

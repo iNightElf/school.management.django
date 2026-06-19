@@ -9,14 +9,14 @@ const LS_QUEUE_KEY = 'pin_attendance_queue';
 const LS_TOKEN_KEY = 'pin_auth_token';
 const LS_TEACHER_KEY = 'pin_teacher';
 
-type StatusType = 'present' | 'absent' | 'late' | 'excused' | 'unmarked';
+type StatusType = 'present' | 'absent' | 'unmarked';
 
 interface Teacher { id: string; name: string; }
 interface ClassInfo { id: string; name: string; }
 interface Student { id: string; name: string; roll: string; }
 interface QueuedRecord { school_class: string; date: string; term: string; session: string; records: Record<string, string>; timestamp: number; }
 
-const STATUS_NAMES: Record<string, string> = { present: 'Present', absent: 'Absent', late: 'Late', excused: 'Excused' };
+const STATUS_NAMES: Record<string, string> = { present: 'Present', absent: 'Absent' };
 
 function todayStr() {
   return new Date().toISOString().split('T')[0];
@@ -297,7 +297,7 @@ export default function PinAttendance() {
   function cycleStatus(studentId: string) {
     setRecords((prev) => {
       const current = prev[studentId] || 'unmarked';
-      const order: StatusType[] = ['unmarked', 'present', 'absent', 'late', 'excused'];
+      const order: StatusType[] = ['unmarked', 'present', 'absent'];
       const idx = order.indexOf(current);
       return { ...prev, [studentId]: order[(idx + 1) % order.length] };
     });
@@ -635,14 +635,10 @@ export default function PinAttendance() {
                   const status = records[s.id] || 'unmarked';
                   const bgColor = status === 'present' ? 'bg-green-50 dark:bg-green-500/10'
                     : status === 'absent' ? 'bg-red-50 dark:bg-red-500/10'
-                    : status === 'late' ? 'bg-amber-50 dark:bg-amber-500/10'
-                    : status === 'excused' ? 'bg-blue-50 dark:bg-blue-500/10'
                     : '';
-                  const icon = status === 'present' ? '✓' : status === 'absent' ? '✗' : status === 'late' ? '⏰' : status === 'excused' ? 'ℹ' : '○';
+                  const icon = status === 'present' ? '✓' : status === 'absent' ? '✗' : '○';
                   const iconColor = status === 'present' ? 'text-green-600'
                     : status === 'absent' ? 'text-red-600'
-                    : status === 'late' ? 'text-amber-600'
-                    : status === 'excused' ? 'text-blue-600'
                     : 'text-school-muted';
                   return (
                     <button

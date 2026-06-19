@@ -304,7 +304,7 @@ class AttendanceViewSet(viewsets.GenericViewSet):
     def class_report(self, request):
         try:
             return self._class_report_logic(request)
-        except Exception as e:
+        except Exception:
             logger = __import__('logging').getLogger(__name__)
             logger.exception('class_report failed')
             return Response({'error': 'Failed to load report'}, status=500)
@@ -403,6 +403,209 @@ class AttendanceViewSet(viewsets.GenericViewSet):
             'grid': grid,
             'summary': full_summary,
             'date_summary': date_summary,
+        })
+
+    @action(detail=False, methods=['get'], url_path='class-daily-report')
+    def class_daily_report(self, request):
+        try:
+            return self._class_daily_report_logic(request)
+        except Exception:
+            logger = __import__('logging').getLogger(__name__)
+            logger.exception('class_daily_report failed')
+            return Response({'error': 'Failed to load daily report'}, status=500)
+
+    def _class_daily_report_logic(self, request):
+        class_id = request.query_params.get('class_id')
+        date_param = request.query_params.get('date')
+
+        if not class_id or not date_param:
+            return Response({'error': 'class_id and date query params are required'}, status=400)
+
+        try:
+            school_class = SchoolClass.objects.get(id=class_id)
+        except SchoolClass.DoesNotExist:
+            return Response({'error': 'Class not found'}, status=404)
+
+        students = list(
+            Student.objects.filter(
+                school_class=school_class,
+                deleted_at__isnull=True,
+            )
+            .order_by('roll', 'name')
+            .values('id', 'name', 'roll')
+        )
+
+        records = list(
+            AttendanceRecord.objects.filter(
+                school_class=school_class,
+                date=date_param,
+            ).values('student_id', 'status')
+        )
+
+        records_map: dict[str, str] = {}
+        for r in records:
+            try:
+                records_map[str(r['student_id'])] = str(r['status'])
+            except Exception:
+                continue
+
+        present = 0
+        absent = 0
+        rows = []
+        for s in students:
+            st = records_map.get(str(s['id']), 'unmarked')
+            if st == 'present':
+                present += 1
+            elif st == 'absent':
+                absent += 1
+            rows.append({
+                'id': str(s['id']),
+                'name': s['name'],
+                'roll': s['roll'] or '',
+                'status': st,
+            })
+
+        return Response({
+            'class': {'id': str(school_class.id), 'name': school_class.name},
+            'date': date_param,
+            'total_students': len(students),
+            'present': present,
+            'absent': absent,
+            'unmarked': len(students) - present - absent,
+            'students': rows,
+        })
+
+    @action(detail=False, methods=['get'], url_path='all-classes-daily')
+    def all_classes_daily(self, request):
+        try:
+            return self._all_classes_daily_logic(request)
+        except Exception:
+            logger = __import__('logging').getLogger(__name__)
+            logger.exception('all_classes_daily failed')
+            return Response({'error': 'Failed to load daily report'}, status=500)
+
+    def _all_classes_daily_logic(self, request):
+        date_param = request.query_params.get('date')
+
+        if not date_param:
+            return Response({'error': 'date query param is required'}, status=400)
+
+        summaries = []
+
+        for klass in SchoolClass.objects.all().order_by('order', 'name'):
+            total = Student.objects.filter(
+                school_class=klass,
+                deleted_at__isnull=True,
+            ).count()
+            qs = AttendanceRecord.objects.filter(school_class=klass, date=date_param)
+            present = qs.filter(status='present').count()
+            absent = qs.filter(status='absent').count()
+
+            summaries.append({
+                'class': {'id': str(klass.id), 'name': klass.name},
+                'total_students': total,
+                'present': present,
+                'absent': absent,
+                'unmarked': max(total - present - absent, 0),
+            })
+
+        return Response({'date': date_param, 'classes': summaries})
+
+    @action(detail=False, methods=['get'], url_path='monthly-report')
+    def monthly_report(self, request):
+        try:
+            return self._monthly_report_logic(request)
+        except Exception:
+            logger = __import__('logging').getLogger(__name__)
+            logger.exception('monthly_report failed')
+            return Response({'error': 'Failed to load monthly report'}, status=500)
+
+    def _monthly_report_logic(self, request):
+        class_id = request.query_params.get('class_id')
+        year = request.query_params.get('year')
+        month = request.query_params.get('month')
+
+        if not class_id or not year or not month:
+            return Response(
+                {'error': 'class_id, year, and month query params are required'},
+                status=400,
+            )
+
+        try:
+            year = int(year)
+            month = int(month)
+        except (ValueError, TypeError):
+            return Response({'error': 'Invalid year or month'}, status=400)
+
+        try:
+            school_class = SchoolClass.objects.get(id=class_id)
+        except SchoolClass.DoesNotExist:
+            return Response({'error': 'Class not found'}, status=404)
+
+        import calendar as _cal
+        from datetime import date as _date
+        _, days_in_month = _cal.monthrange(year, month)
+        weekend_set = _get_weekend_set()
+        holiday_set = _get_holiday_dates(year=year, month=month)
+
+        students = list(
+            Student.objects.filter(
+                school_class=school_class,
+                deleted_at__isnull=True,
+            )
+            .order_by('roll', 'name')
+            .values('id', 'name', 'roll')
+        )
+
+        records = AttendanceRecord.objects.filter(
+            school_class=school_class,
+            date__year=year,
+            date__month=month,
+        ).values('student_id', 'date', 'status')
+
+        records_map: dict[str, dict[str, str]] = {}
+        for r in records:
+            try:
+                records_map.setdefault(str(r['student_id']), {})[r['date'].isoformat()] = str(r['status'])
+            except Exception:
+                continue
+
+        days = []
+        student_ids = [str(s['id']) for s in students]
+        for day in range(1, days_in_month + 1):
+            d = _date(year, month, day)
+            iso = d.isoformat()
+            if d.weekday() in weekend_set:
+                typ = 'weekend'
+            elif d in holiday_set:
+                typ = 'holiday'
+            else:
+                typ = 'unmarked'
+
+            present = 0
+            absent = 0
+            for sid in student_ids:
+                st = records_map.get(sid, {}).get(iso, typ)
+                if st == 'present':
+                    present += 1
+                elif st == 'absent':
+                    absent += 1
+
+            days.append({
+                'date': iso,
+                'weekday': d.weekday(),
+                'type': typ,
+                'present': present,
+                'absent': absent,
+                'unmarked': len(student_ids) - present - absent,
+            })
+
+        return Response({
+            'class': {'id': str(school_class.id), 'name': school_class.name},
+            'year': year,
+            'month': month,
+            'students': [{'id': str(s['id']), 'name': s['name'], 'roll': s['roll'] or ''} for s in students],
+            'days': days,
         })
 
 

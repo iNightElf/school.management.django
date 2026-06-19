@@ -1,386 +1,391 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api, useSchoolStore } from '../store';
 import Toast, { toast } from '../components/Toast';
-import type {
-  SchoolClass, AttendanceRecord, AttendanceMonthResponse,
-  AttendanceSummary, ClassAttendanceReport,
-} from '../lib/types';
+import type { SchoolClass } from '../lib/types';
 import { TERM_NAMES } from '../lib/config';
 import {
-  CalendarCheck, Check, X, Clock, AlertCircle, Loader2,
-  ChevronLeft, ChevronRight, Circle, Download,
+  CalendarCheck, Check, X, Loader2, Download, FileText,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react';
 
-type StatusType = 'present' | 'absent' | 'late' | 'excused' | 'unmarked';
+type StatusType = 'present' | 'absent' | 'unmarked';
+type Tab = 'daily' | 'report';
+type RptTab = 'daily' | 'monthly';
+type DailySub = 'classwise' | 'allclasses';
 
-const STATUS_OPTIONS: { key: Exclude<StatusType, 'unmarked'>; label: string; color: string }[] = [
-  { key: 'present', label: 'Present', color: 'bg-green-500' },
-  { key: 'absent', label: 'Absent', color: 'bg-red-500' },
-  { key: 'late', label: 'Late', color: 'bg-amber-500' },
-  { key: 'excused', label: 'Excused', color: 'bg-blue-500' },
-];
+interface StudentInfo { id: string; name: string; roll: string; }
+interface DailyReportData {
+  class: { id: string; name: string };
+  date: string;
+  total_students: number;
+  present: number;
+  absent: number;
+  unmarked: number;
+  students: { id: string; name: string; roll: string; status: string }[];
+}
+interface AllClassesDailyData {
+  date: string;
+  classes: { class: { id: string; name: string }; total_students: number; present: number; absent: number; unmarked: number }[];
+}
+interface MonthlyReportData {
+  class: { id: string; name: string };
+  year: number;
+  month: number;
+  students: StudentInfo[];
+  days: { date: string; weekday: number; type: string; present: number; absent: number; unmarked: number }[];
+}
 
 function todayStr() {
-  const d = new Date();
-  return d.toISOString().split('T')[0];
+  return new Date().toISOString().split('T')[0];
 }
 
 function monthName(m: number) {
-  return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m - 1] || 'Unknown';
+  return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m - 1] || '';
 }
+
+/* --- PDF helpers --- */
+
+async function getJsPDF() {
+  const mod = await import('jspdf');
+  return mod.default;
+}
+
+async function downloadDailyReportPDF(data: DailyReportData) {
+  const JsPDF = await getJsPDF();
+  const doc = new JsPDF({ format: 'a4', unit: 'mm' });
+  const M = 12, W = 210, CW = W - M * 2;
+  const NAVY = [26, 26, 46] as const, MUTED = [130, 124, 114] as const;
+  let y = 20;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.setTextColor(...NAVY);
+  doc.text('Daily Attendance Report', M, y); y += 8;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...MUTED);
+  doc.text(data.class.name + ' --- ' + data.date, M, y); y += 8;
+  doc.setFontSize(9);
+  doc.text('Total: ' + data.total_students + '  |  Present: ' + data.present + '  |  Absent: ' + data.absent + '  |  Unmarked: ' + data.unmarked, M, y); y += 10;
+
+  const HH = 7, RH = 6;
+  doc.setFillColor(...NAVY); doc.rect(M, y, CW, HH, 'F');
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(255, 255, 255);
+  const colW = [CW * 0.2, CW * 0.4, CW * 0.2];
+  doc.text('Roll', M + 2, y + 4.5);
+  doc.text('Name', M + colW[0] + 2, y + 4.5);
+  doc.text('Status', M + colW[0] + colW[1] + 2, y + 4.5);
+  y += HH;
+  data.students.forEach(function(s, ri) {
+    if (y > 275) { doc.addPage(); y = 14; }
+    doc.setFillColor(ri % 2 === 0 ? 255 : 244, ri % 2 === 0 ? 253 : 239, ri % 2 === 0 ? 247 : 230);
+    doc.rect(M, y, CW, RH, 'F');
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...NAVY);
+    doc.text(s.roll || '---', M + 2, y + 4);
+    doc.text(s.name, M + colW[0] + 2, y + 4);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(s.status === 'present' ? 22 : 185, s.status === 'present' ? 163 : 28, s.status === 'present' ? 74 : 28);
+    doc.text(s.status.charAt(0).toUpperCase() + s.status.slice(1), M + colW[0] + colW[1] + 2, y + 4);
+    y += RH;
+  });
+  doc.save('Attendance_' + data.class.name + '_' + data.date + '.pdf');
+}
+
+async function downloadAllClassesPDF(data: AllClassesDailyData) {
+  const JsPDF = await getJsPDF();
+  const doc = new JsPDF({ format: 'a4', unit: 'mm' });
+  const M = 12, W = 210, CW = W - M * 2;
+  const NAVY = [26, 26, 46] as const, MUTED = [130, 124, 114] as const;
+  let y = 20;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.setTextColor(...NAVY);
+  doc.text('All Classes --- Daily Attendance', M, y); y += 8;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...MUTED);
+  doc.text('Date: ' + data.date, M, y); y += 10;
+
+  const HH = 7, RH = 6;
+  doc.setFillColor(...NAVY); doc.rect(M, y, CW, HH, 'F');
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(255, 255, 255);
+  const cols = [CW * 0.3, CW * 0.175, CW * 0.175, CW * 0.175, CW * 0.175];
+  doc.text('Class', M + 2, y + 4.5);
+  doc.text('Total', M + cols[0] + 2, y + 4.5);
+  doc.text('Present', M + cols[0] * 2 + 2, y + 4.5);
+  doc.text('Absent', M + cols[0] * 3 + 2, y + 4.5);
+  doc.text('Unmarked', M + cols[0] * 4 + 2, y + 4.5);
+  y += HH;
+  let gTot = 0, gPre = 0, gAbs = 0;
+  data.classes.forEach(function(c, ri) {
+    if (y > 275) { doc.addPage(); y = 14; }
+    doc.setFillColor(ri % 2 === 0 ? 255 : 244, ri % 2 === 0 ? 253 : 239, ri % 2 === 0 ? 247 : 230);
+    doc.rect(M, y, CW, RH, 'F');
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...NAVY);
+    doc.text(c.class.name, M + 2, y + 4);
+    doc.text(String(c.total_students), M + cols[0] + 2, y + 4);
+    doc.text(String(c.present), M + cols[0] * 2 + 2, y + 4);
+    doc.text(String(c.absent), M + cols[0] * 3 + 2, y + 4);
+    doc.text(String(c.unmarked), M + cols[0] * 4 + 2, y + 4);
+    y += RH;
+    gTot += c.total_students; gPre += c.present; gAbs += c.absent;
+  });
+  doc.setDrawColor(100); doc.setLineWidth(0.3); doc.line(M, y, M + CW, y); y += 2;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...NAVY);
+  doc.text('Grand Total: ' + gTot + '  |  Total Present: ' + gPre + '  |  Total Absent: ' + gAbs, M, y + 4);
+  doc.save('All_Classes_Attendance_' + data.date + '.pdf');
+}
+
+async function downloadMonthlyPDF(data: MonthlyReportData) {
+  const JsPDF = await getJsPDF();
+  const doc = new JsPDF({ format: 'a4', unit: 'mm' });
+  const M = 12, W = 210, CW = W - M * 2;
+  const NAVY = [26, 26, 46] as const, MUTED = [130, 124, 114] as const;
+  let y = 20;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.setTextColor(...NAVY);
+  doc.text('Monthly Attendance Report', M, y); y += 8;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...MUTED);
+  doc.text(data.class.name + ' --- ' + monthName(data.month) + ' ' + data.year, M, y); y += 10;
+
+  const HH = 7, RH = 6;
+  doc.setFillColor(...NAVY); doc.rect(M, y, CW, HH, 'F');
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(255, 255, 255);
+  const cols = [CW * 0.25, CW * 0.15, CW * 0.15, CW * 0.15, CW * 0.15, CW * 0.15];
+  doc.text('Date', M + 1, y + 4.5);
+  doc.text('Day', M + cols[0] + 1, y + 4.5);
+  doc.text('Present', M + cols[0] * 2 + 1, y + 4.5);
+  doc.text('Absent', M + cols[0] * 3 + 1, y + 4.5);
+  doc.text('Unmarked', M + cols[0] * 4 + 1, y + 4.5);
+  doc.text('Type', M + cols[0] * 5 + 1, y + 4.5);
+  y += HH;
+  const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  let totalPre = 0, totalAbs = 0;
+  data.days.forEach(function(d, ri) {
+    if (d.type === 'weekend' || d.type === 'holiday') return;
+    if (y > 275) { doc.addPage(); y = 14; }
+    doc.setFillColor(ri % 2 === 0 ? 255 : 244, ri % 2 === 0 ? 253 : 239, ri % 2 === 0 ? 247 : 230);
+    doc.rect(M, y, CW, RH, 'F');
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...NAVY);
+    doc.text(d.date, M + 1, y + 4);
+    doc.text(DAYS[d.weekday] || '', M + cols[0] + 1, y + 4);
+    doc.text(String(d.present), M + cols[0] * 2 + 1, y + 4);
+    doc.text(String(d.absent), M + cols[0] * 3 + 1, y + 4);
+    doc.text(String(d.unmarked), M + cols[0] * 4 + 1, y + 4);
+    doc.text(d.type, M + cols[0] * 5 + 1, y + 4);
+    y += RH;
+    totalPre += d.present; totalAbs += d.absent;
+  });
+  y += 4;
+  const netDays = data.days.filter(function(d) { return d.type !== 'weekend' && d.type !== 'holiday'; }).length;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...NAVY);
+  doc.text('Total Present: ' + totalPre + '  |  Total Absent: ' + totalAbs + '  |  Net Days: ' + netDays, M, y);
+  doc.save('Monthly_Attendance_' + data.class.name + '_' + monthName(data.month) + '_' + data.year + '.pdf');
+}
+
+/* --- Main component --- */
 
 export default function AttendanceSection() {
   const { classes, fetchClasses } = useSchoolStore();
+  const [tab, setTab] = useState<Tab>('daily');
+  const [rptTab, setRptTab] = useState<RptTab>('daily');
+  const [dailySub, setDailySub] = useState<DailySub>('classwise');
+
+  /* daily marking */
   const [classId, setClassId] = useState('');
   const [date, setDate] = useState(todayStr());
   const [term, setTerm] = useState('1');
   const [session, setSession] = useState(String(new Date().getFullYear()));
+  const [students, setStudents] = useState<StudentInfo[]>([]);
   const [records, setRecords] = useState<Record<string, StatusType>>({});
-  const [students, setStudents] = useState<{ id: string; name: string; roll: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [tab, setTab] = useState<'daily' | 'monthly' | 'range'>('daily');
 
-  useEffect(() => { fetchClasses(); }, []);
+  /* daily report */
+  const [dailyClassId, setDailyClassId] = useState('');
+  const [dailyDate, setDailyDate] = useState(todayStr());
+  const [dailyReport, setDailyReport] = useState<DailyReportData | null>(null);
+  const [allClassesReport, setAllClassesReport] = useState<AllClassesDailyData | null>(null);
+  const [rptLoading, setRptLoading] = useState(false);
+  const [rptError, setRptError] = useState('');
 
-  useEffect(() => {
-    if (classId) {
-      fetchStudents();
-    }
-  }, [classId]);
+  /* monthly report */
+  const [monthlyClassId, setMonthlyClassId] = useState('');
+  const [monthYear, setMonthYear] = useState({ year: new Date().getFullYear(), month: new Date().getMonth() + 1 });
+  const [monthlyData, setMonthlyData] = useState<MonthlyReportData | null>(null);
+  const [monthlyLoading, setMonthlyLoading] = useState(false);
+  const [monthlyError, setMonthlyError] = useState('');
 
-  const fetchStudents = useCallback(async () => {
+  useEffect(function () { fetchClasses(); }, [fetchClasses]);
+
+  /* load students for daily marking */
+  useEffect(function () {
     if (!classId) return;
     setLoading(true);
-    try {
-      const res = await api.get('/students/', { params: { class_id: classId, limit: 200 } });
-      const list = (res.data.results || res.data).map((s: any) => ({
-        id: s.id,
-        name: s.name,
-        roll: s.roll || '',
-      }));
-      list.sort((a: any, b: any) => String(a.roll || '').localeCompare(String(b.roll || ''), undefined, { numeric: true }));
-      setStudents(list);
-    } catch { toast('Failed to load students', 'error'); }
-    setLoading(false);
+    api.get('/students/', { params: { class_id: classId, limit: 200 } })
+      .then(function (res) {
+        var list = (res.data.results || res.data).map(function (s) { return { id: s.id, name: s.name, roll: s.roll || '' }; });
+        list.sort(function (a, b) { return String(a.roll || '').localeCompare(String(b.roll || ''), undefined, { numeric: true }); });
+        setStudents(list);
+      })
+      .catch(function () { toast('Failed to load students', 'error'); })
+      .finally(function () { setLoading(false); });
   }, [classId]);
 
-  useEffect(() => {
-    if (classId && date && tab === 'daily') {
-      loadExistingAttendance();
-    }
+  /* load existing attendance for daily marking */
+  useEffect(function () {
+    if (!classId || !date || tab !== 'daily') return;
+    api.get('/attendance/', { params: { class_id: classId, date: date } })
+      .then(function (res) {
+        var data = res.data.results || res.data;
+        var map = {};
+        data.forEach(function (r) { if (r.status === 'present' || r.status === 'absent') map[r.student] = r.status; });
+        setRecords(map);
+      })
+      .catch(function () { setRecords({}); });
   }, [classId, date, tab]);
 
-  const loadExistingAttendance = useCallback(async () => {
-    if (!classId || !date) return;
-    try {
-      const res = await api.get('/attendance/', { params: { class_id: classId, date } });
-      const data: AttendanceRecord[] = res.data.results || res.data;
-      if (data.length > 0) {
-        const map: Record<string, StatusType> = {};
-        for (const r of data) {
-          map[r.student] = r.status as StatusType;
-        }
-        setRecords(map);
-        if (data[0].term) setTerm(data[0].term);
-        if (data[0].session) setSession(data[0].session);
-      } else {
-        setRecords({});
-      }
-    } catch { setRecords({}); }
-  }, [classId, date]);
-
-  const markAllPresent = () => {
-    const all: Record<string, StatusType> = {};
-    for (const s of students) all[s.id] = 'present';
+  var markAllPresent = function () {
+    var all = {};
+    students.forEach(function (s) { all[s.id] = 'present'; });
     setRecords(all);
   };
 
-  const setStudentStatus = (studentId: string, status: StatusType) => {
-    setRecords((prev) => ({ ...prev, [studentId]: status }));
-  };
-
-  const cycleStatus = (studentId: string) => {
-    const current = records[studentId] || 'unmarked';
-    const order: StatusType[] = ['unmarked', 'present', 'absent', 'late', 'excused'];
-    const idx = order.indexOf(current);
-    const next = order[(idx + 1) % order.length];
-    setStudentStatus(studentId, next);
-  };
-
-  const handleSave = async () => {
-    if (!classId || !date) {
-      toast('Select a class and date', 'error');
-      return;
-    }
-    
-    // Filter out unmarked records before saving
-    const markedRecords: Record<string, string> = {};
-    Object.entries(records).forEach(([sid, status]) => {
-      if (status !== 'unmarked') markedRecords[sid] = status;
+  var toggleStatus = function (sid) {
+    setRecords(function (prev) {
+      var cur = prev[sid] || 'unmarked';
+      var next = cur === 'unmarked' ? 'present' : cur === 'present' ? 'absent' : 'unmarked';
+      var copy = {};
+      Object.keys(prev).forEach(function (k) { copy[k] = prev[k]; });
+      copy[sid] = next;
+      return copy;
     });
+  };
 
-    if (Object.keys(markedRecords).length === 0) {
-      toast('Mark at least one student', 'error');
-      return;
-    }
+  var handleSave = async function () {
+    if (!classId || !date) { toast('Select a class and date', 'error'); return; }
+    var markedRecords = {};
+    Object.keys(records).forEach(function (sid) { if (records[sid] !== 'unmarked') markedRecords[sid] = records[sid]; });
+    if (Object.keys(markedRecords).length === 0) { toast('Mark at least one student', 'error'); return; }
     setSaving(true);
     try {
-      await api.post('/attendance/batch/', {
-        school_class: classId,
-        date,
-        term,
-        session,
-        records: markedRecords,
-      });
+      await api.post('/attendance/batch/', { school_class: classId, date: date, term: term, session: session, records: markedRecords });
       toast('Attendance saved', 'success');
-    } catch (e: any) {
-      const msg = e.response?.data?.error || 'Failed to save attendance';
-      toast(msg, 'error');
+    } catch (e) {
+      toast((e.response && e.response.data && e.response.data.error) || 'Failed to save attendance', 'error');
     }
     setSaving(false);
   };
 
-  const monthYearNow = { year: new Date().getFullYear(), month: new Date().getMonth() + 1 };
-  const [monthYear, setMonthYear] = useState(monthYearNow);
-  const [monthData, setMonthData] = useState<AttendanceMonthResponse | null>(null);
-  const [studentSearch, setStudentSearch] = useState('');
-  const [monthStudent, setMonthStudent] = useState<{ id: string; name: string; roll: string } | null>(null);
-  const [monthSummary, setMonthSummary] = useState<AttendanceSummary | null>(null);
+  var markedCount = 0;
+  Object.keys(records).forEach(function (sid) { if (records[sid] !== 'unmarked') markedCount++; });
 
-  // Range Report state
-  const [rangeFrom, setRangeFrom] = useState(() => {
-    const d = new Date(); d.setDate(1); return d.toISOString().split('T')[0];
-  });
-  const [rangeTo, setRangeTo] = useState(() => {
-    const d = new Date(); return d.toISOString().split('T')[0];
-  });
-  const [rangeTerm, setRangeTerm] = useState('1');
-  const [rangeReport, setRangeReport] = useState<ClassAttendanceReport | null>(null);
-  const [rangeLoading, setRangeLoading] = useState(false);
-  const [rangeError, setRangeError] = useState('');
-
-  const loadRangeReport = useCallback(async () => {
-    if (!classId || !rangeFrom || !rangeTo) return;
-    setRangeLoading(true);
-    setRangeError('');
+  /* load daily report */
+  var loadDailyReport = async function () {
+    if (!dailyClassId || !dailyDate) { toast('Select class and date', 'error'); return; }
+    setRptLoading(true); setRptError('');
     try {
-      const res = await api.get('/attendance/class-report/', {
-        params: { class_id: classId, from: rangeFrom, to: rangeTo, term: rangeTerm, session },
-      });
-      setRangeReport(res.data);
-    } catch (e: any) {
-      const msg = e.response?.data?.error || 'Failed to load report';
-      setRangeError(msg);
-      setRangeReport(null);
-    }
-    setRangeLoading(false);
-  }, [classId, rangeFrom, rangeTo, rangeTerm, session]);
-
-  const exportRangeCSV = () => {
-    if (!rangeReport) return;
-    const rows: string[] = [];
-    const header = ['Student', 'Roll', ...rangeReport.dates, 'Present', 'Absent', 'Late', 'Excused', 'Percentage'];
-    rows.push(header.map(c => `"${c}"`).join(','));
-
-    for (const s of rangeReport.students) {
-      const sum = rangeReport.summary[s.id];
-      const dateCells = rangeReport.dates.map(d => {
-        const st = rangeReport.grid[s.id]?.[d] || '';
-        return `"${st}"`;
-      });
-      const row = [
-        `"${s.name}"`, `"${s.roll || ''}""`,
-        ...dateCells,
-        sum.present, sum.absent, sum.late, sum.excused, `${sum.pct}%`,
-      ];
-      rows.push(row.join(','));
-    }
-
-    const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `attendance_${rangeReport.class.name}_${rangeFrom}_${rangeTo}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+      var res = await api.get('/attendance/class-daily-report/', { params: { class_id: dailyClassId, date: dailyDate } });
+      setDailyReport(res.data);
+      setAllClassesReport(null);
+    } catch (_) { setRptError('Failed to load report'); }
+    setRptLoading(false);
   };
 
-  const fetchMonthData = useCallback(async () => {
-    if (!classId) return;
-    const sid = monthStudent?.id;
-    if (!sid) return;
-    setLoading(true);
+  var loadAllClassesReport = async function () {
+    if (!dailyDate) { toast('Select a date', 'error'); return; }
+    setRptLoading(true); setRptError('');
     try {
-      const [monthRes, summaryRes] = await Promise.all([
-        api.get(`/attendance/student/${sid}/`, {
-          params: { year: monthYear.year, month: monthYear.month },
-        }),
-        api.get('/attendance/summary/', {
-          params: { student: sid, term, session, year: monthYear.year, month: monthYear.month },
-        }),
-      ]);
-      setMonthData(monthRes.data);
-      setMonthSummary(summaryRes.data);
-    } catch { toast('Failed to load monthly data', 'error'); }
-    setLoading(false);
-  }, [classId, monthStudent?.id, monthYear, term, session]);
+      var res = await api.get('/attendance/all-classes-daily/', { params: { date: dailyDate } });
+      setAllClassesReport(res.data);
+      setDailyReport(null);
+    } catch (_) { setRptError('Failed to load report'); }
+    setRptLoading(false);
+  };
 
-  useEffect(() => {
-    if (tab === 'monthly' && classId && monthStudent) {
-      fetchMonthData();
-    }
-  }, [tab, classId, monthStudent, monthYear, term, session]);
+  /* load monthly report */
+  var loadMonthlyReport = async function () {
+    if (!monthlyClassId) { toast('Select a class', 'error'); return; }
+    setMonthlyLoading(true); setMonthlyError('');
+    try {
+      var res = await api.get('/attendance/monthly-report/', {
+        params: { class_id: monthlyClassId, year: monthYear.year, month: monthYear.month },
+      });
+      setMonthlyData(res.data);
+    } catch (_) { setMonthlyError('Failed to load monthly report'); }
+    setMonthlyLoading(false);
+  };
 
-  const filteredStudents = students.filter(
-    (s) => s.name.toLowerCase().includes(studentSearch.toLowerCase()),
-  );
-
-  const markedCount = Object.values(records).filter(s => s !== 'unmarked').length;
+  useEffect(function () { if (monthlyClassId) loadMonthlyReport(); }, [monthlyClassId, monthYear]);
 
   return (
     <div className="space-y-4 animate-fade-in max-w-2xl mx-auto">
       <Toast />
 
-      {/* Header */}
       <div className="flex items-center gap-3 mb-2">
         <div className="w-10 h-10 bg-purple-100 dark:bg-purple-500/20 rounded-2xl flex items-center justify-center">
           <CalendarCheck size={22} className="text-purple-600 dark:text-purple-400" />
         </div>
         <div>
           <h2 className="font-bold text-lg text-school-primary dark:text-[#e0e0e8]">Attendance</h2>
-          <p className="text-xs text-school-muted">Track daily attendance</p>
+          <p className="text-xs text-school-muted">Daily marking &amp; reports</p>
         </div>
       </div>
 
-      {/* Tab Switcher */}
       <div className="flex bg-school-border/30 dark:bg-[#2a2a3e]/50 rounded-xl p-1">
-        <button
-          onClick={() => setTab('daily')}
-          className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-colors ${
-            tab === 'daily' ? 'bg-white dark:bg-school-primary shadow-sm text-school-primary dark:text-white' : 'text-school-muted'
-          }`}
-        >
+        <button onClick={function () { setTab('daily'); }}
+          className={'flex-1 py-2 text-sm font-semibold rounded-lg transition-colors ' + (tab === 'daily' ? 'bg-white dark:bg-school-primary shadow-sm text-school-primary dark:text-white' : 'text-school-muted')}>
           Daily Marking
         </button>
-        <button
-          onClick={() => setTab('monthly')}
-          className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-colors ${
-            tab === 'monthly' ? 'bg-white dark:bg-school-primary shadow-sm text-school-primary dark:text-white' : 'text-school-muted'
-          }`}
-        >
-          Monthly View
-        </button>
-        <button
-          onClick={() => setTab('range')}
-          className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-colors ${
-            tab === 'range' ? 'bg-white dark:bg-school-primary shadow-sm text-school-primary dark:text-white' : 'text-school-muted'
-          }`}
-        >
-          Range Report
+        <button onClick={function () { setTab('report'); }}
+          className={'flex-1 py-2 text-sm font-semibold rounded-lg transition-colors ' + (tab === 'report' ? 'bg-white dark:bg-school-primary shadow-sm text-school-primary dark:text-white' : 'text-school-muted')}>
+          Report
         </button>
       </div>
 
+      {/* Daily Marking */}
       {tab === 'daily' ? (
         <>
-          {/* Controls */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <select
-              value={classId}
-              onChange={(e) => setClassId(e.target.value)}
-              className="w-full px-3 py-2 border border-school-border rounded-xl text-sm focus:outline-none focus:border-school-accent bg-white dark:bg-[#1a1a2e] text-school-primary dark:text-[#e0e0e8] col-span-2 sm:col-span-1"
-            >
+            <select value={classId} onChange={function (e) { setClassId(e.target.value); }}
+              className="w-full px-3 py-2 border border-school-border rounded-xl text-sm focus:outline-none focus:border-school-accent bg-white dark:bg-[#1a1a2e] text-school-primary dark:text-[#e0e0e8] col-span-2 sm:col-span-1">
               <option value="">Select Class</option>
-              {classes.map((c: SchoolClass) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
+              {classes.map(function (c) { return <option key={c.id} value={c.id}>{c.name}</option>; })}
             </select>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full px-3 py-2 border border-school-border rounded-xl text-sm focus:outline-none focus:border-school-accent bg-white dark:bg-[#1a1a2e] text-school-primary dark:text-[#e0e0e8]"
-            />
-            <select value={term} onChange={(e) => setTerm(e.target.value)} className="w-full px-3 py-2 border border-school-border rounded-xl text-sm focus:outline-none focus:border-school-accent bg-white dark:bg-[#1a1a2e] text-school-primary dark:text-[#e0e0e8]">
-              {Object.entries(TERM_NAMES).map(([k, v]) => (
-                <option key={k} value={k}>{v}</option>
-              ))}
+            <input type="date" value={date} onChange={function (e) { setDate(e.target.value); }}
+              className="w-full px-3 py-2 border border-school-border rounded-xl text-sm focus:outline-none focus:border-school-accent bg-white dark:bg-[#1a1a2e] text-school-primary dark:text-[#e0e0e8]" />
+            <select value={term} onChange={function (e) { setTerm(e.target.value); }}
+              className="w-full px-3 py-2 border border-school-border rounded-xl text-sm focus:outline-none focus:border-school-accent bg-white dark:bg-[#1a1a2e] text-school-primary dark:text-[#e0e0e8]">
+              {Object.entries(TERM_NAMES).map(function (kv) { return <option key={kv[0]} value={kv[0]}>{kv[1]}</option>; })}
             </select>
-            <input
-              type="number"
-              value={session}
-              onChange={(e) => setSession(e.target.value)}
-              className="w-full px-3 py-2 border border-school-border rounded-xl text-sm focus:outline-none focus:border-school-accent bg-white dark:bg-[#1a1a2e] text-school-primary dark:text-[#e0e0e8]"
-              placeholder="Session"
-            />
+            <input type="number" value={session} onChange={function (e) { setSession(e.target.value); }}
+              className="w-full px-3 py-2 border border-school-border rounded-xl text-sm focus:outline-none focus:border-school-accent bg-white dark:bg-[#1a1a2e] text-school-primary dark:text-[#e0e0e8]" placeholder="Session" />
           </div>
 
-          {/* Action Bar */}
           {students.length > 0 && (
             <div className="flex items-center justify-between gap-2">
-              <button onClick={markAllPresent} className="px-3 py-1.5 border border-school-border rounded-xl text-xs font-semibold text-school-primary dark:text-[#e0e0e8] hover:bg-school-paper dark:hover:bg-white/5 transition-colors flex items-center gap-1.5">
+              <button onClick={markAllPresent}
+                className="px-3 py-1.5 border border-school-border rounded-xl text-xs font-semibold text-school-primary dark:text-[#e0e0e8] hover:bg-school-paper dark:hover:bg-white/5 transition-colors flex items-center gap-1.5">
                 <Check size={14} /> Mark All Present
               </button>
-              <span className="text-xs text-school-muted">
-                {markedCount}/{students.length} marked
-              </span>
+              <span className="text-xs text-school-muted">{markedCount}/{students.length} marked</span>
             </div>
           )}
 
-          {/* Student List */}
           {loading ? (
-            <div className="flex justify-center py-12">
-              <Loader2 size={28} className="animate-spin text-school-muted" />
-            </div>
+            <div className="flex justify-center py-12"><Loader2 size={28} className="animate-spin text-school-muted" /></div>
           ) : students.length === 0 ? (
-            <div className="text-center py-12 text-school-muted text-sm">
-              {classId ? 'No students in this class' : 'Select a class to begin'}
-            </div>
+            <div className="text-center py-12 text-school-muted text-sm">{classId ? 'No students in this class' : 'Select a class to begin'}</div>
           ) : (
             <div className="bg-white dark:bg-[#1a1a2e] rounded-2xl border border-school-border dark:border-[#2a2a3e] divide-y divide-school-border/50 dark:divide-[#2a2a3e] overflow-hidden">
-              {students.map((s) => {
-                const status = records[s.id] || 'unmarked';
-                const statusColor = status === 'present' ? 'bg-green-100 dark:bg-green-500/20 border-green-300 dark:border-green-500/30'
-                  : status === 'absent' ? 'bg-red-100 dark:bg-red-500/20 border-red-300 dark:border-red-500/30'
-                  : status === 'late' ? 'bg-amber-100 dark:bg-amber-500/20 border-amber-300 dark:border-amber-500/30'
-                  : status === 'excused' ? 'bg-blue-100 dark:bg-blue-500/20 border-blue-300 dark:border-blue-500/30'
-                  : 'bg-transparent border-transparent';
-                const iconColor = status === 'present' ? 'text-green-600'
-                  : status === 'absent' ? 'text-red-600'
-                  : status === 'late' ? 'text-amber-600'
-                  : status === 'excused' ? 'text-blue-600'
-                  : 'text-school-muted';
-                const StatusIcon = status === 'present' ? Check
-                  : status === 'absent' ? X
-                  : status === 'late' ? Clock
-                  : status === 'excused' ? AlertCircle
-                  : Circle;
-
+              {students.map(function (s) {
+                var status = records[s.id] || 'unmarked';
                 return (
-                  <button
-                    key={s.id}
-                    onClick={() => cycleStatus(s.id)}
-                    className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-school-paper/50 dark:hover:bg-white/5 ${status !== 'unmarked' ? statusColor : ''}`}
-                  >
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${status !== 'unmarked' ? 'bg-white/60 dark:bg-white/10' : 'bg-school-border/30 dark:bg-[#2a2a3e]'}`}>
-                      <StatusIcon size={16} className={iconColor} />
+                  <button key={s.id} onClick={function () { toggleStatus(s.id); }}
+                    className={'w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-school-paper/50 dark:hover:bg-white/5 ' + (status === 'present' ? 'bg-green-50 dark:bg-green-500/10' : status === 'absent' ? 'bg-red-50 dark:bg-red-500/10' : '')}>
+                    <div className={'w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ' + (status === 'present' ? 'bg-green-100 dark:bg-green-500/20 text-green-600' : status === 'absent' ? 'bg-red-100 dark:bg-red-500/20 text-red-600' : 'bg-school-border/30 dark:bg-[#2a2a3e] text-school-muted')}>
+                      {status === 'present' ? <Check size={16} /> : status === 'absent' ? <X size={16} /> : <span className="text-[10px]">---</span>}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="font-semibold text-sm text-school-primary dark:text-[#e0e0e8] truncate">{s.name}</div>
                       {s.roll && <div className="text-[10px] text-school-muted uppercase">Roll {s.roll}</div>}
                     </div>
-                    <div className="flex gap-1">
-                      {STATUS_OPTIONS.map((opt) => (
-                        <div
-                          key={opt.key}
-                          className={`w-2 h-2 rounded-full ${
-                            records[s.id] === opt.key ? opt.color : 'bg-school-border/40 dark:bg-[#3a3a4e]'
-                          }`}
-                        />
-                      ))}
+                    <div className="flex gap-1.5">
+                      <div className={'w-2.5 h-2.5 rounded-full ' + (status === 'present' ? 'bg-green-500' : 'bg-school-border/40 dark:bg-[#3a3a4e]')} />
+                      <div className={'w-2.5 h-2.5 rounded-full ' + (status === 'absent' ? 'bg-red-500' : 'bg-school-border/40 dark:bg-[#3a3a4e]')} />
                     </div>
                     <div className="text-[10px] font-bold uppercase text-school-muted min-w-[48px] text-right">
-                      {status === 'unmarked' ? 'Tap' : STATUS_OPTIONS.find(o => o.key === status)?.label}
+                      {status === 'unmarked' ? 'Tap' : status === 'present' ? 'Present' : 'Absent'}
                     </div>
                   </button>
                 );
@@ -388,293 +393,258 @@ export default function AttendanceSection() {
             </div>
           )}
 
-          {/* Save Button */}
           {students.length > 0 && (
-            <button
-              onClick={handleSave}
-              disabled={saving || markedCount === 0}
-              className="w-full px-4 py-3 bg-school-accent text-white rounded-xl text-sm font-bold hover:bg-school-accent/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-            >
+            <button onClick={handleSave} disabled={saving || markedCount === 0}
+              className="w-full px-4 py-3 bg-school-accent text-white rounded-xl text-sm font-bold hover:bg-school-accent/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
               {saving ? <Loader2 size={18} className="animate-spin" /> : <CalendarCheck size={18} />}
-              {saving ? 'Saving...' : `Save Attendance (${markedCount})`}
+              {saving ? 'Saving...' : 'Save Attendance (' + markedCount + ')'}
             </button>
-          )}
-        </>
-      ) : tab === 'monthly' ? (
-        <>
-          {/* Monthly View */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <select
-              value={classId}
-              onChange={(e) => setClassId(e.target.value)}
-              className="w-full px-3 py-2 border border-school-border rounded-xl text-sm focus:outline-none focus:border-school-accent bg-white dark:bg-[#1a1a2e] text-school-primary dark:text-[#e0e0e8] col-span-2 sm:col-span-1"
-            >
-              <option value="">Select Class</option>
-              {classes.map((c: SchoolClass) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-            <select value={term} onChange={(e) => setTerm(e.target.value)} className="w-full px-3 py-2 border border-school-border rounded-xl text-sm focus:outline-none focus:border-school-accent bg-white dark:bg-[#1a1a2e] text-school-primary dark:text-[#e0e0e8]">
-              {Object.entries(TERM_NAMES).map(([k, v]) => (
-                <option key={k} value={k}>{v}</option>
-              ))}
-            </select>
-            <input
-              type="number"
-              value={session}
-              onChange={(e) => setSession(e.target.value)}
-              className="w-full px-3 py-2 border border-school-border rounded-xl text-sm focus:outline-none focus:border-school-accent bg-white dark:bg-[#1a1a2e] text-school-primary dark:text-[#e0e0e8]"
-            />
-          </div>
-
-          {/* Month Picker + Student Search */}
-          <div className="flex items-center gap-2">
-            <button onClick={() => setMonthYear((p) => {
-              const m = p.month - 1;
-              return m < 1 ? { year: p.year - 1, month: 12 } : { year: p.year, month: m };
-            })} className="p-2 hover:bg-school-paper dark:hover:bg-white/5 rounded-xl transition-colors">
-              <ChevronLeft size={18} className="text-school-muted" />
-            </button>
-            <span className="flex-1 text-center font-bold text-sm text-school-primary dark:text-[#e0e0e8]">
-              {monthName(monthYear.month)} {monthYear.year}
-            </span>
-            <button onClick={() => setMonthYear((p) => {
-              const m = p.month + 1;
-              return m > 12 ? { year: p.year + 1, month: 1 } : { year: p.year, month: m };
-            })} className="p-2 hover:bg-school-paper dark:hover:bg-white/5 rounded-xl transition-colors">
-              <ChevronRight size={18} className="text-school-muted" />
-            </button>
-          </div>
-
-          <input
-            type="text"
-            value={studentSearch}
-            onChange={(e) => setStudentSearch(e.target.value)}
-            placeholder="Search student name..."
-            className="w-full px-3 py-2 border border-school-border rounded-xl text-sm focus:outline-none focus:border-school-accent bg-white dark:bg-[#1a1a2e] text-school-primary dark:text-[#e0e0e8]"
-          />
-
-          {/* Student list to pick for monthly view */}
-          {studentSearch && (
-            <div className="bg-white dark:bg-[#1a1a2e] rounded-2xl border border-school-border dark:border-[#2a2a3e] max-h-48 overflow-y-auto divide-y divide-school-border/50">
-              {filteredStudents.map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => { setMonthStudent(s); setStudentSearch(s.name); }}
-                  className={`w-full text-left px-4 py-2.5 text-sm hover:bg-school-paper/50 dark:hover:bg-white/5 transition-colors ${
-                    monthStudent?.id === s.id ? 'bg-purple-50 dark:bg-purple-500/10 font-semibold' : ''
-                  }`}
-                >
-                  {s.name} {s.roll ? `(Roll ${s.roll})` : ''}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Calendar Grid */}
-          {loading ? (
-            <div className="flex justify-center py-12">
-              <Loader2 size={28} className="animate-spin text-school-muted" />
-            </div>
-          ) : monthData ? (
-            <div className="space-y-3">
-              {/* Summary Bar */}
-              {monthSummary && (
-                <div className="grid grid-cols-5 gap-1.5 text-center">
-                  {[
-                    { label: 'Present', value: monthSummary.present, color: 'bg-green-500' },
-                    { label: 'Absent', value: monthSummary.absent, color: 'bg-red-500' },
-                    { label: 'Late', value: monthSummary.late, color: 'bg-amber-500' },
-                    { label: 'Excused', value: monthSummary.excused, color: 'bg-blue-500' },
-                    { label: 'Unmarked', value: monthSummary.unmarked, color: 'bg-gray-400' },
-                  ].map((s) => (
-                    <div key={s.label} className="text-center">
-                      <div className="text-lg font-bold text-school-primary dark:text-[#e0e0e8]">{s.value}</div>
-                      <div className="text-[9px] uppercase tracking-wider text-school-muted font-semibold">{s.label}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Weekday Headers */}
-              <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold uppercase text-school-muted tracking-wider">
-                {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((d) => (
-                  <div key={d} className="py-1">{d}</div>
-                ))}
-              </div>
-
-              {/* Day Cells */}
-              <div className="grid grid-cols-7 gap-1">
-                {monthData.days.map((day, i) => {
-                  const d = new Date(day.date + 'T00:00:00');
-                  const firstDow = new Date(monthData.year, monthData.month - 1, 1).getDay();
-                  const bgColor = day.type === 'weekend' ? 'bg-school-border/20 dark:bg-[#2a2a3e]/30'
-                    : day.type === 'holiday' || day.type === 'de_facto_holiday' ? 'bg-amber-50 dark:bg-amber-500/10'
-                    : day.status === 'present' ? 'bg-green-50 dark:bg-green-500/15'
-                    : day.status === 'absent' ? 'bg-red-50 dark:bg-red-500/15'
-                    : day.status === 'late' ? 'bg-amber-50 dark:bg-amber-500/15'
-                    : day.status === 'excused' ? 'bg-blue-50 dark:bg-blue-500/15'
-                    : 'bg-white dark:bg-[#1a1a2e]';
-                  const dotColor = day.status === 'present' ? 'bg-green-500'
-                    : day.status === 'absent' ? 'bg-red-500'
-                    : day.status === 'late' ? 'bg-amber-500'
-                    : day.status === 'excused' ? 'bg-blue-500'
-                    : '';
-
-                  return (
-                    <div
-                      key={day.date}
-                      className={`aspect-square rounded-lg flex flex-col items-center justify-center text-xs border border-school-border/30 dark:border-[#2a2a3e] ${bgColor}`}
-                      style={i === 0 ? { gridColumnStart: firstDow + 1 } : undefined}
-                      title={day.type === 'holiday' ? day.holiday_name || 'Holiday' : day.type === 'de_facto_holiday' ? 'School closed' : day.type === 'weekend' ? 'Weekend' : day.status ? `Status: ${day.status}` : 'No record'}
-                    >
-                      <span className={`font-semibold text-[11px] ${
-                        day.type === 'weekend' ? 'text-school-muted/50'
-                        : day.type === 'holiday' || day.type === 'de_facto_holiday' ? 'text-amber-600 dark:text-amber-400'
-                        : day.status ? 'text-school-primary dark:text-[#e0e0e8]'
-                        : 'text-school-muted'
-                      }`}>
-                        {d.getDate()}
-                      </span>
-                      {dotColor && <div className={`w-1.5 h-1.5 rounded-full mt-0.5 ${dotColor}`} />}
-                      {day.type === 'holiday' && <div className="text-[7px] text-amber-600 dark:text-amber-400 leading-none mt-0.5 truncate max-w-full px-0.5">H</div>}
-                      {day.type === 'de_facto_holiday' && <div className="text-[7px] text-amber-600 dark:text-amber-400 leading-none mt-0.5">C</div>}
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Legend */}
-              <div className="flex flex-wrap gap-3 text-[10px] text-school-muted pt-2 border-t border-school-border/30 dark:border-[#2a2a3e]">
-                {[
-                  { color: 'bg-green-500', label: 'Present' },
-                  { color: 'bg-red-500', label: 'Absent' },
-                  { color: 'bg-amber-500', label: 'Late' },
-                  { color: 'bg-blue-500', label: 'Excused' },
-                  { color: 'bg-amber-300', label: 'Holiday' },
-                  { color: 'bg-school-border/40', label: 'No Record' },
-                ].map((l) => (
-                  <div key={l.label} className="flex items-center gap-1.5">
-                    <div className={`w-2.5 h-2.5 rounded-full ${l.color}`} />
-                    <span>{l.label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="text-center py-12 text-school-muted text-sm">
-              {classId ? 'Search and select a student to view monthly attendance' : 'Select a class to begin'}
-            </div>
           )}
         </>
       ) : (
+
+        {/* Report section */}
         <>
-          {/* Range Report */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-            <select
-              value={classId}
-              onChange={(e) => setClassId(e.target.value)}
-              className="w-full px-3 py-2 border border-school-border rounded-xl text-sm focus:outline-none focus:border-school-accent bg-white dark:bg-[#1a1a2e] text-school-primary dark:text-[#e0e0e8] col-span-2 sm:col-span-1"
-            >
-              <option value="">Select Class</option>
-              {classes.map((c: SchoolClass) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-            <input
-              type="date"
-              value={rangeFrom}
-              onChange={(e) => setRangeFrom(e.target.value)}
-              className="w-full px-3 py-2 border border-school-border rounded-xl text-sm focus:outline-none focus:border-school-accent bg-white dark:bg-[#1a1a2e] text-school-primary dark:text-[#e0e0e8]"
-            />
-            <input
-              type="date"
-              value={rangeTo}
-              onChange={(e) => setRangeTo(e.target.value)}
-              className="w-full px-3 py-2 border border-school-border rounded-xl text-sm focus:outline-none focus:border-school-accent bg-white dark:bg-[#1a1a2e] text-school-primary dark:text-[#e0e0e8]"
-            />
-            <select value={rangeTerm} onChange={(e) => setRangeTerm(e.target.value)} className="w-full px-3 py-2 border border-school-border rounded-xl text-sm focus:outline-none focus:border-school-accent bg-white dark:bg-[#1a1a2e] text-school-primary dark:text-[#e0e0e8]">
-              {Object.entries(TERM_NAMES).map(([k, v]) => (
-                <option key={k} value={k}>{v}</option>
-              ))}
-            </select>
-            <button
-              onClick={loadRangeReport}
-              disabled={!classId || !rangeFrom || !rangeTo || rangeLoading}
-              className="w-full px-3 py-2 bg-school-accent text-white rounded-xl text-sm font-bold hover:bg-school-accent/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
-            >
-              {rangeLoading ? <Loader2 size={16} className="animate-spin" /> : <CalendarCheck size={16} />}
-              {rangeLoading ? 'Loading...' : 'Load Report'}
+          <div className="flex bg-school-border/30 dark:bg-[#2a2a3e]/50 rounded-xl p-1">
+            <button onClick={function () { setRptTab('daily'); }}
+              className={'flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors ' + (rptTab === 'daily' ? 'bg-white dark:bg-school-primary shadow-sm text-school-primary dark:text-white' : 'text-school-muted')}>
+              Daily Report
+            </button>
+            <button onClick={function () { setRptTab('monthly'); }}
+              className={'flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors ' + (rptTab === 'monthly' ? 'bg-white dark:bg-school-primary shadow-sm text-school-primary dark:text-white' : 'text-school-muted')}>
+              Monthly Report
             </button>
           </div>
 
-          {rangeError && (
-            <div className="text-center py-4 text-red-500 text-sm">{rangeError}</div>
-          )}
-
-          {rangeReport && (
+          {/* Daily Report */}
+          {rptTab === 'daily' ? (
             <>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-school-muted">
-                  {rangeReport.students.length} students · {rangeReport.dates.length} days
-                </span>
-                <button
-                  onClick={exportRangeCSV}
-                  className="px-3 py-1.5 border border-school-border rounded-xl text-xs font-semibold text-school-primary dark:text-[#e0e0e8] hover:bg-school-paper dark:hover:bg-white/5 transition-colors flex items-center gap-1.5"
-                >
-                  <Download size={14} /> CSV
+              <div className="flex gap-2">
+                <button onClick={function () { setDailySub('classwise'); }}
+                  className={'flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors ' + (dailySub === 'classwise' ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300' : 'text-school-muted hover:bg-school-paper/50')}>
+                  Class Wise
+                </button>
+                <button onClick={function () { setDailySub('allclasses'); }}
+                  className={'flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors ' + (dailySub === 'allclasses' ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300' : 'text-school-muted hover:bg-school-paper/50')}>
+                  All Classes
                 </button>
               </div>
-              <div className="overflow-x-auto rounded-2xl border border-school-border dark:border-[#2a2a3e]">
-                <table className="w-full text-xs whitespace-nowrap">
-                  <thead>
-                    <tr className="bg-school-paper dark:bg-[#2a2a3e]">
-                      <th className="sticky left-0 z-10 bg-school-paper dark:bg-[#2a2a3e] px-3 py-2 text-left font-bold text-school-muted uppercase tracking-wider min-w-[160px]">Student</th>
-                      <th className="sticky left-[160px] z-10 bg-school-paper dark:bg-[#2a2a3e] px-3 py-2 text-center font-bold text-school-muted uppercase tracking-wider min-w-[44px]">Roll</th>
-                      {rangeReport.dates.map((d) => (
-                        <th key={d} className="px-2 py-2 text-center font-semibold text-school-muted min-w-[36px]">
-                          {new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
-                        </th>
-                      ))}
-                      <th className="px-2 py-2 text-center font-bold text-green-700 dark:text-green-400 min-w-[28px]">✓</th>
-                      <th className="px-2 py-2 text-center font-bold text-red-700 dark:text-red-400 min-w-[28px]">✗</th>
-                      <th className="px-2 py-2 text-center font-bold text-amber-700 dark:text-amber-400 min-w-[28px]">⏰</th>
-                      <th className="px-2 py-2 text-center font-bold text-blue-700 dark:text-blue-400 min-w-[28px]">ℹ</th>
-                      <th className="px-2 py-2 text-center font-bold text-school-muted min-w-[44px]">%</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rangeReport.students.map((s) => {
-                      const sum = rangeReport.summary[s.id];
+
+              {dailySub === 'classwise' ? (
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    <select value={dailyClassId} onChange={function (e) { setDailyClassId(e.target.value); }}
+                      className="w-full px-3 py-2 border border-school-border rounded-xl text-sm focus:outline-none focus:border-school-accent bg-white dark:bg-[#1a1a2e] text-school-primary dark:text-[#e0e0e8]">
+                      <option value="">Select Class</option>
+                      {classes.map(function (c) { return <option key={c.id} value={c.id}>{c.name}</option>; })}
+                    </select>
+                    <input type="date" value={dailyDate} onChange={function (e) { setDailyDate(e.target.value); }}
+                      className="w-full px-3 py-2 border border-school-border rounded-xl text-sm focus:outline-none focus:border-school-accent bg-white dark:bg-[#1a1a2e] text-school-primary dark:text-[#e0e0e8]" />
+                  </div>
+                  <button onClick={loadDailyReport} disabled={!dailyClassId || !dailyDate || rptLoading}
+                    className="w-full px-3 py-2 bg-purple-600 text-white rounded-xl text-sm font-bold hover:bg-purple-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5">
+                    {rptLoading ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
+                    {rptLoading ? 'Loading...' : 'Load Daily Report'}
+                  </button>
+                  {rptError && <div className="text-center text-red-500 text-sm">{rptError}</div>}
+                  {dailyReport && (
+                    <div className="bg-white dark:bg-[#1a1a2e] rounded-2xl border border-school-border dark:border-[#2a2a3e] p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-bold text-school-primary dark:text-[#e0e0e8]">{dailyReport.class.name}</p>
+                          <p className="text-xs text-school-muted">{dailyReport.date}</p>
+                        </div>
+                        <button onClick={function () { downloadDailyReportPDF(dailyReport); }}
+                          className="px-3 py-1.5 bg-school-accent text-white rounded-xl text-xs font-semibold hover:bg-school-accent/90 transition-colors flex items-center gap-1.5">
+                          <Download size={14} /> PDF
+                        </button>
+                      </div>
+
+                      <div className="flex gap-4 text-sm">
+                        <div><span className="font-bold text-green-600">{dailyReport.present}</span> <span className="text-school-muted">Present</span></div>
+                        <div><span className="font-bold text-red-600">{dailyReport.absent}</span> <span className="text-school-muted">Absent</span></div>
+                        <div><span className="font-bold text-school-muted">{dailyReport.unmarked}</span> <span className="text-school-muted">Unmarked</span></div>
+                        <div><span className="font-bold">{dailyReport.total_students}</span> <span className="text-school-muted">Total</span></div>
+                      </div>
+                      <div className="max-h-48 overflow-y-auto divide-y divide-school-border/30 dark:divide-[#2a2a3e] text-sm">
+                        {dailyReport.students.map(function (s) {
+                          return (
+                            <div key={s.id} className="flex items-center gap-2 py-1.5">
+                              <div className={'w-2 h-2 rounded-full ' + (s.status === 'present' ? 'bg-green-500' : s.status === 'absent' ? 'bg-red-500' : 'bg-gray-400')} />
+                              <span className="text-school-muted text-xs w-8">{s.roll || '---'}</span>
+                              <span className="font-medium text-school-primary dark:text-[#e0e0e8]">{s.name}</span>
+                              <span className={'ml-auto text-xs font-semibold ' + (s.status === 'present' ? 'text-green-600' : s.status === 'absent' ? 'text-red-600' : 'text-school-muted')}>
+                                {s.status.charAt(0).toUpperCase() + s.status.slice(1)}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <input type="date" value={dailyDate} onChange={function (e) { setDailyDate(e.target.value); }}
+                    className="w-full px-3 py-2 border border-school-border rounded-xl text-sm focus:outline-none focus:border-school-accent bg-white dark:bg-[#1a1a2e] text-school-primary dark:text-[#e0e0e8]" />
+                  <button onClick={loadAllClassesReport} disabled={!dailyDate || rptLoading}
+                    className="w-full px-3 py-2 bg-purple-600 text-white rounded-xl text-sm font-bold hover:bg-purple-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5">
+                    {rptLoading ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
+                    {rptLoading ? 'Loading...' : 'Load All Classes Report'}
+                  </button>
+                  {rptError && <div className="text-center text-red-500 text-sm">{rptError}</div>}
+                  {allClassesReport && (
+                    <div className="bg-white dark:bg-[#1a1a2e] rounded-2xl border border-school-border dark:border-[#2a2a3e] p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-school-muted">Date: {allClassesReport.date}</p>
+                        <button onClick={function () { downloadAllClassesPDF(allClassesReport); }}
+                          className="px-3 py-1.5 bg-school-accent text-white rounded-xl text-xs font-semibold hover:bg-school-accent/90 transition-colors flex items-center gap-1.5">
+                          <Download size={14} /> PDF
+                        </button>
+                      </div>
+
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="bg-school-paper dark:bg-[#2a2a3e]">
+                              <th className="text-left px-2 py-1.5 font-bold text-school-muted">Class</th>
+                              <th className="text-center px-2 py-1.5 font-bold text-school-muted">Total</th>
+                              <th className="text-center px-2 py-1.5 font-bold text-green-600">Present</th>
+                              <th className="text-center px-2 py-1.5 font-bold text-red-600">Absent</th>
+                              <th className="text-center px-2 py-1.5 font-bold text-school-muted">Unmarked</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {allClassesReport.classes.map(function (c, i) {
+                              return (
+                                <tr key={c.class.id} className={'border-t border-school-border/30 dark:border-[#2a2a3e] ' + (i % 2 === 0 ? '' : 'bg-school-paper/50 dark:bg-[#2a2a3e]/30')}>
+                                  <td className="px-2 py-1.5 font-semibold text-school-primary dark:text-[#e0e0e8]">{c.class.name}</td>
+                                  <td className="px-2 py-1.5 text-center">{c.total_students}</td>
+                                  <td className="px-2 py-1.5 text-center font-semibold text-green-600">{c.present}</td>
+                                  <td className="px-2 py-1.5 text-center font-semibold text-red-600">{c.absent}</td>
+                                  <td className="px-2 py-1.5 text-center text-school-muted">{c.unmarked}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                          <tfoot>
+                            <tr className="border-t-2 border-school-border dark:border-[#2a2a3e] font-bold">
+                              <td className="px-2 py-1.5 text-school-primary dark:text-[#e0e0e8]">Total</td>
+                              <td className="px-2 py-1.5 text-center">{allClassesReport.classes.reduce(function (s, c) { return s + c.total_students; }, 0)}</td>
+                              <td className="px-2 py-1.5 text-center text-green-600">{allClassesReport.classes.reduce(function (s, c) { return s + c.present; }, 0)}</td>
+                              <td className="px-2 py-1.5 text-center text-red-600">{allClassesReport.classes.reduce(function (s, c) { return s + c.absent; }, 0)}</td>
+                              <td className="px-2 py-1.5 text-center text-school-muted">{allClassesReport.classes.reduce(function (s, c) { return s + c.unmarked; }, 0)}</td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </>
+          ) : (
+
+            /* Monthly Report */
+            <>
+              <div className="grid grid-cols-2 gap-2">
+                <select value={monthlyClassId} onChange={function (e) { setMonthlyClassId(e.target.value); }}
+                  className="w-full px-3 py-2 border border-school-border rounded-xl text-sm focus:outline-none focus:border-school-accent bg-white dark:bg-[#1a1a2e] text-school-primary dark:text-[#e0e0e8]">
+                  <option value="">Select Class</option>
+                  {classes.map(function (c) { return <option key={c.id} value={c.id}>{c.name}</option>; })}
+                </select>
+                <div className="flex items-center gap-2">
+                  <button onClick={function () { setMonthYear(function (p) { var m = p.month - 1; return m < 1 ? { year: p.year - 1, month: 12 } : { year: p.year, month: m }; }); }}
+                    className="p-2 hover:bg-school-paper dark:hover:bg-white/5 rounded-xl transition-colors">
+                    <ChevronLeft size={18} className="text-school-muted" />
+                  </button>
+                  <span className="flex-1 text-center font-bold text-sm text-school-primary dark:text-[#e0e0e8]">
+                    {monthName(monthYear.month)} {monthYear.year}
+                  </span>
+                  <button onClick={function () { setMonthYear(function (p) { var m = p.month + 1; return m > 12 ? { year: p.year + 1, month: 1 } : { year: p.year, month: m }; }); }}
+                    className="p-2 hover:bg-school-paper dark:hover:bg-white/5 rounded-xl transition-colors">
+                    <ChevronRight size={18} className="text-school-muted" />
+                  </button>
+                </div>
+              </div>
+
+              {monthlyError && <div className="text-center text-red-500 text-sm">{monthlyError}</div>}
+
+              {monthlyLoading ? (
+                <div className="flex justify-center py-12"><Loader2 size={28} className="animate-spin text-school-muted" /></div>
+              ) : monthlyData ? (
+                <div className="space-y-3">
+                  {monthlyData && (function () {
+                    var schoolDays = monthlyData.days.filter(function (d) { return d.type !== 'weekend' && d.type !== 'holiday'; });
+                    var totalPre = schoolDays.reduce(function (s, d) { return s + d.present; }, 0);
+                    var totalAbs = schoolDays.reduce(function (s, d) { return s + d.absent; }, 0);
+                    return (
+                      <div className="flex items-center justify-between">
+                        <div className="flex gap-3 text-xs">
+                          <span><span className="font-bold text-green-600">{totalPre}</span> Present</span>
+                          <span><span className="font-bold text-red-600">{totalAbs}</span> Absent</span>
+                          <span><span className="font-bold">{schoolDays.length}</span> Days</span>
+                        </div>
+                        <button onClick={function () { downloadMonthlyPDF(monthlyData); }}
+                          className="px-3 py-1.5 bg-school-accent text-white rounded-xl text-xs font-semibold hover:bg-school-accent/90 transition-colors flex items-center gap-1.5">
+                          <Download size={14} /> PDF
+                        </button>
+                      </div>
+                    );
+                  })()}
+
+                  <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold uppercase text-school-muted tracking-wider">
+                    {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(function (d) { return <div key={d} className="py-1">{d}</div>; })}
+                  </div>
+
+                  <div className="grid grid-cols-7 gap-1">
+                    {monthlyData.days.map(function (day, i) {
+                      var dt = new Date(day.date + 'T00:00:00');
+                      var firstDow = new Date(monthlyData.year, monthlyData.month - 1, 1).getDay();
+                      var isWeekend = day.type === 'weekend';
+                      var isHoliday = day.type === 'holiday';
+                      var bgColor = isWeekend ? 'bg-school-border/20 dark:bg-[#2a2a3e]/30'
+                        : isHoliday ? 'bg-amber-50 dark:bg-amber-500/10'
+                        : 'bg-white dark:bg-[#1a1a2e]';
                       return (
-                        <tr key={s.id} className="border-t border-school-border/50 dark:border-[#2a2a3e] hover:bg-school-paper/50 dark:hover:bg-white/5">
-                          <td className="sticky left-0 z-10 bg-white dark:bg-[#1a1a2e] px-3 py-1.5 font-semibold text-school-primary dark:text-[#e0e0e8] truncate max-w-[160px]">{s.name}</td>
-                          <td className="sticky left-[160px] z-10 bg-white dark:bg-[#1a1a2e] px-3 py-1.5 text-center text-school-muted">{s.roll || '—'}</td>
-                          {rangeReport.dates.map((d) => {
-                            const status = rangeReport.grid[s.id]?.[d];
-                            const cellClass = !status ? 'bg-school-border/10'
-                              : status === 'present' ? 'bg-green-100 dark:bg-green-500/20'
-                              : status === 'absent' ? 'bg-red-100 dark:bg-red-500/20'
-                              : status === 'late' ? 'bg-amber-100 dark:bg-amber-500/20'
-                              : 'bg-blue-100 dark:bg-blue-500/20';
-                            const tip = status ? `${s.name} - ${d}: ${status}` : `${s.name} - ${d}: —`;
-                            return (
-                              <td key={d} className={`px-2 py-1.5 text-center ${cellClass}`} title={tip}>
-                                {!status ? '—' : status === 'present' ? '✓' : status === 'absent' ? '✗' : status === 'late' ? '⏰' : 'ℹ'}
-                              </td>
-                            );
-                          })}
-                          <td className="px-2 py-1.5 text-center font-bold text-green-700 dark:text-green-400">{sum.present}</td>
-                          <td className="px-2 py-1.5 text-center font-bold text-red-700 dark:text-red-400">{sum.absent}</td>
-                          <td className="px-2 py-1.5 text-center font-bold text-amber-700 dark:text-amber-400">{sum.late}</td>
-                          <td className="px-2 py-1.5 text-center font-bold text-blue-700 dark:text-blue-400">{sum.excused}</td>
-                          <td className="px-2 py-1.5 text-center font-bold text-school-primary dark:text-[#e0e0e8]">{sum.pct}%</td>
-                        </tr>
+                        <div key={day.date}
+                          className={'min-h-[44px] rounded-lg flex flex-col items-center justify-center text-xs border border-school-border/30 dark:border-[#2a2a3e] ' + bgColor}
+                          style={i === 0 ? { gridColumnStart: firstDow + 1 } : undefined}
+                          title={day.date + ': ' + day.present + ' present, ' + day.absent + ' absent'}>
+                          <span className={'font-semibold text-[11px] ' + (isWeekend ? 'text-school-muted/50' : isHoliday ? 'text-amber-600 dark:text-amber-400' : 'text-school-primary dark:text-[#e0e0e8]')}>
+                            {dt.getDate()}
+                          </span>
+                          {!isWeekend && !isHoliday && (
+                            <div className="flex gap-0.5 mt-0.5">
+                              {day.present > 0 && <span className="text-[8px] text-green-600 font-bold">{day.present}</span>}
+                              {day.absent > 0 && <span className="text-[8px] text-red-600 font-bold">{day.absent}</span>}
+                            </div>
+                          )}
+                          {isHoliday && <span className="text-[7px] text-amber-600 dark:text-amber-400 leading-none">H</span>}
+                        </div>
                       );
                     })}
-                  </tbody>
-                </table>
-              </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-3 text-[10px] text-school-muted pt-2 border-t border-school-border/30 dark:border-[#2a2a3e]">
+                    {[
+                      { color: 'bg-green-500', label: 'Present' },
+                      { color: 'bg-red-500', label: 'Absent' },
+                      { color: 'bg-amber-300', label: 'Holiday' },
+                      { color: 'bg-school-border/40', label: 'Weekend' },
+                    ].map(function (l) {
+                      return (
+                        <div key={l.label} className="flex items-center gap-1.5">
+                          <div className={'w-2.5 h-2.5 rounded-full ' + l.color} />
+                          <span>{l.label}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-12 text-school-muted text-sm">Select a class to view monthly report</div>
+              )}
             </>
           )}
         </>
