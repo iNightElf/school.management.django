@@ -302,6 +302,14 @@ class AttendanceViewSet(viewsets.GenericViewSet):
 
     @action(detail=False, methods=['get'], url_path='class-report')
     def class_report(self, request):
+        try:
+            return self._class_report_logic(request)
+        except Exception as e:
+            logger = __import__('logging').getLogger(__name__)
+            logger.exception('class_report failed')
+            return Response({'error': 'Failed to load report'}, status=500)
+
+    def _class_report_logic(self, request):
         class_id = request.query_params.get('class_id')
         from_date = request.query_params.get('from')
         to_date = request.query_params.get('to')
@@ -319,10 +327,14 @@ class AttendanceViewSet(viewsets.GenericViewSet):
         except SchoolClass.DoesNotExist:
             return Response({'error': 'Class not found'}, status=404)
 
-        students = Student.objects.filter(
-            school_class=school_class,
-            deleted_at__isnull=True,
-        ).order_by('roll', 'name').values('id', 'name', 'roll')
+        students = list(
+            Student.objects.filter(
+                school_class=school_class,
+                deleted_at__isnull=True,
+            )
+            .order_by('roll', 'name')
+            .values('id', 'name', 'roll')
+        )
 
         qs = AttendanceRecord.objects.filter(
             school_class=school_class,
@@ -334,19 +346,31 @@ class AttendanceViewSet(viewsets.GenericViewSet):
         if session:
             qs = qs.filter(session=session)
 
-        records = qs.values('student_id', 'date', 'status')
+        records = list(
+            qs.values('student_id', 'date', 'status')
+        )
 
-        dates = sorted(set(r['date'] for r in records))
-        student_ids = [s['id'] for s in students]
+        try:
+            dates = sorted(
+                {r['date'] for r in records},
+                key=lambda d: str(d),
+            )
+        except Exception:
+            dates = []
+
+        student_ids = [str(s['id']) for s in students]
 
         grid: dict[str, dict[str, str]] = {}
         student_summary: dict[str, dict[str, int]] = {}
         date_summary: dict[str, dict[str, int]] = {}
 
         for rec in records:
-            sid = str(rec['student_id'])
-            d = rec['date'].isoformat()
-            st = rec['status']
+            try:
+                sid = str(rec['student_id'])
+                d = rec['date'].isoformat()
+                st = str(rec['status'])
+            except Exception:
+                continue
 
             grid.setdefault(sid, {})[d] = st
 
@@ -359,12 +383,10 @@ class AttendanceViewSet(viewsets.GenericViewSet):
                 ds[st] += 1
 
         for sid in student_ids:
-            if sid not in grid:
-                grid[sid] = {}
-            if sid not in student_summary:
-                student_summary[sid] = {'present': 0, 'absent': 0, 'late': 0, 'excused': 0}
+            grid.setdefault(sid, {})
+            student_summary.setdefault(sid, {'present': 0, 'absent': 0, 'late': 0, 'excused': 0})
 
-        full_summary = {}
+        full_summary: dict[str, dict[str, object]] = {}
         for sid in student_ids:
             ss = student_summary[sid]
             total = ss['present'] + ss['absent'] + ss['late'] + ss['excused']

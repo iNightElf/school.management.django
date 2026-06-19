@@ -282,6 +282,15 @@ def mobile_batch_attendance(request):
 @permission_classes([AllowAny])
 def mobile_class_report(request):
     """Class attendance report for a date range (PIN auth)."""
+    try:
+        return _mobile_class_report_logic(request)
+    except Exception as e:
+        logger = __import__('logging').getLogger(__name__)
+        logger.exception('mobile_class_report failed')
+        return Response({'error': 'Failed to load report'}, status=500)
+
+
+def _mobile_class_report_logic(request):
     teacher = _get_pin_teacher(request)
     if not teacher:
         return Response({'error': 'Authentication required'}, status=401)
@@ -303,9 +312,13 @@ def mobile_class_report(request):
     if not ClassTeacher.objects.filter(teacher=teacher, school_class=school_class).exists():
         return Response({'error': 'You are not assigned to this class'}, status=403)
 
-    students_qs = Student.objects.filter(
-        school_class=school_class, deleted_at__isnull=True,
-    ).order_by('roll', 'name').values('id', 'name', 'roll')
+    students_qs = list(
+        Student.objects.filter(
+            school_class=school_class, deleted_at__isnull=True,
+        )
+        .order_by('roll', 'name')
+        .values('id', 'name', 'roll')
+    )
 
     qs = AttendanceRecord.objects.filter(
         school_class=school_class, date__gte=from_date, date__lte=to_date,
@@ -315,22 +328,34 @@ def mobile_class_report(request):
     if session_data:
         qs = qs.filter(session=session_data)
 
-    records_list = qs.values('student_id', 'date', 'status')
-    dates = sorted(set(r['date'] for r in records_list))
+    try:
+        records_list = list(qs.values('student_id', 'date', 'status'))
+        dates = sorted(
+            {r['date'] for r in records_list},
+            key=lambda d: str(d),
+        )
+    except Exception:
+        records_list = []
+        dates = []
 
-    grid = {}
-    student_summary = {}
+    student_ids = [str(s['id']) for s in students_qs]
+
+    grid: dict[str, dict[str, str]] = {}
+    student_summary: dict[str, dict[str, int]] = {}
 
     for rec in records_list:
-        sid = str(rec['student_id'])
-        d = rec['date'].isoformat()
-        st = rec['status']
+        try:
+            sid = str(rec['student_id'])
+            d = rec['date'].isoformat()
+            st = str(rec['status'])
+        except Exception:
+            continue
+
         grid.setdefault(sid, {})[d] = st
         ss = student_summary.setdefault(sid, {'present': 0, 'absent': 0, 'late': 0, 'excused': 0})
         if st in ss:
             ss[st] += 1
 
-    student_ids = [str(s['id']) for s in students_qs]
     for sid in student_ids:
         grid.setdefault(sid, {})
         student_summary.setdefault(sid, {'present': 0, 'absent': 0, 'late': 0, 'excused': 0})
