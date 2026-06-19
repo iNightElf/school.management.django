@@ -140,8 +140,8 @@ export default function PinAttendance() {
 
   useEffect(() => {
     if (navigator.onLine) syncQueue();
-    const interval = setInterval(syncQueue, 30000);
-    return () => clearInterval(interval);
+    window.addEventListener('online', syncQueue); // ponytail: instant drain, no polling
+    return () => window.removeEventListener('online', syncQueue);
   }, [syncQueue]);
 
   useEffect(() => {
@@ -725,6 +725,26 @@ export default function PinAttendance() {
                   <span className="text-xs text-school-muted">
                     {rangeReport.students.length} students · {rangeReport.dates.length} days
                   </span>
+                  <button onClick={async () => {
+                    const jsPDF = (await import('jspdf')).default;
+                    await import('jspdf-autotable');
+                    const doc = new jsPDF({ format: 'a4', unit: 'mm' });
+                    doc.text(`Attendance Report`, 14, 15);
+                    const head = [['Student', ...rangeReport.dates.map(d => d.slice(-2)), 'P', 'A', 'L', 'E', '%']];
+                    const body = rangeReport.students.map(s => [
+                      s.name, ...rangeReport.dates.map(d => {
+                        const st = rangeReport.grid[s.id]?.[d];
+                        return !st ? '-' : st === 'present' ? 'P' : st === 'absent' ? 'A' : st === 'late' ? 'L' : 'E';
+                      }),
+                      rangeReport.summary[s.id].present, rangeReport.summary[s.id].absent,
+                      rangeReport.summary[s.id].late, rangeReport.summary[s.id].excused,
+                      rangeReport.summary[s.id].pct
+                    ]);
+                    (doc as any).autoTable({ head, body, startY: 20, styles: { fontSize: 8 } });
+                    doc.save('report.pdf'); // ponytail: minimum viable PDF
+                  }} className="px-3 py-1 text-xs bg-school-accent text-white rounded-lg">
+                    PDF
+                  </button>
                 </div>
                 <div className="overflow-x-auto rounded-2xl border border-school-border dark:border-[#2a2a3e]">
                   <table className="w-full text-xs whitespace-nowrap">

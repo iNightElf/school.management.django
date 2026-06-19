@@ -26,6 +26,10 @@ def root_redirect(request):
     return HttpResponseRedirect('/admin/')
 
 
+def mobile_redirect(request):
+    return HttpResponseRedirect('/?pwa=true')
+
+
 class WakeDBView(generics.GenericAPIView):
     permission_classes = [permissions.IsAdminUser]
     def get(self, request):
@@ -51,11 +55,5 @@ urlpatterns = [
     path('api/engagement/', include('engagement.urls')),
     path('api/', include('attendance.urls')),
     path('api/m/', include('teachers.urls_mobile')),
-    path('m/', TemplateView.as_view(template_name='mobile/index.html'), name='mobile-home'),
-    path('m/manifest.json',
-         TemplateView.as_view(template_name='mobile/manifest.json', content_type='application/manifest+json'),
-         name='mobile-manifest'),
-    path('m/sw.js',
-         TemplateView.as_view(template_name='mobile/sw.js', content_type='application/javascript'),
-         name='mobile-sw'),
+    path('m/', mobile_redirect, name='mobile-home'),
 ]
