@@ -1,7 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { api, useSchoolStore } from '../store';
 import Toast, { toast } from '../components/Toast';
-import type { SchoolClass } from '../lib/types';
 import { TERM_NAMES } from '../lib/config';
 import {
   CalendarCheck, Check, X, Loader2, Download, FileText,
@@ -213,9 +212,9 @@ export default function AttendanceSection() {
     if (!classId) return;
     setLoading(true);
     api.get('/students/', { params: { class_id: classId, limit: 200 } })
-      .then(function (res) {
-        var list = (res.data.results || res.data).map(function (s) { return { id: s.id, name: s.name, roll: s.roll || '' }; });
-        list.sort(function (a, b) { return String(a.roll || '').localeCompare(String(b.roll || ''), undefined, { numeric: true }); });
+      .then(function (res: any) {
+        var list = (res.data.results || res.data).map(function (s: any) { return { id: s.id, name: s.name, roll: s.roll || '' }; });
+        list.sort(function (a: any, b: any) { return String(a.roll || '').localeCompare(String(b.roll || ''), undefined, { numeric: true }); });
         setStudents(list);
       })
       .catch(function () { toast('Failed to load students', 'error'); })
@@ -226,27 +225,27 @@ export default function AttendanceSection() {
   useEffect(function () {
     if (!classId || !date || tab !== 'daily') return;
     api.get('/attendance/', { params: { class_id: classId, date: date } })
-      .then(function (res) {
+      .then(function (res: any) {
         var data = res.data.results || res.data;
-        var map = {};
-        data.forEach(function (r) { if (r.status === 'present' || r.status === 'absent') map[r.student] = r.status; });
+        var map: Record<string, StatusType> = {};
+        data.forEach(function (r: any) { if (r.status === 'present' || r.status === 'absent') map[r.student] = r.status; });
         setRecords(map);
       })
       .catch(function () { setRecords({}); });
   }, [classId, date, tab]);
 
   var markAllPresent = function () {
-    var all = {};
-    students.forEach(function (s) { all[s.id] = 'present'; });
+    var all: Record<string, StatusType> = {};
+    students.forEach(function (s: any) { all[s.id] = 'present'; });
     setRecords(all);
   };
 
-  var toggleStatus = function (sid) {
-    setRecords(function (prev) {
+  var toggleStatus = function (sid: string) {
+    setRecords(function (prev: Record<string, StatusType>) {
       var cur = prev[sid] || 'unmarked';
-      var next = cur === 'unmarked' ? 'present' : cur === 'present' ? 'absent' : 'unmarked';
-      var copy = {};
-      Object.keys(prev).forEach(function (k) { copy[k] = prev[k]; });
+      var next: StatusType = cur === 'unmarked' ? 'present' : cur === 'present' ? 'absent' : 'unmarked';
+      var copy: Record<string, StatusType> = {};
+      Object.keys(prev).forEach(function (k: string) { copy[k] = prev[k]; });
       copy[sid] = next;
       return copy;
     });
@@ -254,14 +253,14 @@ export default function AttendanceSection() {
 
   var handleSave = async function () {
     if (!classId || !date) { toast('Select a class and date', 'error'); return; }
-    var markedRecords = {};
-    Object.keys(records).forEach(function (sid) { if (records[sid] !== 'unmarked') markedRecords[sid] = records[sid]; });
+    var markedRecords: Record<string, StatusType> = {};
+    Object.keys(records).forEach(function (sid: string) { if (records[sid] !== 'unmarked') markedRecords[sid] = records[sid]; });
     if (Object.keys(markedRecords).length === 0) { toast('Mark at least one student', 'error'); return; }
     setSaving(true);
     try {
       await api.post('/attendance/batch/', { school_class: classId, date: date, term: term, session: session, records: markedRecords });
       toast('Attendance saved', 'success');
-    } catch (e) {
+    } catch (e: any) {
       toast((e.response && e.response.data && e.response.data.error) || 'Failed to save attendance', 'error');
     }
     setSaving(false);
@@ -403,7 +402,6 @@ export default function AttendanceSection() {
         </>
       ) : (
 
-        {/* Report section */}
         <>
           <div className="flex items-center gap-2">
             <FileText size={16} className="text-school-muted shrink-0" />
