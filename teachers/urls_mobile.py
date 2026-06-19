@@ -8,5 +8,6 @@ urlpatterns = [
     path('students/', views_mobile.mobile_students, name='mobile-students'),
     path('attendance/', views_mobile.mobile_get_attendance, name='mobile-get-attendance'),
     path('attendance/batch/', views_mobile.mobile_batch_attendance, name='mobile-batch-attendance'),
-    path('attendance/class-report/', views_mobile.mobile_class_report, name='mobile-class-report'),
+    path('attendance/class-daily-report/', views_mobile.mobile_class_daily_report, name='mobile-class-daily-report'),
+    path('attendance/monthly-report/', views_mobile.mobile_monthly_report, name='mobile-monthly-report'),
 ]

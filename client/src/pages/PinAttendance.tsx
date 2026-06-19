@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import Toast, { toast } from '../components/Toast';
 import { setTokens } from '../stores/api';
 import { API_URL, TERM_NAMES } from '../lib/config';
-import type { ClassAttendanceReport } from '../lib/types';
 
 const API_BASE = API_URL.replace(/\/+$/, '');
 const LS_QUEUE_KEY = 'pin_attendance_queue';
@@ -80,16 +79,18 @@ export default function PinAttendance() {
   const [saving, setSaving] = useState(false);
   const [offline, setOffline] = useState(!navigator.onLine);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [tab, setTab] = useState<'daily' | 'range'>('daily');
+  const [tab, setTab] = useState<'daily' | 'report'>('daily');
+  const [rptTab, setRptTab] = useState<'daily' | 'monthly'>('daily');
+  const [dailyDate, setDailyDate] = useState(() => todayStr());
+  const [dailyReport, setDailyReport] = useState<any>(null);
+  const [monthYear, setMonthYear] = useState({ year: new Date().getFullYear(), month: new Date().getMonth() + 1 });
+  const [monthlyReport, setMonthlyReport] = useState<any>(null);
+  const [rptLoading, setRptLoading] = useState(false);
+  const [rptError, setRptError] = useState('');
 
-  const [rangeFrom, setRangeFrom] = useState(() => {
-    const d = new Date(); d.setDate(1); return d.toISOString().split('T')[0];
-  });
-  const [rangeTo, setRangeTo] = useState(() => todayStr());
-  const [rangeTerm, setRangeTerm] = useState('1');
-  const [rangeReport, setRangeReport] = useState<ClassAttendanceReport | null>(null);
-  const [rangeLoading, setRangeLoading] = useState(false);
-  const [rangeError, setRangeError] = useState('');
+  function monthName(m: number) {
+    return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m - 1] || '';
+  }
 
   const loadingStudentsRef = useRef(false);
 
@@ -338,20 +339,32 @@ export default function PinAttendance() {
     }
   }
 
-  async function loadRangeReport() {
-    if (!classId || !rangeFrom || !rangeTo || !token) return;
-    setRangeLoading(true);
-    setRangeError('');
+  async function loadDailyReport() {
+    if (!classId || !dailyDate || !token) return;
+    setRptLoading(true);
+    setRptError('');
     try {
-      const data: any = await apiGet('/m/attendance/class-report/', token, {
-        class_id: classId, from: rangeFrom, to: rangeTo, term: rangeTerm, session,
-      });
-      setRangeReport(data as ClassAttendanceReport);
+      const data = await apiGet('/m/attendance/class-daily-report/', token, { class_id: classId, date: dailyDate });
+      setDailyReport(data);
     } catch (e: any) {
-      setRangeError(e.message || 'Failed to load report');
-      setRangeReport(null);
+      setRptError(e.message || 'Failed to load report');
+      setDailyReport(null);
     }
-    setRangeLoading(false);
+    setRptLoading(false);
+  }
+
+  async function loadMonthlyReport() {
+    if (!classId || !monthYear.year || !monthYear.month || !token) return;
+    setRptLoading(true);
+    setRptError('');
+    try {
+      const data = await apiGet('/m/attendance/monthly-report/', token, { class_id: classId, year: String(monthYear.year), month: String(monthYear.month) });
+      setMonthlyReport(data);
+    } catch (e: any) {
+      setRptError(e.message || 'Failed to load report');
+      setMonthlyReport(null);
+    }
+    setRptLoading(false);
   }
 
   const markedCount = Object.values(records).filter(s => s !== 'unmarked').length;
@@ -560,9 +573,9 @@ export default function PinAttendance() {
             Daily
           </button>
           <button
-            onClick={() => setTab('range')}
+            onClick={() => setTab('report')}
             className={`flex-1 py-2 text-xs font-bold rounded-lg transition-colors ${
-              tab === 'range' ? 'bg-school-accent text-white shadow-sm' : 'bg-school-paper dark:bg-[#2a2a3e] text-school-muted'
+              tab === 'report' ? 'bg-school-accent text-white shadow-sm' : 'bg-school-paper dark:bg-[#2a2a3e] text-school-muted'
             }`}
           >
             Range Report
@@ -681,120 +694,97 @@ export default function PinAttendance() {
           </>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-2">
-              <input
-                type="date"
-                value={rangeFrom}
-                onChange={(e) => setRangeFrom(e.target.value)}
-                className="w-full px-3 py-2 border border-school-border rounded-xl text-sm focus:outline-none focus:border-school-accent bg-white dark:bg-[#1a1a2e] text-school-primary dark:text-[#e0e0e8]"
-              />
-              <input
-                type="date"
-                value={rangeTo}
-                onChange={(e) => setRangeTo(e.target.value)}
-                className="w-full px-3 py-2 border border-school-border rounded-xl text-sm focus:outline-none focus:border-school-accent bg-white dark:bg-[#1a1a2e] text-school-primary dark:text-[#e0e0e8]"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <select value={rangeTerm} onChange={(e) => setRangeTerm(e.target.value)} className="w-full px-3 py-2 border border-school-border rounded-xl text-sm focus:outline-none focus:border-school-accent bg-white dark:bg-[#1a1a2e] text-school-primary dark:text-[#e0e0e8]">
-                {Object.entries(TERM_NAMES).map(([k, v]) => (
-                  <option key={k} value={k}>{v}</option>
-                ))}
-              </select>
-              <button
-                onClick={loadRangeReport}
-                disabled={!rangeFrom || !rangeTo || rangeLoading}
-                className="w-full px-3 py-2 bg-school-accent text-white rounded-xl text-sm font-bold hover:bg-school-accent/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
-              >
-                {rangeLoading ? (
-                  <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                )}
-                {rangeLoading ? 'Loading...' : 'Load'}
-              </button>
+            <div className="flex bg-school-paper dark:bg-[#2a2a3e] p-1 rounded-xl mb-4 mt-2 border border-school-border/50">
+              <button onClick={() => { setRptTab('daily'); setDailyReport(null); setRptError(''); }} className={`flex-1 py-1.5 text-[11px] font-bold rounded-lg ${rptTab === 'daily' ? 'bg-white dark:bg-[#1a1a2e] text-school-primary shadow-sm' : 'text-school-muted'}`}>Daily Report</button>
+              <button onClick={() => { setRptTab('monthly'); setMonthlyReport(null); setRptError(''); }} className={`flex-1 py-1.5 text-[11px] font-bold rounded-lg ${rptTab === 'monthly' ? 'bg-white dark:bg-[#1a1a2e] text-school-primary shadow-sm' : 'text-school-muted'}`}>Monthly Report</button>
             </div>
 
-            {rangeError && (
-              <div className="text-center py-3 text-red-500 text-sm">{rangeError}</div>
-            )}
-
-            {rangeReport && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-school-muted">
-                    {rangeReport.students.length} students · {rangeReport.dates.length} days
-                  </span>
-                  <button onClick={async () => {
-                    const jsPDF = (await import('jspdf')).default;
-                    await import('jspdf-autotable');
-                    const doc = new jsPDF({ format: 'a4', unit: 'mm' });
-                    doc.text(`Attendance Report`, 14, 15);
-                    const head = [['Student', ...rangeReport.dates.map(d => d.slice(-2)), 'P', 'A', 'L', 'E', '%']];
-                    const body = rangeReport.students.map(s => [
-                      s.name, ...rangeReport.dates.map(d => {
-                        const st = rangeReport.grid[s.id]?.[d];
-                        return !st ? '-' : st === 'present' ? 'P' : st === 'absent' ? 'A' : st === 'late' ? 'L' : 'E';
-                      }),
-                      rangeReport.summary[s.id].present, rangeReport.summary[s.id].absent,
-                      rangeReport.summary[s.id].late, rangeReport.summary[s.id].excused,
-                      rangeReport.summary[s.id].pct
-                    ]);
-                    (doc as any).autoTable({ head, body, startY: 20, styles: { fontSize: 8 } });
-                    doc.save('report.pdf'); // ponytail: minimum viable PDF
-                  }} className="px-3 py-1 text-xs bg-school-accent text-white rounded-lg">
-                    PDF
+            {rptTab === 'daily' && (
+              <div className="space-y-3">
+                <div className="flex gap-2">
+                  <input type="date" value={dailyDate} onChange={e => setDailyDate(e.target.value)} className="flex-1 px-3 py-2 border border-school-border rounded-xl text-sm focus:outline-none focus:border-school-accent bg-white dark:bg-[#1a1a2e] text-school-primary" />
+                  <button onClick={loadDailyReport} disabled={!dailyDate || rptLoading} className="px-4 py-2 bg-school-accent text-white rounded-xl text-sm font-bold flex items-center justify-center min-w-[80px] shadow-sm">
+                    {rptLoading ? '...' : 'Load'}
                   </button>
                 </div>
-                <div className="overflow-x-auto rounded-2xl border border-school-border dark:border-[#2a2a3e]">
-                  <table className="w-full text-xs whitespace-nowrap">
-                    <thead>
-                      <tr className="bg-school-paper dark:bg-[#2a2a3e]">
-                        <th className="sticky left-0 z-10 bg-school-paper dark:bg-[#2a2a3e] px-2 py-2 text-left font-bold text-school-muted uppercase tracking-wider min-w-[140px]">Student</th>
-                        <th className="sticky left-[140px] z-10 bg-school-paper dark:bg-[#2a2a3e] px-2 py-2 text-center font-bold text-school-muted uppercase tracking-wider min-w-[36px]">R</th>
-                        {rangeReport.dates.map((d) => (
-                          <th key={d} className="px-1.5 py-2 text-center font-semibold text-school-muted min-w-[30px] text-[10px]">
-                            {new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
-                          </th>
-                        ))}
-                        <th className="px-1.5 py-2 text-center font-bold text-green-700 dark:text-green-400 min-w-[24px]">✓</th>
-                        <th className="px-1.5 py-2 text-center font-bold text-red-700 dark:text-red-400 min-w-[24px]">✗</th>
-                        <th className="px-1.5 py-2 text-center font-bold text-amber-700 dark:text-amber-400 min-w-[24px]">⏰</th>
-                        <th className="px-1.5 py-2 text-center font-bold text-blue-700 dark:text-blue-400 min-w-[24px]">ℹ</th>
-                        <th className="px-1.5 py-2 text-center font-bold text-school-muted min-w-[36px] text-[10px]">%</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rangeReport.students.map((s) => {
-                        const sum = rangeReport.summary[s.id];
-                        return (
-                          <tr key={s.id} className="border-t border-school-border/50 dark:border-[#2a2a3e] hover:bg-school-paper/50 dark:hover:bg-white/5">
-                            <td className="sticky left-0 z-10 bg-white dark:bg-[#1a1a2e] px-2 py-1.5 font-semibold text-school-primary dark:text-[#e0e0e8] truncate max-w-[140px] text-[11px]">{s.name}</td>
-                            <td className="sticky left-[140px] z-10 bg-white dark:bg-[#1a1a2e] px-2 py-1.5 text-center text-school-muted text-[10px]">{s.roll || '—'}</td>
-                            {rangeReport.dates.map((d) => {
-                              const status = rangeReport.grid[s.id]?.[d];
-                              const cellBg = !status ? 'bg-school-border/10'
-                                : status === 'present' ? 'bg-green-100 dark:bg-green-500/20'
-                                : status === 'absent' ? 'bg-red-100 dark:bg-red-500/20'
-                                : status === 'late' ? 'bg-amber-100 dark:bg-amber-500/20'
-                                : 'bg-blue-100 dark:bg-blue-500/20';
-                              return (
-                                <td key={d} className={`px-1.5 py-1.5 text-center text-[11px] ${cellBg}`}>
-                                  {!status ? '—' : status === 'present' ? '✓' : status === 'absent' ? '✗' : status === 'late' ? '⏰' : 'ℹ'}
-                                </td>
-                              );
-                            })}
-                            <td className="px-1.5 py-1.5 text-center font-bold text-green-700 dark:text-green-400 text-[11px]">{sum.present}</td>
-                            <td className="px-1.5 py-1.5 text-center font-bold text-red-700 dark:text-red-400 text-[11px]">{sum.absent}</td>
-                            <td className="px-1.5 py-1.5 text-center font-bold text-amber-700 dark:text-amber-400 text-[11px]">{sum.late}</td>
-                            <td className="px-1.5 py-1.5 text-center font-bold text-blue-700 dark:text-blue-400 text-[11px]">{sum.excused}</td>
-                            <td className="px-1.5 py-1.5 text-center font-bold text-school-primary dark:text-[#e0e0e8] text-[11px]">{sum.pct}%</td>
+                {rptError && <div className="text-red-500 text-sm">{rptError}</div>}
+                {dailyReport && (
+                  <div className="bg-white dark:bg-[#1a1a2e] rounded-2xl border border-school-border p-3 overflow-x-auto shadow-sm">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold text-school-muted">{dailyReport.total_students} students · <span className="text-green-600">P: {dailyReport.present}</span> · <span className="text-red-600">A: {dailyReport.absent}</span></span>
+                      <button onClick={async () => {
+                        const jsPDF = (await import('jspdf')).default;
+                        // @ts-ignore
+                        await import('jspdf-autotable');
+                        const doc = new jsPDF(); doc.text(`Daily Report - ${dailyReport.date}`, 14, 15);
+                        const head = [['Name', 'Roll', 'Status']];
+                        const body = dailyReport.students.map((s: any) => [s.name, s.roll || '-', STATUS_NAMES[s.status] || s.status]);
+                        (doc as any).autoTable({ head, body, startY: 20 });
+                        doc.save(`daily_report_${dailyReport.date}.pdf`);
+                      }} className="px-2 py-1 text-[10px] font-bold bg-school-accent text-white rounded-md shadow-sm">PDF</button>
+                    </div>
+                    <table className="w-full text-xs text-left">
+                      <thead><tr className="border-b"><th className="pb-1 text-school-muted">Name</th><th className="pb-1 text-school-muted">Roll</th><th className="pb-1 text-school-muted">Status</th></tr></thead>
+                      <tbody>
+                        {dailyReport.students.map((s: any) => (
+                          <tr key={s.id} className="border-b last:border-0 border-school-border/50">
+                            <td className="py-1.5 font-medium">{s.name}</td><td className="py-1.5 text-school-muted">{s.roll}</td>
+                            <td className={`py-1.5 font-bold ${s.status === 'present' ? 'text-green-600' : s.status === 'absent' ? 'text-red-600' : 'text-school-muted'}`}>
+                              {STATUS_NAMES[s.status] || s.status}
+                            </td>
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {rptTab === 'monthly' && (
+              <div className="space-y-3">
+                <div className="flex gap-2">
+                  <input type="number" value={monthYear.year} onChange={e => setMonthYear(p => ({...p, year: parseInt(e.target.value)}))} className="w-20 px-3 py-2 border border-school-border rounded-xl text-sm focus:outline-none bg-white dark:bg-[#1a1a2e]" />
+                  <select value={monthYear.month} onChange={e => setMonthYear(p => ({...p, month: parseInt(e.target.value)}))} className="flex-1 px-3 py-2 border border-school-border rounded-xl text-sm focus:outline-none bg-white dark:bg-[#1a1a2e]">
+                    {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => <option key={m} value={m}>{monthName(m)}</option>)}
+                  </select>
+                  <button onClick={loadMonthlyReport} disabled={rptLoading} className="px-4 py-2 bg-school-accent text-white rounded-xl text-sm font-bold min-w-[80px] shadow-sm">
+                    {rptLoading ? '...' : 'Load'}
+                  </button>
                 </div>
+                {rptError && <div className="text-red-500 text-sm">{rptError}</div>}
+                {monthlyReport && (
+                  <div className="bg-white dark:bg-[#1a1a2e] rounded-2xl border border-school-border overflow-hidden shadow-sm">
+                    <div className="p-3 border-b flex items-center justify-between">
+                      <span className="text-xs font-bold text-school-primary">{monthName(monthlyReport.month)} {monthlyReport.year}</span>
+                      <button onClick={async () => {
+                        const jsPDF = (await import('jspdf')).default;
+                        // @ts-ignore
+                        await import('jspdf-autotable');
+                        const doc = new jsPDF(); doc.text(`Monthly Report - ${monthName(monthlyReport.month)} ${monthlyReport.year}`, 14, 15);
+                        const head = [['Date', 'Present', 'Absent', 'Type']];
+                        const body = monthlyReport.days.map((d: any) => [d.date.slice(-2), d.present, d.absent, d.type]);
+                        (doc as any).autoTable({ head, body, startY: 20 });
+                        doc.save(`monthly_report_${monthlyReport.year}_${monthlyReport.month}.pdf`);
+                      }} className="px-2 py-1 text-[10px] font-bold bg-school-accent text-white rounded-md shadow-sm">PDF</button>
+                    </div>
+                    <div className="overflow-x-auto p-2">
+                      <table className="w-full text-xs text-center">
+                        <thead><tr className="border-b"><th className="pb-1 text-left text-school-muted">Date</th><th className="pb-1 text-green-600">P</th><th className="pb-1 text-red-600">A</th><th className="pb-1 text-school-muted">Type</th></tr></thead>
+                        <tbody>
+                          {monthlyReport.days.map((d: any) => (
+                            <tr key={d.date} className={`border-b last:border-0 border-school-border/30 ${d.type === 'weekend' || d.type === 'holiday' ? 'bg-school-paper dark:bg-[#2a2a3e] opacity-70' : ''}`}>
+                              <td className="py-1.5 text-left font-medium">{d.date.slice(-2)}</td>
+                              <td className="py-1.5 text-green-600 font-bold">{d.present || '-'}</td>
+                              <td className="py-1.5 text-red-600 font-bold">{d.absent || '-'}</td>
+                              <td className="py-1.5 text-[10px] text-school-muted uppercase tracking-wider">{d.type}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </>

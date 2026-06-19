@@ -280,29 +280,24 @@ def mobile_batch_attendance(request):
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
-def mobile_class_report(request):
-    """Class attendance report for a date range (PIN auth)."""
+def mobile_class_daily_report(request):
     try:
-        return _mobile_class_report_logic(request)
+        return _mobile_class_daily_report_logic(request)
     except Exception as e:
         logger = __import__('logging').getLogger(__name__)
-        logger.exception('mobile_class_report failed')
+        logger.exception('mobile_class_daily_report failed')
         return Response({'error': 'Failed to load report'}, status=500)
 
-
-def _mobile_class_report_logic(request):
+def _mobile_class_daily_report_logic(request):
     teacher = _get_pin_teacher(request)
     if not teacher:
         return Response({'error': 'Authentication required'}, status=401)
 
     class_id = request.query_params.get('class_id')
-    from_date = request.query_params.get('from')
-    to_date = request.query_params.get('to')
-    term = request.query_params.get('term')
-    session_data = request.query_params.get('session')
+    date_param = request.query_params.get('date')
 
-    if not class_id or not from_date or not to_date:
-        return Response({'error': 'class_id, from, and to are required'}, status=400)
+    if not class_id or not date_param:
+        return Response({'error': 'class_id and date are required'}, status=400)
 
     try:
         school_class = SchoolClass.objects.get(id=class_id)
@@ -312,65 +307,138 @@ def _mobile_class_report_logic(request):
     if not ClassTeacher.objects.filter(teacher=teacher, school_class=school_class).exists():
         return Response({'error': 'You are not assigned to this class'}, status=403)
 
-    students_qs = list(
-        Student.objects.filter(
-            school_class=school_class, deleted_at__isnull=True,
-        )
-        .order_by('roll', 'name')
-        .values('id', 'name', 'roll')
+    students = list(
+        Student.objects.filter(school_class=school_class, deleted_at__isnull=True)
+        .order_by('roll', 'name').values('id', 'name', 'roll')
     )
 
-    qs = AttendanceRecord.objects.filter(
-        school_class=school_class, date__gte=from_date, date__lte=to_date,
+    records = list(
+        AttendanceRecord.objects.filter(school_class=school_class, date=date_param)
+        .values('student_id', 'status')
     )
-    if term:
-        qs = qs.filter(term=term)
-    if session_data:
-        qs = qs.filter(session=session_data)
 
-    try:
-        records_list = list(qs.values('student_id', 'date', 'status'))
-        dates = sorted(
-            {r['date'] for r in records_list},
-            key=lambda d: str(d),
-        )
-    except Exception:
-        records_list = []
-        dates = []
-
-    student_ids = [str(s['id']) for s in students_qs]
-
-    grid: dict[str, dict[str, str]] = {}
-    student_summary: dict[str, dict[str, int]] = {}
-
-    for rec in records_list:
+    records_map = {}
+    for r in records:
         try:
-            sid = str(rec['student_id'])
-            d = rec['date'].isoformat()
-            st = str(rec['status'])
+            records_map[str(r['student_id'])] = str(r['status'])
         except Exception:
-            continue
+            pass
 
-        grid.setdefault(sid, {})[d] = st
-        ss = student_summary.setdefault(sid, {'present': 0, 'absent': 0, 'late': 0, 'excused': 0})
-        if st in ss:
-            ss[st] += 1
-
-    for sid in student_ids:
-        grid.setdefault(sid, {})
-        student_summary.setdefault(sid, {'present': 0, 'absent': 0, 'late': 0, 'excused': 0})
-
-    full_summary = {}
-    for sid in student_ids:
-        ss = student_summary[sid]
-        total = ss['present'] + ss['absent'] + ss['late'] + ss['excused']
-        pct = round(ss['present'] / total * 100, 1) if total > 0 else 0.0
-        full_summary[sid] = {**ss, 'total': total, 'pct': pct}
+    present = 0
+    absent = 0
+    rows = []
+    for s in students:
+        st = records_map.get(str(s['id']), 'unmarked')
+        if st == 'present':
+            present += 1
+        elif st == 'absent':
+            absent += 1
+        rows.append({
+            'id': str(s['id']), 'name': s['name'], 'roll': s['roll'] or '', 'status': st,
+        })
 
     return Response({
         'class': {'id': str(school_class.id), 'name': school_class.name},
-        'students': [{'id': str(s['id']), 'name': s['name'], 'roll': s['roll']} for s in students_qs],
-        'dates': [d.isoformat() for d in dates],
-        'grid': grid,
-        'summary': full_summary,
+        'date': date_param,
+        'total_students': len(students),
+        'present': present,
+        'absent': absent,
+        'unmarked': len(students) - present - absent,
+        'students': rows,
+    })
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def mobile_monthly_report(request):
+    try:
+        return _mobile_monthly_report_logic(request)
+    except Exception as e:
+        logger = __import__('logging').getLogger(__name__)
+        logger.exception('mobile_monthly_report failed')
+        return Response({'error': 'Failed to load report'}, status=500)
+
+def _mobile_monthly_report_logic(request):
+    teacher = _get_pin_teacher(request)
+    if not teacher:
+        return Response({'error': 'Authentication required'}, status=401)
+
+    class_id = request.query_params.get('class_id')
+    year = request.query_params.get('year')
+    month = request.query_params.get('month')
+
+    if not class_id or not year or not month:
+        return Response({'error': 'class_id, year, and month are required'}, status=400)
+
+    try:
+        year = int(year)
+        month = int(month)
+    except (ValueError, TypeError):
+        return Response({'error': 'Invalid year or month'}, status=400)
+
+    try:
+        school_class = SchoolClass.objects.get(id=class_id)
+    except SchoolClass.DoesNotExist:
+        return Response({'error': 'Class not found'}, status=404)
+
+    if not ClassTeacher.objects.filter(teacher=teacher, school_class=school_class).exists():
+        return Response({'error': 'You are not assigned to this class'}, status=403)
+
+    import calendar as _cal
+    from datetime import date as _date
+    _, days_in_month = _cal.monthrange(year, month)
+    weekend_set = _get_weekend_set()
+    holiday_set = _get_holiday_dates(year=year, month=month)
+
+    students = list(
+        Student.objects.filter(school_class=school_class, deleted_at__isnull=True)
+        .order_by('roll', 'name').values('id', 'name', 'roll')
+    )
+
+    records = AttendanceRecord.objects.filter(
+        school_class=school_class, date__year=year, date__month=month,
+    ).values('student_id', 'date', 'status')
+
+    records_map = {}
+    for r in records:
+        try:
+            records_map.setdefault(str(r['student_id']), {})[r['date'].isoformat()] = str(r['status'])
+        except Exception:
+            pass
+
+    days = []
+    student_ids = [str(s['id']) for s in students]
+    for day in range(1, days_in_month + 1):
+        d = _date(year, month, day)
+        iso = d.isoformat()
+        if d.weekday() in weekend_set:
+            typ = 'weekend'
+        elif d in holiday_set:
+            typ = 'holiday'
+        else:
+            typ = 'unmarked'
+
+        present = 0
+        absent = 0
+        for sid in student_ids:
+            st = records_map.get(sid, {}).get(iso, typ)
+            if st == 'present':
+                present += 1
+            elif st == 'absent':
+                absent += 1
+
+        days.append({
+            'date': iso,
+            'weekday': d.weekday(),
+            'type': typ,
+            'present': present,
+            'absent': absent,
+            'unmarked': len(student_ids) - present - absent,
+        })
+
+    return Response({
+        'class': {'id': str(school_class.id), 'name': school_class.name},
+        'year': year,
+        'month': month,
+        'students': [{'id': str(s['id']), 'name': s['name'], 'roll': s['roll'] or ''} for s in students],
+        'days': days,
     })
