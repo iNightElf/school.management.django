@@ -375,7 +375,7 @@ async function loadAttendance() {
   state.localChanges = {};
 
   try {
-    const attData = await api(`/attendance/?class_id=${state.selectedClass.id}&date=${date}`);
+    const attData = await api(`/m/attendance/?class_id=${state.selectedClass.id}&date=${date}`);
     if (attData) {
       attData.forEach(r => {
         state.attendance[r.student] = r.status;
@@ -518,7 +518,7 @@ async function loadRangeReport() {
   }
 
   try {
-    const data = await api(`/attendance/class-report/?class_id=${state.selectedClass.id}&from=${from}&to=${to}`);
+    const data = await api(`/m/attendance/class-report/?class_id=${state.selectedClass.id}&from=${from}&to=${to}`);
     if (data.students.length === 0 || data.dates.length === 0) {
       err.textContent = 'No attendance records found in this range';
       err.style.display = 'block';
@@ -590,7 +590,7 @@ async function syncNow() {
 
   for (const item of state.syncQueue) {
     try {
-      await api('/attendance/batch/', {
+      await api('/m/attendance/batch/', {
         method: 'POST',
         body: JSON.stringify(item),
       });
