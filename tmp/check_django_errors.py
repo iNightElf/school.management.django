@@ -1,8 +1,9 @@
+import os
 import paramiko, sys, io
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 client = paramiko.SSHClient()
 client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-client.connect('ssh-ares.alwaysdata.net', username='ares_ssh', password='***REMOVED***')
+client.connect('ssh-ares.alwaysdata.net', username='ares_ssh', key_filename=os.path.expanduser('~/.ssh/alwaysdata_ed25519'))
 
 # Try to restart apache
 stdin, stdout, stderr = client.exec_command("sudo /usr/sbin/apache2ctl graceful 2>&1 || sudo systemctl reload apache2 2>&1 || echo 'No sudo access'")
@@ -17,3 +18,4 @@ stdin, stdout, stderr = client.exec_command("cat /home/ares/logs/error.log 2>&1 
 print('Apache errors:', stdout.read().decode('utf-8', errors='replace')[:1000])
 
 client.close()
+

@@ -1,8 +1,9 @@
+import os
 import paramiko, sys, io, time
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 client = paramiko.SSHClient()
 client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-client.connect('ssh-ares.alwaysdata.net', username='ares_ssh', password='***REMOVED***')
+client.connect('ssh-ares.alwaysdata.net', username='ares_ssh', key_filename=os.path.expanduser('~/.ssh/alwaysdata_ed25519'))
 
 # Test just the WSGI restart mechanism
 cmd = """
@@ -25,3 +26,4 @@ print('Result:', stdout.read().decode('utf-8', errors='replace')[:500])
 print('Errors:', stderr.read().decode('utf-8', errors='replace')[:500])
 
 client.close()
+

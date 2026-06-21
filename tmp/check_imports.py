@@ -1,8 +1,9 @@
+import os
 import paramiko, sys, io
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 client = paramiko.SSHClient()
 client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-client.connect('ssh-ares.alwaysdata.net', username='ares_ssh', password='***REMOVED***')
+client.connect('ssh-ares.alwaysdata.net', username='ares_ssh', key_filename=os.path.expanduser('~/.ssh/alwaysdata_ed25519'))
 
 # Check if import works
 cmd = "cd /home/ares/school.management.django && /usr/alwaysdata/python/3.12/bin/python -c 'import attendance; print(attendance); import attendance.urls; print(attendance.urls.urlpatterns)' 2>&1"
@@ -25,3 +26,4 @@ stdin, stdout, stderr = client.exec_command(cmd4)
 print('Cache:', stdout.read().decode('utf-8', errors='replace')[:500])
 
 client.close()
+
