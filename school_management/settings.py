@@ -2,7 +2,6 @@ import os
 from pathlib import Path
 from datetime import timedelta
 from dotenv import load_dotenv
-from corsheaders.defaults import default_headers
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / '.env')
@@ -192,8 +191,6 @@ if os.environ.get('CORS_ORIGINS'):
         CORS_ALLOWED_ORIGINS.append(get_origin(o))
 
 CORS_ALLOW_CREDENTIALS = True
-
-CORS_ALLOW_HEADERS = list(default_headers) + ['x-proxy']
 
 CSRF_TRUSTED_ORIGINS = [
     get_origin(FRONTEND_URL),
