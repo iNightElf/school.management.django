@@ -23,11 +23,8 @@ interface SchoolState {
   openingBalances: Record<string, number>;
   openingBalancesHistory: OpeningBalanceHistory[];
   studentTotal: number;
-  studentPage: number;
   teacherTotal: number;
-  teacherPage: number;
   staffTotal: number;
-  staffPage: number;
   bookTotal: number;
   bookPage: number;
   transactionTotal: number;
@@ -40,11 +37,8 @@ interface SchoolState {
   fetchDashboardCounts: () => Promise<void>;
   fetchClasses: (force?: boolean) => Promise<void>;
   fetchStudents: (params?: Record<string, string>, force?: boolean) => Promise<void>;
-  setStudentPage: (page: number) => void;
   fetchTeachers: (params?: Record<string, string>, force?: boolean) => Promise<void>;
-  setTeacherPage: (page: number) => void;
   fetchStaff: (params?: Record<string, string>, force?: boolean) => Promise<void>;
-  setStaffPage: (page: number) => void;
   fetchBooks: (params?: Record<string, string>, force?: boolean) => Promise<void>;
   setBookPage: (page: number) => void;
   fetchSubjects: (classId: string) => Promise<void>;
@@ -96,11 +90,8 @@ export const useSchoolStore = create<SchoolState>((set, get) => ({
   openingBalances: Object.fromEntries(ACCOUNT_IDS.map(id => [id, 0])),
   openingBalancesHistory: [],
   studentTotal: 0,
-  studentPage: 1,
   teacherTotal: 0,
-  teacherPage: 1,
   staffTotal: 0,
-  staffPage: 1,
   bookTotal: 0,
   bookPage: 1,
   transactionTotal: 0,
@@ -150,11 +141,10 @@ export const useSchoolStore = create<SchoolState>((set, get) => ({
     finally { set((s) => ({ loading: { ...s.loading, classes: false } })); }
   },
   fetchStudents: async (params, force) => {
-    const page = get().studentPage;
     if (!force && get().students.length > 0 && !params) return;
     set((s) => ({ loading: { ...s.loading, students: true } }));
     try {
-      const res = await api.get('/students/', { params: { offset: String((page - 1) * 50), limit: '50', ...params } });
+      const res = await api.get('/students/', { params: { limit: '2000', ...params } });
       set({
         students: res.data.results || res.data.data || res.data,
         studentTotal: res.data.count ?? res.data.total ?? 0,
@@ -163,16 +153,11 @@ export const useSchoolStore = create<SchoolState>((set, get) => ({
     } catch (e) { if (import.meta.env.DEV) console.warn("[store]", e); }
     finally { set((s) => ({ loading: { ...s.loading, students: false } })); }
   },
-  setStudentPage: (page: number) => {
-    set({ studentPage: page });
-    get().fetchStudents(undefined, true);
-  },
   fetchTeachers: async (params, force) => {
-    const page = get().teacherPage;
     if (!force && get().teachers.length > 0 && !params) return;
     set((s) => ({ loading: { ...s.loading, teachers: true } }));
     try {
-      const res = await api.get('/teachers/', { params: { offset: String((page - 1) * 50), limit: '50', ...params } });
+      const res = await api.get('/teachers/', { params: { limit: '2000', ...params } });
       set({
         teachers: res.data.results || res.data.data || res.data,
         teacherTotal: res.data.count ?? res.data.total ?? 0,
@@ -181,16 +166,11 @@ export const useSchoolStore = create<SchoolState>((set, get) => ({
     } catch (e) { if (import.meta.env.DEV) console.warn("[store]", e); }
     finally { set((s) => ({ loading: { ...s.loading, teachers: false } })); }
   },
-  setTeacherPage: (page: number) => {
-    set({ teacherPage: page });
-    get().fetchTeachers(undefined, true);
-  },
   fetchStaff: async (params, force) => {
-    const page = get().staffPage;
     if (!force && get().staff.length > 0 && !params) return;
     set((s) => ({ loading: { ...s.loading, staff: true } }));
     try {
-      const res = await api.get('/staff/', { params: { offset: String((page - 1) * 50), limit: '50', ...params } });
+      const res = await api.get('/staff/', { params: { limit: '2000', ...params } });
       set({
         staff: res.data.results || res.data.data || res.data,
         staffTotal: res.data.count ?? res.data.total ?? 0,
@@ -198,10 +178,6 @@ export const useSchoolStore = create<SchoolState>((set, get) => ({
       });
     } catch (e) { if (import.meta.env.DEV) console.warn("[store]", e); }
     finally { set((s) => ({ loading: { ...s.loading, staff: false } })); }
-  },
-  setStaffPage: (page: number) => {
-    set({ staffPage: page });
-    get().fetchStaff(undefined, true);
   },
   fetchBooks: async (params, force) => {
     const page = get().bookPage;
