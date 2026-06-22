@@ -306,7 +306,7 @@ export default function StudentSection() {
               const photoCache: Record<string, string> = {};
               await Promise.all(list.filter((s: any) => s.photoUrl || s.hasPhoto).map(async (s: any) => {
                 try {
-                  const url = s.photoUrl || `${API_URL}/students/${s.id}/photo/`;
+                  const url = `${API_URL}/students/${s.id}/photo/?proxy=1`;
                   const r = await api.get(url, { responseType: 'blob' });
                   photoCache[s.id] = await new Promise<string>(res => {
                     const reader = new FileReader();

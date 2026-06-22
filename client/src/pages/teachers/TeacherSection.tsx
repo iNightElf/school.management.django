@@ -241,14 +241,14 @@ export default function TeacherSection() {
               const photoCache: Record<string, string> = {};
               await Promise.all(filtered.filter((t: any) => t.photoUrl || t.hasPhoto).map(async (t: any) => {
                 try {
-                  const url = t.photoUrl || `${API_URL}/teachers/${t.id}/photo/`;
+                  const url = `${API_URL}/teachers/${t.id}/photo/?proxy=1`;
                   const r = await api.get(url, { responseType: 'blob' });
                   photoCache[t.id] = await new Promise<string>(res => {
                     const reader = new FileReader();
                     reader.onload = () => res(reader.result as string);
                     reader.readAsDataURL(r.data);
                   });
-                } catch { /* photo load failed, skip */ }
+                } catch { console.warn('Photo fetch failed for', t.id); }
               }));
               const doc = new (await loadJsPDF())();
               doc.setFont('helvetica', 'bold'); doc.setFontSize(16);
@@ -261,7 +261,7 @@ export default function TeacherSection() {
                 doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(0, 0, 0);
                 const lines = [`Designation: ${t.designation}`, t.email ? `Email: ${t.email}` : null, `Contact: ${t.contact || ''}`].filter(Boolean);
                 if (photoCache[t.id]) {
-                  try { doc.addImage(photoCache[t.id], 'JPEG', 15, y, 22, 22); } catch { /* skip */ }
+                  try { doc.addImage(photoCache[t.id], 'UNKNOWN', 15, y, 22, 22); } catch { console.warn('Photo addImage failed'); }
                   lines.forEach((l, li) => doc.text(l!, 42, y + 5 + li * 5)); y += 28;
                 } else { lines.forEach(l => { doc.text(l!, 15, y); y += 5; }); }
                 doc.setDrawColor(200); doc.setLineWidth(0.3); doc.setLineDashPattern([4, 4], 0);

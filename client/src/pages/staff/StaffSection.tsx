@@ -188,14 +188,14 @@ export default function StaffSection() {
               const photoCache: Record<string, string> = {};
               await Promise.all(filtered.filter((s: any) => s.photoUrl || s.hasPhoto).map(async (s: any) => {
                 try {
-                  const url = s.photoUrl || `${API_URL}/staff/${s.id}/photo/`;
+                  const url = `${API_URL}/staff/${s.id}/photo/?proxy=1`;
                   const r = await api.get(url, { responseType: 'blob' });
                   photoCache[s.id] = await new Promise<string>(res => {
                     const reader = new FileReader();
                     reader.onload = () => res(reader.result as string);
                     reader.readAsDataURL(r.data);
                   });
-                } catch { /* photo load failed, skip */ }
+                } catch { console.warn('Photo fetch failed for', s.id); }
               }));
               const doc = new (await loadJsPDF())();
               doc.setFont('helvetica', 'bold'); doc.setFontSize(16);
@@ -208,7 +208,7 @@ export default function StaffSection() {
                 doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(0, 0, 0);
                 const lines = [`Role: ${s.role || ''}`, s.email ? `Email: ${s.email}` : null, `Contact: ${s.contact || ''}`].filter(Boolean);
                 if (photoCache[s.id]) {
-                  try { doc.addImage(photoCache[s.id], 'JPEG', 15, y, 22, 22); } catch { /* skip */ }
+                  try { doc.addImage(photoCache[s.id], 'UNKNOWN', 15, y, 22, 22); } catch { console.warn('Photo addImage failed'); }
                   lines.forEach((l, li) => doc.text(l!, 42, y + 5 + li * 5)); y += 28;
                 } else { lines.forEach(l => { doc.text(l!, 15, y); y += 5; }); }
                 doc.setDrawColor(200); doc.setLineWidth(0.3); doc.setLineDashPattern([4, 4], 0);
