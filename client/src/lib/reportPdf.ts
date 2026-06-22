@@ -43,7 +43,7 @@ export async function downloadReportCardPDF(student: any, clsName: string, subje
   // Fetch photo on-demand
   let photoDataUri: string | null = null;
   if (student.hasPhoto) {
-    try { const r = await api.get(`/students/${student.id}/photo/`, { responseType: 'blob' }); const blob = r.data; photoDataUri = await new Promise<string>(res => { const reader = new FileReader(); reader.onload = () => res(reader.result as string); reader.readAsDataURL(blob); }); } catch { console.warn('Photo fetch failed for', student.id); }
+    try { const r = await api.get(`/students/${student.id}/photo/`, { responseType: 'blob', params: { proxy: '1' } }); const blob = r.data; photoDataUri = await new Promise<string>(res => { const reader = new FileReader(); reader.onload = () => res(reader.result as string); reader.readAsDataURL(blob); }); } catch { console.warn('Photo fetch failed for', student.id); }
   }
 
   const W = 210, M = 12, CW = W - M * 2;

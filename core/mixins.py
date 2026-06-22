@@ -102,7 +102,7 @@ class PhotoHandleMixin:
         if instance.photo_path:
             url = get_signed_url(instance.photo_path)
             if url:
-                if request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
+                if request.query_params.get('proxy'):
                     import urllib.request
                     from django.http import HttpResponse
                     try:

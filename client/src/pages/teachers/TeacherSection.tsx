@@ -242,7 +242,7 @@ export default function TeacherSection() {
               await Promise.all(filtered.filter((t: any) => t.photoUrl || t.hasPhoto).map(async (t: any) => {
                 try {
                   const url = `${API_URL}/teachers/${t.id}/photo/`;
-                  const r = await api.get(url, { responseType: 'blob' });
+                  const r = await api.get(url, { responseType: 'blob', params: { proxy: '1' } });
                   photoCache[t.id] = await new Promise<string>(res => {
                     const reader = new FileReader();
                     reader.onload = () => res(reader.result as string);
