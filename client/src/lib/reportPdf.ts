@@ -43,7 +43,7 @@ export async function downloadReportCardPDF(student: any, clsName: string, subje
   // Fetch photo on-demand
   let photoDataUri: string | null = null;
   if (student.hasPhoto) {
-    try { const r = await api.get(`/students/${student.id}/photo/`, { responseType: 'blob' }); const blob = r.data; photoDataUri = await new Promise<string>(res => { const reader = new FileReader(); reader.onload = () => res(reader.result as string); reader.readAsDataURL(blob); }); } catch { console.debug('Photo fetch skipped'); }
+    try { const r = await api.get(`/students/${student.id}/photo/`, { responseType: 'blob' }); const blob = r.data; photoDataUri = await new Promise<string>(res => { const reader = new FileReader(); reader.onload = () => res(reader.result as string); reader.readAsDataURL(blob); }); } catch { console.warn('Photo fetch failed for', student.id); }
   }
 
   const W = 210, M = 12, CW = W - M * 2;
@@ -59,9 +59,8 @@ export async function downloadReportCardPDF(student: any, clsName: string, subje
 
   // HEADER with logo
   try {
-    const raw = SCHOOL_LOGO.includes(',') ? SCHOOL_LOGO.split(',')[1] : SCHOOL_LOGO;
-    doc.addImage(raw, 'UNKNOWN', M, y, 22, 22);
-  } catch { console.debug('Image add skipped'); }
+    doc.addImage(SCHOOL_LOGO, 'UNKNOWN', M, y, 22, 22);
+  } catch { console.warn('Logo addImage failed'); }
   doc.text('AL RAWA English School', M + 26, y + 10);
   doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...MUTED);
   doc.text('ESTD: 2022  ·  Read in the name of your Lord', M + 26, y + 16);
@@ -73,7 +72,7 @@ export async function downloadReportCardPDF(student: any, clsName: string, subje
   y += 30;
 
   // STUDENT INFO
-  if (photoDataUri) { try { doc.addImage(photoDataUri, 'UNKNOWN', W - M - 26, y, 26, 30, '', 'FAST'); } catch { console.debug('Photo add skipped'); } }
+  if (photoDataUri) { try { doc.addImage(photoDataUri, 'UNKNOWN', W - M - 26, y, 26, 30); } catch { console.warn('Photo addImage failed'); } }
   doc.setFontSize(9.5);
   const infoRows: [string, string][] = [['Student Name', student.name], ['Class', clsName]];
   if (student.roll) infoRows.push(['Roll No.', student.roll]);

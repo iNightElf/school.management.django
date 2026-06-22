@@ -327,7 +327,7 @@ export default function StudentSection() {
                 doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(0, 0, 0);
                 const lines = [`Class: ${s.class}${s.roll ? '   Roll No: ' + s.roll : ''}`, `Father: ${s.fatherName || ''}`, `Mother: ${s.motherName || ''}`, `Contact: ${s.contact || ''}`];
                 if (photoCache[s.id]) {
-                  try { doc.addImage(photoCache[s.id], 'JPEG', 15, y, 22, 22); } catch { /* skip */ }
+                  try { doc.addImage(photoCache[s.id], 'UNKNOWN', 15, y, 22, 22); } catch { console.warn('Photo addImage failed'); }
                   lines.forEach((l, li) => doc.text(l, 42, y + 5 + li * 5)); y += 28;
                 } else { lines.forEach(l => { doc.text(l, 15, y); y += 5; }); }
                 doc.setDrawColor(200); doc.setLineWidth(0.3); doc.setLineDashPattern([4, 4], 0);

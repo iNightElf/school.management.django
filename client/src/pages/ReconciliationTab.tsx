@@ -104,7 +104,7 @@ export default function ReconciliationTab() {
         <div className="px-5 py-4 border-b border-school-border bg-blue-50/50 space-y-3">
           <div>
             <label className="text-[10px] font-bold uppercase text-school-muted mb-1 block">Account</label>
-            <select value={account} onChange={e => setAccount(e.target.value)} className="border border-school-border rounded-lg px-3 py-1.5 text-xs bg-white focus:outline-none focus:border-school-accent">
+            <select value={account} onChange={e => setAccount(e.target.value as typeof account)} className="border border-school-border rounded-lg px-3 py-1.5 text-xs bg-white focus:outline-none focus:border-school-accent">
               {ACCOUNT_IDS.map(a => <option key={a} value={a}>{a.replace(/_/g, ' ')}</option>)}
             </select>
           </div>
