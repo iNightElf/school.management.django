@@ -240,15 +240,15 @@ export default function TeacherSection() {
             onClick={async () => {
               const photoCache: Record<string, string> = {};
               await Promise.all(filtered.filter((t: any) => t.photoUrl || t.hasPhoto).map(async (t: any) => {
-                try {
-                  const url = `${API_URL}/teachers/${t.id}/photo/`;
-                  const r = await api.get(url, { responseType: 'blob' });
-                  photoCache[t.id] = await new Promise<string>(res => {
-                    const reader = new FileReader();
-                    reader.onload = () => res(reader.result as string);
-                    reader.readAsDataURL(r.data);
-                  });
-                } catch { console.warn('Photo fetch failed for', t.id); }
+                  try {
+                    const r = await fetch(t.photoUrl, { credentials: 'omit' });
+                    const blob = await r.blob();
+                    photoCache[t.id] = await new Promise<string>(res => {
+                        const reader = new FileReader();
+                        reader.onload = () => res(reader.result as string);
+                        reader.readAsDataURL(blob);
+                    });
+                  } catch { console.warn('Photo fetch failed for', t.id); }
               }));
               const doc = new (await loadJsPDF())();
               doc.setFont('helvetica', 'bold'); doc.setFontSize(16);

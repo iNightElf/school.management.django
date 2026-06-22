@@ -1,6 +1,5 @@
 import { gradeFromMarks, gpaToGrade, calcYearSummary, calcTermRanks, calcYearRanks, calcAttendPct } from './grading';
 import { TERM_NAMES } from './config';
-import { api } from '../store';
 import { SCHOOL_LOGO } from './logo';
 
 const SUBJECT_KEY_MAP: Record<string, string> = {
@@ -43,7 +42,7 @@ export async function downloadReportCardPDF(student: any, clsName: string, subje
   // Fetch photo on-demand
   let photoDataUri: string | null = null;
   if (student.hasPhoto) {
-    try { const r = await api.get(`/students/${student.id}/photo/`, { responseType: 'blob' }); const blob = r.data; photoDataUri = await new Promise<string>(res => { const reader = new FileReader(); reader.onload = () => res(reader.result as string); reader.readAsDataURL(blob); }); } catch { console.warn('Photo fetch failed for', student.id); }
+    try { const r = await fetch(student.photoUrl, { credentials: 'omit' }); const blob = await r.blob(); photoDataUri = await new Promise<string>(res => { const reader = new FileReader(); reader.onload = () => res(reader.result as string); reader.readAsDataURL(blob); }); } catch { console.warn('Photo fetch failed for', student.id); }
   }
 
   const W = 210, M = 12, CW = W - M * 2;
