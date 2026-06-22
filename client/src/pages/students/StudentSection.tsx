@@ -306,14 +306,14 @@ export default function StudentSection() {
               const photoCache: Record<string, string> = {};
               await Promise.all(list.filter((s: any) => s.photoUrl || s.hasPhoto).map(async (s: any) => {
                 try {
-                  const url = `${API_URL}/students/${s.id}/photo/?proxy=1`;
-                  const r = await api.get(url, { responseType: 'blob' });
+                  const url = `${API_URL}/students/${s.id}/photo/`;
+                  const r = await api.get(url, { responseType: 'blob', headers: { 'X-Proxy': '1' } });
                   photoCache[s.id] = await new Promise<string>(res => {
                     const reader = new FileReader();
                     reader.onload = () => res(reader.result as string);
                     reader.readAsDataURL(r.data);
                   });
-                } catch { /* photo load failed, skip */ }
+                } catch { console.warn('Photo fetch failed for', s.id); }
               }));
               const doc = new (await loadJsPDF())();
               const title = activeClass ? activeClass + ' — Students' : 'All Students';
