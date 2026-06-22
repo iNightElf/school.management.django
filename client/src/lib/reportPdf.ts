@@ -59,7 +59,7 @@ export async function downloadReportCardPDF(student: any, clsName: string, subje
 
   // HEADER with logo
   try {
-    doc.addImage(SCHOOL_LOGO, 'UNKNOWN', M, y, 22, 22);
+    doc.addImage(SCHOOL_LOGO, SCHOOL_LOGO.match(/data:image\\/([a-zA-Z0-9]+);/)?.[1]?.toUpperCase() || 'PNG', M, y, 22, 22);
   } catch { console.warn('Logo addImage failed'); }
   doc.text('AL RAWA English School', M + 26, y + 10);
   doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...MUTED);
@@ -72,7 +72,7 @@ export async function downloadReportCardPDF(student: any, clsName: string, subje
   y += 30;
 
   // STUDENT INFO
-  if (photoDataUri) { try { doc.addImage(photoDataUri, 'UNKNOWN', W - M - 26, y, 26, 30); } catch { console.warn('Photo addImage failed'); } }
+  if (photoDataUri) { try { doc.addImage(photoDataUri, photoDataUri.match(/data:image\\/([a-zA-Z0-9]+);/)?.[1]?.toUpperCase() || 'JPEG', W - M - 26, y, 26, 30); } catch { console.warn('Photo addImage failed'); } }
   doc.setFontSize(9.5);
   const infoRows: [string, string][] = [['Student Name', student.name], ['Class', clsName]];
   if (student.roll) infoRows.push(['Roll No.', student.roll]);

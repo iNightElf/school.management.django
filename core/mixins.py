@@ -106,8 +106,10 @@ class PhotoHandleMixin:
                     import urllib.request
                     from django.http import HttpResponse
                     try:
-                        resp = urllib.request.urlopen(url, timeout=10)
-                        return HttpResponse(resp.read(), content_type='image/jpeg')
+                        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                        resp = urllib.request.urlopen(req, timeout=10)
+                        content_type = resp.headers.get('Content-Type', 'image/jpeg')
+                        return HttpResponse(resp.read(), content_type=content_type)
                     except Exception as e:
                         logger.error("Photo proxy failed for pk=%s: %s", pk, e)
                 else:

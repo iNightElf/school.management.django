@@ -261,7 +261,7 @@ export default function TeacherSection() {
                 doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(0, 0, 0);
                 const lines = [`Designation: ${t.designation}`, t.email ? `Email: ${t.email}` : null, `Contact: ${t.contact || ''}`].filter(Boolean);
                 if (photoCache[t.id]) {
-                  try { doc.addImage(photoCache[t.id], 'UNKNOWN', 15, y, 22, 22); } catch { console.warn('Photo addImage failed'); }
+                  try { doc.addImage(photoCache[t.id], photoCache[t.id].match(/data:image\\/([a-zA-Z0-9]+);/)?.[1]?.toUpperCase() || 'JPEG', 15, y, 22, 22); } catch { console.warn('Photo addImage failed'); }
                   lines.forEach((l, li) => doc.text(l!, 42, y + 5 + li * 5)); y += 28;
                 } else { lines.forEach(l => { doc.text(l!, 15, y); y += 5; }); }
                 doc.setDrawColor(200); doc.setLineWidth(0.3); doc.setLineDashPattern([4, 4], 0);

@@ -18,7 +18,7 @@ export function fmt(n: number) {
 export function addLogo(doc: jsPDF, y: number) {
   try {
     const raw = SCHOOL_LOGO.includes(',') ? SCHOOL_LOGO.split(',')[1] : SCHOOL_LOGO;
-    doc.addImage(raw, 'UNKNOWN', 12, y, 18, 18);
+    doc.addImage(raw, SCHOOL_LOGO.match(/data:image\\/([a-zA-Z0-9]+);/)?.[1]?.toUpperCase() || 'PNG', 12, y, 18, 18);
   } catch { console.debug('Photo load skipped'); }
 }
 
