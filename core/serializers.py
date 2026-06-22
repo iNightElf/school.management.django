@@ -40,6 +40,10 @@ class AcademicYearSerializer(serializers.ModelSerializer):
         return value
 
     def validate(self, data):
+        if data.get('start_date') is None:
+            data.pop('start_date', None)
+        if data.get('end_date') is None:
+            data.pop('end_date', None)
         start = data.get('start_date') or getattr(self.instance, 'start_date', None)
         end = data.get('end_date') or getattr(self.instance, 'end_date', None)
         if start and end and start.year != end.year:

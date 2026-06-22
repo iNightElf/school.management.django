@@ -32,7 +32,7 @@ Stack:
 - Full Audit Trail
 
 ## Roles
-Admin, Coordinator, Teacher, Accountant, Parent
+Admin, Teacher, Accountant, Super Viewer, Viewer
 
 ## Financial Rules
 - Financial records are immutable.
@@ -43,7 +43,6 @@ Admin, Coordinator, Teacher, Accountant, Parent
 
 ## Student Rules
 - Unique Student ID
-- Unique Admission Number
 - No hard delete if financial history exists
 
 ## Fee Rules

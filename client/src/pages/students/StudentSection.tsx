@@ -23,6 +23,7 @@ export default function StudentSection() {
   const { classes, students, fetchClasses, fetchStudents, academicYears, fetchAcademicYears, loading } = useSchoolStore();
   const role = useAuthStore((s) => s.user?.role);
   const isAdmin = role === 'admin';
+  const canEditStudents = role === 'admin' || role === 'teacher';
 
   const [activeClass, setActiveClass] = useState<string | null>(null);
   const [showClassManager, setShowClassManager] = useState(false);
@@ -246,7 +247,7 @@ export default function StudentSection() {
         {s.motherName && <div className="text-xs text-school-muted">Mother: {s.motherName}</div>}
         {s.contact && <div className="text-xs text-school-muted">Contact: <span className="text-school-primary">{contactLinks(s.contact)}</span></div>}
       </div>
-      {isAdmin && (
+      {canEditStudents && (
         <div className="flex gap-2 mt-3 pt-3 border-t border-school-border">
           <button onClick={() => handleEdit(s)} className="flex-1 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-medium hover:bg-blue-100 flex items-center justify-center gap-1"><Pencil size={14} /> Edit</button>
           {s.hasGraduated ? (
@@ -338,7 +339,7 @@ export default function StudentSection() {
           >
             <Download size={12} /> PDF
           </button>
-          {isAdmin && <button onClick={() => setShowImport(true)} className="flex items-center gap-1 px-3 py-1.5 border border-school-border rounded-lg text-xs hover:bg-school-paper">
+          {canEditStudents && <button onClick={() => setShowImport(true)} className="flex items-center gap-1 px-3 py-1.5 border border-school-border rounded-lg text-xs hover:bg-school-paper">
             <Upload size={12} /> Import
           </button>}
           <button onClick={() => { setShowGraduated(!showGraduated); }} className={`flex items-center gap-1 px-3 py-1.5 border rounded-lg text-xs ${showGraduated ? 'bg-amber-100 border-amber-300 text-amber-700' : 'border-school-border hover:bg-school-paper'}`}>
@@ -438,7 +439,7 @@ export default function StudentSection() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {/* Add New Card */}
-            {isAdmin && (showAddNew ? (
+            {canEditStudents && (showAddNew ? (
               renderEditCard(true)
             ) : (
               <button onClick={() => { setShowAddNew(true); setForm({ ...form, className: activeClass }); }}

@@ -11,7 +11,7 @@ from students.models import Student
 from finance.serializers import TransactionSerializer
 from accounts.permissions import require_permission
 from .base import (
-    CROSS_BANK_INCOME, CROSS_BANK_EXPENSE, _internal_accounts
+    PRIMARY_BANK, SECONDARY_BANK, CROSS_BANK_INCOME, CROSS_BANK_EXPENSE, _internal_accounts
 )
 
 class ReportView(generics.GenericAPIView):
@@ -94,12 +94,12 @@ class ReportView(generics.GenericAPIView):
 
         cross_bank_q = Q(
             transaction_type='INTERNAL_TRANSFER',
-            source_account__name='GLOBAL_FORUM_BANK',
-            destination_account__name='AL_RAWA_BANK',
+            source_account__name=SECONDARY_BANK,
+            destination_account__name=PRIMARY_BANK,
         ) | Q(
             transaction_type='INTERNAL_TRANSFER',
-            source_account__name='AL_RAWA_BANK',
-            destination_account__name='GLOBAL_FORUM_BANK',
+            source_account__name=PRIMARY_BANK,
+            destination_account__name=SECONDARY_BANK,
         )
 
         non_cross_transfer_q = Q(transaction_type='INTERNAL_TRANSFER') & ~cross_bank_q

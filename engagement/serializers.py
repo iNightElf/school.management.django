@@ -135,6 +135,8 @@ class MoodHistorySerializer(serializers.ModelSerializer):
 
 
 class LessonPlanSerializer(serializers.ModelSerializer):
+    className = serializers.CharField(source='class_name')
+
     class Meta:
         model = LessonPlan
         fields = ['id', 'plan_date', 'className', 'subject', 'notes', 'created_at']

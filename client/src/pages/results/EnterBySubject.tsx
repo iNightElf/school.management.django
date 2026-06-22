@@ -15,7 +15,7 @@ const SUBJECT_KEY_MAP: Record<string, string> = {
 export default function EnterBySubject() {
   const { students, fetchStudents, subjects, fetchSubjects, saveStudentResult, academicYears, fetchAcademicYears, classResults, fetchClassResults } = useSchoolStore();
   const role = useAuthStore((s) => s.user?.role);
-  const isAdmin = role === 'admin';
+  const canSaveResults = role === 'admin' || role === 'teacher';
   const [cls, setCls] = useState<any>(null);
   const [sessionFilter, setSessionFilter] = useState('');
   const [bulkSubject, setBulkSubject] = useState('');
@@ -213,7 +213,7 @@ export default function EnterBySubject() {
               </tbody>
             </table>
           </div>
-          {isAdmin && <button onClick={isComment ? saveBulkComments : isAttendance ? saveBulkAttendance : saveBulkMarks} className="w-full py-2 bg-green-600 text-white rounded-xl text-sm font-bold hover:opacity-90 flex items-center justify-center gap-1.5">
+          {canSaveResults && <button onClick={isComment ? saveBulkComments : isAttendance ? saveBulkAttendance : saveBulkMarks} className="w-full py-2 bg-green-600 text-white rounded-xl text-sm font-bold hover:opacity-90 flex items-center justify-center gap-1.5">
             <Save size={14} /> Save {isComment ? 'All Comments' : isAttendance ? `${TERM_NAMES[bulkTerm]} Attendance` : 'All Marks'}
           </button>}
         </div>

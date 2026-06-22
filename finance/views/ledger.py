@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from finance.services.ledger_service import LedgerService
 from finance.services.fee_status_service import FeeStatusService
 from finance.services.defaulter_service import DefaulterService
-from .base import _internal_accounts, _param
+from .base import PRIMARY_BANK, SECONDARY_BANK, _internal_accounts, _param
 
 
 def _serialize_tx(tx, account_name, opening_balance, cancelled_by_names):
@@ -19,9 +19,9 @@ def _serialize_tx(tx, account_name, opening_balance, cancelled_by_names):
     if tx.transaction_type == 'INTERNAL_TRANSFER' and tx.source_account and tx.destination_account:
         src = tx.source_account.name
         dst = tx.destination_account.name
-        if src == 'GLOBAL_FORUM_BANK' and dst == 'AL_RAWA_BANK':
+        if src == SECONDARY_BANK and dst == PRIMARY_BANK:
             display_type = 'INCOME'
-        elif src == 'AL_RAWA_BANK' and dst == 'GLOBAL_FORUM_BANK':
+        elif src == PRIMARY_BANK and dst == SECONDARY_BANK:
             display_type = 'EXPENSE'
 
     tx_status = 'Cancelled' if tx.is_cancelled else ('Reversal' if tx.reversal_of_id else 'Active')

@@ -37,9 +37,25 @@ class TeacherViewSet(PhotoHandleMixin, viewsets.ModelViewSet):
             'subject_assignments__school_class',
         )
 
-    @action(detail=False, methods=['post'])
+    @action(detail=False, methods=['post'], url_path='import')
     def import_teachers(self, request):
-        return Response({'status': 'not_implemented', 'detail': 'Import from file not yet implemented'})
+        teachers_data = request.data.get('teachers', [])
+        if not teachers_data:
+            return Response({'error': 'No teachers data provided'}, status=400)
+        created = 0
+        errors = []
+        for i, row in enumerate(teachers_data):
+            try:
+                Teacher.objects.create(
+                    name=row.get('name', '').strip(),
+                    designation=row.get('designation', '').strip(),
+                    email=row.get('email', '').strip(),
+                    contact=row.get('contact', '').strip(),
+                )
+                created += 1
+            except Exception as e:
+                errors.append({'row': i + 1, 'error': str(e)})
+        return Response({'created': created, 'errors': errors})
 
     @action(detail=True, methods=['get', 'post'])
     def class_teacher(self, request, pk=None):

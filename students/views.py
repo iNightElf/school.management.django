@@ -9,6 +9,7 @@ from .serializers import StudentSerializer
 from accounts.permissions import require_permission, can_manage_students, is_admin_or_superuser, require_photo_access
 from core.mixins import PhotoHandleMixin
 from core.audit import log_audit
+from core.models import SchoolClass
 
 
 class StudentViewSet(PhotoHandleMixin, viewsets.ModelViewSet):
@@ -79,13 +80,40 @@ class StudentViewSet(PhotoHandleMixin, viewsets.ModelViewSet):
         log_audit('ungraduate', 'student', entity_id=student.pk, request=request)
         return Response(StudentSerializer(student).data)
 
-    @action(detail=False, methods=['post'])
+    @action(detail=False, methods=['post'], url_path='import')
     def import_students(self, request):
-        from .serializers import ImportSerializer
-        import_serializer = ImportSerializer(data=request.data)
-        import_serializer.is_valid(raise_exception=True)
-        file = import_serializer.validated_data['file']
-        return Response({'status': 'not_implemented', 'detail': 'Import from file not yet implemented'})
+        students_data = request.data.get('students', [])
+        if not students_data:
+            return Response({'error': 'No students data provided'}, status=400)
+        created = 0
+        errors = []
+        for i, row in enumerate(students_data):
+            try:
+                school_class = None
+                class_name = row.get('class', '').strip()
+                if class_name:
+                    school_class = SchoolClass.objects.filter(name__iexact=class_name).first()
+                serializer = StudentSerializer(data={
+                    'name': row.get('name', '').strip(),
+                    'roll': row.get('roll', '').strip(),
+                })
+                if serializer.is_valid():
+                    student = serializer.save()
+                    if school_class:
+                        student.school_class = school_class
+                    if row.get('fatherName'):
+                        student.father_name = row.get('fatherName', '').strip()
+                    if row.get('motherName'):
+                        student.mother_name = row.get('motherName', '').strip()
+                    if row.get('contact'):
+                        student.contact = row.get('contact', '').strip()
+                    student.save()
+                    created += 1
+                else:
+                    errors.append({'row': i + 1, 'error': str(serializer.errors)})
+            except Exception as e:
+                errors.append({'row': i + 1, 'error': str(e)})
+        return Response({'created': created, 'errors': errors})
 
     @action(detail=False, methods=['post'])
     def graduate_class(self, request):

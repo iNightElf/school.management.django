@@ -26,10 +26,18 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument('--dry-run', action='store_true', help='Preview what would be deleted')
+        parser.add_argument('--force', action='store_true', help='Actually execute deletions (omit for safe preview)')
         parser.add_argument('--all-results', action='store_true', help='Delete ALL Result records (not just test ones)')
 
     def handle(self, *args, **options):
         dry_run = options['dry_run']
+        force = options['force']
+
+        if not dry_run and not force:
+            self.stdout.write(self.style.WARNING(
+                'This is a destructive command. Use --dry-run to preview, then --force to execute.'
+            ))
+            return
         records = {}
 
         # ── AcademicYear: ones with random hex suffixes ──

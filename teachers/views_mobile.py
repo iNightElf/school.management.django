@@ -2,11 +2,14 @@ import logging
 
 from django.contrib.auth.hashers import make_password, check_password
 from django.db import transaction as db_transaction
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, authentication_classes, throttle_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+from accounts.throttles import PinLoginRateThrottle
 from rest_framework_simplejwt.tokens import AccessToken
 from rest_framework_simplejwt.exceptions import TokenError
+
+from accounts.authentication import PinAuthentication
 
 from .models import Teacher, ClassTeacher
 from students.models import Student
@@ -32,26 +35,6 @@ def _make_pin_token(teacher):
     return str(token)
 
 
-def _get_pin_teacher(request):
-    """Validate PIN bearer token and return the Teacher, or None."""
-    auth = request.headers.get('Authorization', '')
-    if not auth.startswith('Bearer '):
-        return None
-    raw = auth.split(' ', 1)[1]
-    if not raw:
-        return None
-    try:
-        validated = AccessToken(raw)
-        if not validated.get('pin_auth'):
-            return None
-        teacher_id = validated.get('teacher_id')
-        if not teacher_id:
-            return None
-        return Teacher.objects.get(id=teacher_id, deleted_at__isnull=True)
-    except (TokenError, Teacher.DoesNotExist, Exception):
-        return None
-
-
 def _get_weekend_set():
     try:
         raw = SchoolSetting.objects.get(key='weekend_days').value
@@ -71,6 +54,7 @@ def _get_holiday_dates(year=None, month=None):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([PinLoginRateThrottle])
 def pin_login(request):
     teacher_id = request.data.get('teacher_id')
     pin = request.data.get('pin')
@@ -142,8 +126,11 @@ def set_pin(request):
 
 
 @api_view(['GET'])
+@authentication_classes([PinAuthentication])
 @permission_classes([AllowAny])
 def mobile_teachers(request):
+    if not request.user.is_authenticated:
+        return Response({'error': 'Authentication required'}, status=401)
     teachers = Teacher.objects.filter(
         deleted_at__isnull=True,
     ).exclude(pin='').values('id', 'name', 'designation').order_by('name')
@@ -157,11 +144,12 @@ def mobile_teachers(request):
 
 
 @api_view(['GET'])
+@authentication_classes([PinAuthentication])
 @permission_classes([AllowAny])
 def mobile_students(request):
-    teacher = _get_pin_teacher(request)
-    if not teacher:
+    if not request.user.is_authenticated:
         return Response({'error': 'Authentication required'}, status=401)
+    teacher = request.user
 
     class_id = request.query_params.get('class_id')
     if not class_id:
@@ -187,11 +175,11 @@ def mobile_students(request):
 
 
 @api_view(['GET'])
+@authentication_classes([PinAuthentication])
 @permission_classes([AllowAny])
 def mobile_get_attendance(request):
     """Get existing attendance records for a class+date (PIN auth)."""
-    teacher = _get_pin_teacher(request)
-    if not teacher:
+    if not request.user.is_authenticated:
         return Response({'error': 'Authentication required'}, status=401)
 
     class_id = request.query_params.get('class_id')
@@ -207,12 +195,13 @@ def mobile_get_attendance(request):
 
 
 @api_view(['POST'])
+@authentication_classes([PinAuthentication])
 @permission_classes([AllowAny])
 def mobile_batch_attendance(request):
     """Batch create/update attendance records (PIN auth)."""
-    teacher = _get_pin_teacher(request)
-    if not teacher:
+    if not request.user.is_authenticated:
         return Response({'error': 'Authentication required'}, status=401)
+    teacher = request.user
 
     class_id = request.data.get('school_class')
     date_str = request.data.get('date')
@@ -279,19 +268,13 @@ def mobile_batch_attendance(request):
 
 
 @api_view(['GET'])
+@authentication_classes([PinAuthentication])
 @permission_classes([AllowAny])
 def mobile_class_daily_report(request):
-    try:
-        return _mobile_class_daily_report_logic(request)
-    except Exception as e:
-        logger = __import__('logging').getLogger(__name__)
-        logger.exception('mobile_class_daily_report failed')
-        return Response({'error': 'Failed to load report'}, status=500)
-
-def _mobile_class_daily_report_logic(request):
-    teacher = _get_pin_teacher(request)
-    if not teacher:
+    if not request.user.is_authenticated:
         return Response({'error': 'Authentication required'}, status=401)
+
+    teacher = request.user
 
     class_id = request.query_params.get('class_id')
     date_param = request.query_params.get('date')
@@ -321,8 +304,9 @@ def _mobile_class_daily_report_logic(request):
     for r in records:
         try:
             records_map[str(r['student_id'])] = str(r['status'])
-        except Exception:
-            pass
+        except (KeyError, TypeError, ValueError):
+            logger.warning('mobile_class_daily_report: skipping invalid record %r', r, exc_info=True)
+            continue
 
     present = 0
     absent = 0
@@ -348,19 +332,13 @@ def _mobile_class_daily_report_logic(request):
     })
 
 @api_view(['GET'])
+@authentication_classes([PinAuthentication])
 @permission_classes([AllowAny])
 def mobile_monthly_report(request):
-    try:
-        return _mobile_monthly_report_logic(request)
-    except Exception as e:
-        logger = __import__('logging').getLogger(__name__)
-        logger.exception('mobile_monthly_report failed')
-        return Response({'error': 'Failed to load report'}, status=500)
-
-def _mobile_monthly_report_logic(request):
-    teacher = _get_pin_teacher(request)
-    if not teacher:
+    if not request.user.is_authenticated:
         return Response({'error': 'Authentication required'}, status=401)
+
+    teacher = request.user
 
     class_id = request.query_params.get('class_id')
     year = request.query_params.get('year')
@@ -402,8 +380,9 @@ def _mobile_monthly_report_logic(request):
     for r in records:
         try:
             records_map.setdefault(str(r['student_id']), {})[r['date'].isoformat()] = str(r['status'])
-        except Exception:
-            pass
+        except (KeyError, TypeError, ValueError):
+            logger.warning('mobile_monthly_report: skipping invalid record %r', r, exc_info=True)
+            continue
 
     days = []
     student_ids = [str(s['id']) for s in students]

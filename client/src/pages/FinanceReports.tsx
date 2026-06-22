@@ -7,6 +7,7 @@ import { toast } from '../components/Toast';
 import ExportMenu from '../components/ExportMenu';
 import { getMonthName, fmt, headwise, pdfIncomeReport, pdfExpenseReport, pdfAudit, pdfYearlyAGM } from '../lib/financeReportPdf';
 import { FISCAL_YEAR_START_MONTH, FISCAL_START_LABEL, FISCAL_END_LABEL } from '../lib/config';
+import { ACCOUNT_IDS, PRIMARY_BANK, SECONDARY_BANK } from '../lib/accounts';
 
 
 type ReportTab = 'income-report' | 'expense-report' | 'audit' | 'yearly-agm';
@@ -98,22 +99,18 @@ const FinanceReports = () => {
     await fetchOpeningBalances(yearFilter);
     await fetchOpeningBalanceHistory(yearFilter);
     const fresh = useSchoolStore.getState().openingBalances;
-    setEditOpenBal({
-      AL_RAWA_BANK: String(fresh.AL_RAWA_BANK || 0),
-      GLOBAL_FORUM_BANK: String(fresh.GLOBAL_FORUM_BANK || 0),
-      CASH_IN_HAND: String(fresh.CASH_IN_HAND || 0),
-    });
+    const ob: Record<string, string> = {};
+    ACCOUNT_IDS.forEach(id => { ob[id] = String(fresh[id] || 0); });
+    setEditOpenBal(ob);
     setShowOpeningBalModal(true);
   };
 
   const handleSaveOpeningBal = async () => {
     setSavingOpenBal(true);
     try {
-      await setOpeningBalances(yearFilter, {
-        AL_RAWA_BANK: Number(editOpenBal.AL_RAWA_BANK) || 0,
-        GLOBAL_FORUM_BANK: Number(editOpenBal.GLOBAL_FORUM_BANK) || 0,
-        CASH_IN_HAND: Number(editOpenBal.CASH_IN_HAND) || 0,
-      });
+      const payload: Record<string, number> = {};
+      ACCOUNT_IDS.forEach(id => { payload[id] = Number(editOpenBal[id]) || 0; });
+      await setOpeningBalances(yearFilter, payload);
       toast('Opening balances saved ✓', 'success');
       setShowOpeningBalModal(false);
     } catch { toast('Failed to save opening balances', 'error'); }
@@ -144,8 +141,8 @@ const FinanceReports = () => {
     if (month >= FISCAL_YEAR_START_MONTH) { return year === filterYear - 1; } else { return year === filterYear; }
   });
 
-  const isCrossBankIncome = (t: any) => t.transactionType === 'INTERNAL_TRANSFER' && t.sourceAccount === 'GLOBAL_FORUM_BANK' && t.destinationAccount === 'AL_RAWA_BANK';
-  const isCrossBankExpense = (t: any) => t.transactionType === 'INTERNAL_TRANSFER' && t.sourceAccount === 'AL_RAWA_BANK' && t.destinationAccount === 'GLOBAL_FORUM_BANK';
+  const isCrossBankIncome = (t: any) => t.transactionType === 'INTERNAL_TRANSFER' && t.sourceAccount === SECONDARY_BANK && t.destinationAccount === PRIMARY_BANK;
+  const isCrossBankExpense = (t: any) => t.transactionType === 'INTERNAL_TRANSFER' && t.sourceAccount === PRIMARY_BANK && t.destinationAccount === SECONDARY_BANK;
   const incomeTx = filtered.filter((t: any) => (t.transactionType === 'INCOME' && t.affectsIncomeLedger) || isCrossBankIncome(t));
   const expenseTx = filtered.filter((t: any) => (t.transactionType === 'EXPENSE' && t.affectsExpenseLedger) || isCrossBankExpense(t));
   const yearIncome = yearFiltered.filter((t: any) => (t.transactionType === 'INCOME' && t.affectsIncomeLedger) || isCrossBankIncome(t));
@@ -392,7 +389,7 @@ const FinanceReports = () => {
           ) : (() => {
             const { totalIncome, totalExpense, netSurplus, opening, closing, totalAssets, totalTransfers, transactionCount } = agmData;
             const fyLabel = `${Number(yearFilter)-1}-${yearFilter}`;
-            const openTotal = (opening.AL_RAWA_BANK || 0) + (opening.GLOBAL_FORUM_BANK || 0) + (opening.CASH_IN_HAND || 0);
+            const openTotal = ACCOUNT_IDS.reduce((s, id) => s + (opening[id] || 0), 0);
             return (
             <div className="space-y-6">
               <h4 className="font-serif text-lg text-school-primary">Annual General Meeting Report — FY {fyLabel}</h4>
@@ -490,7 +487,7 @@ const FinanceReports = () => {
             <h3 className="font-bold text-lg text-school-primary mb-1">Opening Balances — FY {Number(yearFilter)-1}-{yearFilter}</h3>
             <p className="text-xs text-school-muted mb-4">Set the opening balances for each account at the start of the fiscal year ({FISCAL_START_LABEL} 1). Default is 0 for new schools.</p>
             <div className="space-y-3">
-              {['AL_RAWA_BANK', 'GLOBAL_FORUM_BANK', 'CASH_IN_HAND'].map(acct => (
+              {ACCOUNT_IDS.map(acct => (
                 <div key={acct}>
                   <label className="text-xs font-bold uppercase text-school-muted block mb-1">{acct.replace(/_/g, ' ')}</label>
                   <input type="number" value={editOpenBal[acct] || '0'} onChange={e => setEditOpenBal({ ...editOpenBal, [acct]: e.target.value })}

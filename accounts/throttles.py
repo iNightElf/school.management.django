@@ -19,3 +19,7 @@ class VerifyEmailRateThrottle(AnonRateThrottle):
 
 class PasswordResetRateThrottle(AnonRateThrottle):
     scope = 'password_reset'
+
+
+class PinLoginRateThrottle(AnonRateThrottle):
+    scope = 'pin_login'

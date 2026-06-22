@@ -2,6 +2,7 @@ import jsPDF from 'jspdf';
 import { FISCAL_START_LABEL, FISCAL_END_LABEL } from './config';
 import { SCHOOL_LOGO } from './logo';
 
+
 export function getMonthName(m: number) {
   return ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][m];
 }
@@ -312,8 +313,8 @@ export function pdfAudit(data: { totalIncome: number; totalExpense: number; netS
 export function pdfYearlyAGM(
   income: any[], expense: any[],
   totalIncome: number, totalExpense: number, netSurplus: number,
-  opening: { AL_RAWA_BANK?: number; GLOBAL_FORUM_BANK?: number; CASH_IN_HAND?: number },
-  closing: { AL_RAWA_BANK: number; GLOBAL_FORUM_BANK: number; CASH_IN_HAND: number },
+  opening: Record<string, number>,
+  closing: Record<string, number>,
   totalAssets: number, totalTransfers: number, transactionCount: number,
   yearFilter: string,
 ) {
@@ -381,11 +382,7 @@ export function pdfYearlyAGM(
   doc.text('Account', 14, y + 4); doc.text('Balance', 196, y + 4, { align: 'right' });
   y += 6;
 
-  const assetRows: [string, number][] = [
-    ['AL RAWA Bank', closing.AL_RAWA_BANK],
-    ['Global Forum Bank', closing.GLOBAL_FORUM_BANK],
-    ['Cash in Hand', closing.CASH_IN_HAND],
-  ];
+  const assetRows: [string, number][] = ['AL_RAWA_BANK', 'GLOBAL_FORUM_BANK', 'CASH_IN_HAND'].map(id => [LEDGER_LABELS[id], closing[id]]);
   assetRows.forEach(([name, val], i) => {
     if (i % 2 === 0) { doc.setFillColor(255, 253, 247); doc.rect(12, y, 186, 6, 'F'); }
     doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(26, 26, 46);
@@ -412,20 +409,13 @@ export function pdfYearlyAGM(
   doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(130, 124, 114);
   doc.text(`For the financial year ${fyLabel}`, 12, y); y += 6;
 
-  const openingAL = opening.AL_RAWA_BANK ?? 0;
-  const openingGF = opening.GLOBAL_FORUM_BANK ?? 0;
-  const openingCash = opening.CASH_IN_HAND ?? 0;
-
   doc.setFillColor(26, 26, 46); doc.rect(12, y, 186, 6, 'F');
   doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(255, 255, 255);
   doc.text('', 14, y + 4); doc.text('Opening', 130, y + 4, { align: 'right' }); doc.text('Closing', 196, y + 4, { align: 'right' });
   y += 6;
 
-  const rpRows: [string, number, number][] = [
-    ['AL RAWA Bank', openingAL, closing.AL_RAWA_BANK],
-    ['Global Forum Bank', openingGF, closing.GLOBAL_FORUM_BANK],
-    ['Cash in Hand', openingCash, closing.CASH_IN_HAND],
-  ];
+  const ACCT_IDS = ['AL_RAWA_BANK', 'GLOBAL_FORUM_BANK', 'CASH_IN_HAND'] as const;
+  const rpRows: [string, number, number][] = ACCT_IDS.map(id => [LEDGER_LABELS[id], opening[id] ?? 0, closing[id]]);
   rpRows.forEach(([name, open, close], i) => {
     if (i % 2 === 0) { doc.setFillColor(255, 253, 247); doc.rect(12, y, 186, 6, 'F'); }
     doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(26, 26, 46);
@@ -434,7 +424,7 @@ export function pdfYearlyAGM(
   });
 
   // Totals row
-  const openTotal = openingAL + openingGF + openingCash;
+  const openTotal = rpRows.reduce((s, [, o]) => s + o, 0);
   const closeTotal = totalAssets;
   doc.setFillColor(240, 235, 225); doc.rect(12, y, 186, 6, 'F');
   doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
@@ -488,9 +478,11 @@ export function pdfYearlyAGM(
   doc.save(`AGM_Report_${fyLabel.replace('-', '_')}.pdf`);
 }
 
+const LEDGER_LABELS: Record<string, string> = { AL_RAWA_BANK: 'AL RAWA Bank', GLOBAL_FORUM_BANK: 'Global Forum Bank', CASH_IN_HAND: 'Cash in Hand' };
+
 export function pdfLedger(entries: any[], account: string, dateFrom: string, dateTo: string, openingBalance: number, closingBalance: number, totalDebit?: number, totalCredit?: number) {
   const doc = new jsPDF({ orientation: 'landscape', format: 'a4', unit: 'mm' });
-  const accLabel = account === 'AL_RAWA_BANK' ? 'AL RAWA Bank' : 'Cash in Hand';
+  const accLabel = LEDGER_LABELS[account] || account;
   const rangeStr = dateFrom || dateTo ? `${dateFrom || 'earliest'} — ${dateTo || 'latest'}` : 'All dates';
   let y = addHeader(doc, `${accLabel} Ledger`, rangeStr, 10);
 
@@ -614,7 +606,7 @@ export function pdfLedger(entries: any[], account: string, dateFrom: string, dat
 }
 
 export function buildLedgerPrintHtml(entries: any[], account: string, dateFrom: string, dateTo: string, openingBalance: number, closingBalance: number, fmt: (n: number) => string, totalDebit?: number, totalCredit?: number) {
-  const accLabel = account === 'AL_RAWA_BANK' ? 'AL RAWA Bank' : 'Cash in Hand';
+  const accLabel = LEDGER_LABELS[account] || account;
   const rangeStr = dateFrom || dateTo ? `${dateFrom || 'earliest'} — ${dateTo || 'latest'}` : 'All dates';
 
   const rows = entries.map((e: any) => {

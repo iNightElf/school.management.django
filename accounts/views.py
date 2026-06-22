@@ -326,6 +326,7 @@ class RequestPasswordResetView(APIView):
 
 class ResetPasswordView(APIView):
     permission_classes = []
+    throttle_classes = [PasswordResetRateThrottle]
 
     def post(self, request):
         serializer = ResetPasswordSerializer(data=request.data)

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { DollarSign, TrendingDown, RefreshCw } from 'lucide-react';
+import { ACCOUNTS } from '../lib/accounts';
 
 type TxTab = 'income' | 'expense' | 'transfer';
 
@@ -28,10 +29,7 @@ export interface TransactionFormData {
   className?: string;
 }
 
-const DEFAULT_ACCOUNTS = [
-  { id: 'AL_RAWA_BANK', label: 'AL RAWA Bank' },
-  { id: 'CASH_IN_HAND', label: 'Cash in Hand' },
-];
+const DEFAULT_ACCOUNTS = ACCOUNTS.map(a => ({ id: a.id, label: a.short }));
 
 export default function TransactionForm({
   activeTab,

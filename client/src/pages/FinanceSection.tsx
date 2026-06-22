@@ -14,6 +14,7 @@ import StudentWaiversTab from './StudentWaiversTab';
 import PeriodCloseTab from './PeriodCloseTab';
 import ReconciliationTab from './ReconciliationTab';
 import { FISCAL_YEAR_START_MONTH } from '../lib/config';
+import { ACCOUNTS, ACCOUNTS_LEDGER } from '../lib/accounts';
 
 function getMonthsInRange(from: string, to: string): string[] {
   const months: string[] = [];
@@ -36,28 +37,15 @@ function filterMonthsByAssignment(months: string[], assignmentStart?: string | n
   });
 }
 
-const ACCOUNTS = [
-  { id: 'AL_RAWA_BANK', label: 'AL RAWA English School Bank', short: 'AL RAWA Bank', color: 'from-blue-500 to-blue-600', ring: 'ring-blue-200' },
-  { id: 'GLOBAL_FORUM_BANK', label: 'Global Forum Bank Account', short: 'Global Forum', color: 'from-indigo-500 to-indigo-600', ring: 'ring-indigo-200' },
-  { id: 'CASH_IN_HAND', label: 'Cash in Hand', short: 'Cash', color: 'from-emerald-500 to-emerald-600', ring: 'ring-emerald-200' },
-] as const;
-
-
-
 type MainTab = 'transactions' | 'reports' | 'optional-fees' | 'defaulter' | 'fee-schedule' | 'waivers' | 'period-close' | 'reconciliation';
 type TxTab = 'income' | 'expense' | 'transfer' | 'import';
 
 const PAGE_SIZE = 25;
 
-const ACCOUNTS_LEDGER = [
-  { id: 'CASH_IN_HAND' as const, label: 'Cash in Hand', short: 'Cash', color: 'bg-emerald-500' },
-  { id: 'AL_RAWA_BANK' as const, label: 'AL RAWA Bank', short: 'Bank', color: 'bg-blue-500' },
-];
-
 function Ledger({ fmt, fetchFinance, fetchFeeSchedules, fetchDashboardSummary, refreshKey }: { fmt: (n: number) => string; fetchFinance: () => void; fetchFeeSchedules: () => void; fetchDashboardSummary: (fy?: string) => void; refreshKey: number }) {
   const role = useAuthStore((s) => s.user?.role);
   const canWrite = role === 'admin' || role === 'accountant';
-  const [ledgerAccount, setLedgerAccount] = useState<'AL_RAWA_BANK' | 'CASH_IN_HAND'>('CASH_IN_HAND');
+  const [ledgerAccount, setLedgerAccount] = useState<string>('CASH_IN_HAND');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [search, setSearch] = useState('');
@@ -704,8 +692,7 @@ const FinanceSection = () => {
                     <label className="text-[10px] font-bold uppercase text-school-muted mb-1 block">Deposit To</label>
                     <select value={depositTo} onChange={e => setDepositTo(e.target.value)}
                       className="w-full border border-school-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-school-accent bg-white">
-                      <option value="CASH_IN_HAND">Cash in Hand</option>
-                      <option value="AL_RAWA_BANK">AL RAWA Bank</option>
+                      {ACCOUNTS.map(a => <option key={a.id} value={a.id}>{a.short}</option>)}
                     </select>
                   </div>
                   <div>
@@ -876,11 +863,10 @@ const FinanceSection = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-[10px] font-bold uppercase text-school-muted mb-1 block">Pay From</label>
-                  <select value={sourceAccount} onChange={e => setSourceAccount(e.target.value)}
-                    className="w-full border border-school-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-school-accent bg-white">
-                    <option value="AL_RAWA_BANK">AL RAWA English School Bank</option>
-                    <option value="CASH_IN_HAND">Cash in Hand</option>
-                  </select>
+                    <select value={sourceAccount} onChange={e => setSourceAccount(e.target.value)}
+                      className="w-full border border-school-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-school-accent bg-white">
+                      {ACCOUNTS.map(a => <option key={a.id} value={a.id}>{a.label}</option>)}
+                    </select>
                 </div>
                 <div>
                   <label className="text-[10px] font-bold uppercase text-school-muted mb-1 block flex items-center gap-2">

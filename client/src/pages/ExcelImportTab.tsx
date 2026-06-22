@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { toast } from '../components/Toast';
 import { Upload, Trash2, Edit2, Check, X, Download, Loader } from 'lucide-react';
 import { useSchoolStore, api } from '../store';
+import { PRIMARY_BANK, CASH_BANK } from '../lib/accounts';
 import type { FeeWaiver, FeeSchedule, Student } from '../lib/types';
 
 
@@ -358,8 +359,8 @@ export default function ExcelImportTab() {
         transactionDate: row.date,
         transactionType: row.type === 'income' ? 'INCOME' : 'EXPENSE',
         amount: parseFloat(row.amount),
-        sourceAccount: row.type === 'income' ? undefined : 'AL_RAWA_BANK',
-        destinationAccount: row.type === 'income' ? 'CASH_IN_HAND' : undefined,
+        sourceAccount: row.type === 'income' ? undefined : PRIMARY_BANK,
+        destinationAccount: row.type === 'income' ? CASH_BANK : undefined,
         category: row.category,
         description: row.description || undefined,
         tokenNumber: row.token ? parseInt(row.token) || undefined : undefined,

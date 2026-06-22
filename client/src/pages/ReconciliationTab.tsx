@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react';
 import { Scale, Plus, X, Download } from 'lucide-react';
 import { toast } from '../components/Toast';
 import { useAuthStore, api } from '../store';
-
-const ACCOUNTS = ['AL_RAWA_BANK', 'GLOBAL_FORUM_BANK', 'CASH_IN_HAND'];
+import { ACCOUNT_IDS } from '../lib/accounts';
 
 export default function ReconciliationTab() {
   const role = useAuthStore(s => s.user?.role);
@@ -11,7 +10,7 @@ export default function ReconciliationTab() {
   const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [account, setAccount] = useState(ACCOUNTS[0]);
+  const [account, setAccount] = useState(ACCOUNT_IDS[0]);
   const [statementDate, setStatementDate] = useState(new Date().toISOString().split('T')[0]);
   const [closingBalance, setClosingBalance] = useState('');
   const [notes, setNotes] = useState('');
@@ -106,7 +105,7 @@ export default function ReconciliationTab() {
           <div>
             <label className="text-[10px] font-bold uppercase text-school-muted mb-1 block">Account</label>
             <select value={account} onChange={e => setAccount(e.target.value)} className="border border-school-border rounded-lg px-3 py-1.5 text-xs bg-white focus:outline-none focus:border-school-accent">
-              {ACCOUNTS.map(a => <option key={a} value={a}>{a.replace(/_/g, ' ')}</option>)}
+              {ACCOUNT_IDS.map(a => <option key={a} value={a}>{a.replace(/_/g, ' ')}</option>)}
             </select>
           </div>
           <div>

@@ -45,15 +45,19 @@ def _waiver_expected_amount(waiver, fee_schedule_amount):
     return Decimal(str(waiver_value))
 
 
+PRIMARY_BANK = 'AL_RAWA_BANK'
+SECONDARY_BANK = 'GLOBAL_FORUM_BANK'
+CASH_BANK = 'CASH_IN_HAND'
+
 CROSS_BANK_INCOME = Q(transaction_type='INCOME') | (
     Q(transaction_type='INTERNAL_TRANSFER',
-      source_account__name='GLOBAL_FORUM_BANK',
-      destination_account__name='AL_RAWA_BANK')
+      source_account__name=SECONDARY_BANK,
+      destination_account__name=PRIMARY_BANK)
 )
 CROSS_BANK_EXPENSE = Q(transaction_type='EXPENSE') | (
     Q(transaction_type='INTERNAL_TRANSFER',
-      source_account__name='AL_RAWA_BANK',
-      destination_account__name='GLOBAL_FORUM_BANK')
+      source_account__name=PRIMARY_BANK,
+      destination_account__name=SECONDARY_BANK)
 )
 
 def _internal_accounts():
@@ -112,6 +116,15 @@ def _param(request, *names):
         if val is not None:
             return val
     return None
+
+
+def _invalidate_dashboard_cache(fiscal_year=None):
+    """Invalidate dashboard summary cache for one or all fiscal years."""
+    if fiscal_year is not None:
+        cache.delete(f'finance_dashboard_{fiscal_year}')
+    else:
+        for y in range(timezone.now().year - 2, timezone.now().year + 2):
+            cache.delete(f'finance_dashboard_{y}')
 
 
 def _check_period_open(fiscal_year):

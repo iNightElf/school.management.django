@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { api, dedupedFetch } from './api';
+import { ACCOUNT_IDS } from '../lib/accounts';
 import type {
   Student, Teacher, Staff, Transaction, SchoolClass, Subject,
   FeeSchedule, SchoolSettings, AcademicYear,
@@ -22,9 +23,13 @@ interface SchoolState {
   openingBalances: Record<string, number>;
   openingBalancesHistory: OpeningBalanceHistory[];
   studentTotal: number;
+  studentPage: number;
   teacherTotal: number;
+  teacherPage: number;
   staffTotal: number;
+  staffPage: number;
   bookTotal: number;
+  bookPage: number;
   transactionTotal: number;
   transactionPage: number;
   transactionTotalPages: number;
@@ -35,9 +40,13 @@ interface SchoolState {
   fetchDashboardCounts: () => Promise<void>;
   fetchClasses: (force?: boolean) => Promise<void>;
   fetchStudents: (params?: Record<string, string>, force?: boolean) => Promise<void>;
+  setStudentPage: (page: number) => void;
   fetchTeachers: (params?: Record<string, string>, force?: boolean) => Promise<void>;
+  setTeacherPage: (page: number) => void;
   fetchStaff: (params?: Record<string, string>, force?: boolean) => Promise<void>;
+  setStaffPage: (page: number) => void;
   fetchBooks: (params?: Record<string, string>, force?: boolean) => Promise<void>;
+  setBookPage: (page: number) => void;
   fetchSubjects: (classId: string) => Promise<void>;
   fetchFinance: () => Promise<void>;
   fetchTransactions: (params?: Record<string, string>) => Promise<void>;
@@ -69,6 +78,8 @@ interface SchoolState {
   fetchClassResults: (classId: string, session: string, term?: string) => Promise<void>;
   expenseCategories: string[];
   fetchExpenseCategories: () => Promise<void>;
+  invalidateCache: (key: string) => void;
+  invalidatePattern: (prefix: string) => void;
 }
 
 export const useSchoolStore = create<SchoolState>((set, get) => ({
@@ -79,15 +90,19 @@ export const useSchoolStore = create<SchoolState>((set, get) => ({
   books: [],
   subjects: [],
   transactions: [],
-  balances: { AL_RAWA_BANK: 0, GLOBAL_FORUM_BANK: 0, CASH_IN_HAND: 0 },
+  balances: Object.fromEntries(ACCOUNT_IDS.map(id => [id, 0])),
   settings: { school_name: 'AL RAWA English School', address: '', phone: '', email: '', website: '' },
   feeSchedules: [],
-  openingBalances: { AL_RAWA_BANK: 0, GLOBAL_FORUM_BANK: 0, CASH_IN_HAND: 0 },
+  openingBalances: Object.fromEntries(ACCOUNT_IDS.map(id => [id, 0])),
   openingBalancesHistory: [],
   studentTotal: 0,
+  studentPage: 1,
   teacherTotal: 0,
+  teacherPage: 1,
   staffTotal: 0,
+  staffPage: 1,
   bookTotal: 0,
+  bookPage: 1,
   transactionTotal: 0,
   transactionPage: 1,
   transactionTotalPages: 1,
@@ -99,6 +114,15 @@ export const useSchoolStore = create<SchoolState>((set, get) => ({
   expenseCategories: [],
   dashboardSummary: { totalIncome: 0, totalDepositedToBank: 0, depositRemaining: 0 },
   loading: {},
+
+  invalidateCache: (key) => set((s) => ({ _fetchedAt: { ...s._fetchedAt, [key]: 0 } })),
+  invalidatePattern: (prefix) => set((s) => {
+    const next = { ...s._fetchedAt };
+    for (const k of Object.keys(next)) {
+      if (k.startsWith(prefix)) next[k] = 0;
+    }
+    return { _fetchedAt: next };
+  }),
 
   fetchDashboardCounts: async () => {
     const key = 'dashboardCounts';
@@ -126,10 +150,11 @@ export const useSchoolStore = create<SchoolState>((set, get) => ({
     finally { set((s) => ({ loading: { ...s.loading, classes: false } })); }
   },
   fetchStudents: async (params, force) => {
+    const page = get().studentPage;
     if (!force && get().students.length > 0 && !params) return;
     set((s) => ({ loading: { ...s.loading, students: true } }));
     try {
-      const res = await api.get('/students/', { params: { limit: '2000', ...params } });
+      const res = await api.get('/students/', { params: { offset: String((page - 1) * 50), limit: '50', ...params } });
       set({
         students: res.data.results || res.data.data || res.data,
         studentTotal: res.data.count ?? res.data.total ?? 0,
@@ -138,11 +163,16 @@ export const useSchoolStore = create<SchoolState>((set, get) => ({
     } catch (e) { if (import.meta.env.DEV) console.warn("[store]", e); }
     finally { set((s) => ({ loading: { ...s.loading, students: false } })); }
   },
+  setStudentPage: (page: number) => {
+    set({ studentPage: page });
+    get().fetchStudents(undefined, true);
+  },
   fetchTeachers: async (params, force) => {
+    const page = get().teacherPage;
     if (!force && get().teachers.length > 0 && !params) return;
     set((s) => ({ loading: { ...s.loading, teachers: true } }));
     try {
-      const res = await api.get('/teachers/', { params: { limit: '2000', ...params } });
+      const res = await api.get('/teachers/', { params: { offset: String((page - 1) * 50), limit: '50', ...params } });
       set({
         teachers: res.data.results || res.data.data || res.data,
         teacherTotal: res.data.count ?? res.data.total ?? 0,
@@ -151,11 +181,16 @@ export const useSchoolStore = create<SchoolState>((set, get) => ({
     } catch (e) { if (import.meta.env.DEV) console.warn("[store]", e); }
     finally { set((s) => ({ loading: { ...s.loading, teachers: false } })); }
   },
+  setTeacherPage: (page: number) => {
+    set({ teacherPage: page });
+    get().fetchTeachers(undefined, true);
+  },
   fetchStaff: async (params, force) => {
+    const page = get().staffPage;
     if (!force && get().staff.length > 0 && !params) return;
     set((s) => ({ loading: { ...s.loading, staff: true } }));
     try {
-      const res = await api.get('/staff/', { params: { limit: '2000', ...params } });
+      const res = await api.get('/staff/', { params: { offset: String((page - 1) * 50), limit: '50', ...params } });
       set({
         staff: res.data.results || res.data.data || res.data,
         staffTotal: res.data.count ?? res.data.total ?? 0,
@@ -164,11 +199,16 @@ export const useSchoolStore = create<SchoolState>((set, get) => ({
     } catch (e) { if (import.meta.env.DEV) console.warn("[store]", e); }
     finally { set((s) => ({ loading: { ...s.loading, staff: false } })); }
   },
+  setStaffPage: (page: number) => {
+    set({ staffPage: page });
+    get().fetchStaff(undefined, true);
+  },
   fetchBooks: async (params, force) => {
+    const page = get().bookPage;
     if (!force && get().books.length > 0 && !params) return;
     set((s) => ({ loading: { ...s.loading, books: true } }));
     try {
-      const res = await api.get('/books/', { params: { limit: '2000', ...params } });
+      const res = await api.get('/books/', { params: { offset: String((page - 1) * 50), limit: '50', ...params } });
       set({
         books: res.data.results || res.data.data || res.data,
         bookTotal: res.data.count ?? res.data.total ?? 0,
@@ -176,6 +216,10 @@ export const useSchoolStore = create<SchoolState>((set, get) => ({
       });
     } catch (e) { if (import.meta.env.DEV) console.warn("[store]", e); }
     finally { set((s) => ({ loading: { ...s.loading, books: false } })); }
+  },
+  setBookPage: (page: number) => {
+    set({ bookPage: page });
+    get().fetchBooks(undefined, true);
   },
   fetchSubjects: async (classId: string) => {
     const key = `subjects_${classId}`;

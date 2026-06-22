@@ -16,7 +16,7 @@ const SUBJECT_KEY_MAP: Record<string, string> = {
 export default function EnterByStudent() {
   const { students, fetchStudents, subjects, fetchSubjects, saveStudentResult, academicYears, fetchAcademicYears, classResults, fetchClassResults } = useSchoolStore();
   const role = useAuthStore((s) => s.user?.role);
-  const isAdmin = role === 'admin';
+  const canSaveResults = role === 'admin' || role === 'teacher';
   const [cls, setCls] = useState<any>(null);
   const [activeStudent, setActiveStudent] = useState<any>(null);
   const [activeTerm, setActiveTerm] = useState('1');
@@ -205,7 +205,7 @@ export default function EnterByStudent() {
               <div className="bg-school-paper px-3 py-2 rounded-xl text-center"><div className="text-[10px] text-school-muted uppercase">Grade</div><div className="font-bold text-sm">{termGrade}</div></div>
               <div className="bg-school-paper px-3 py-2 rounded-xl text-center"><div className="text-[10px] text-school-muted uppercase">Rank</div><div className="font-bold text-sm">{myRank}</div></div>
             </div>}
-            {isAdmin && <button onClick={async () => { try { await save(); loadResults(cls.id); toast('Saved ✓', 'success'); } catch { toast('Save failed', 'error'); } }} className="w-full mt-4 py-2 bg-green-600 text-white rounded-xl text-sm font-bold hover:opacity-90 flex items-center justify-center gap-1.5"><Save size={14} /> Save Marks</button>}
+            {canSaveResults && <button onClick={async () => { try { await save(); loadResults(cls.id); toast('Saved ✓', 'success'); } catch { toast('Save failed', 'error'); } }} className="w-full mt-4 py-2 bg-green-600 text-white rounded-xl text-sm font-bold hover:opacity-90 flex items-center justify-center gap-1.5"><Save size={14} /> Save Marks</button>}
           </div>
           <div className="bg-white rounded-2xl border border-school-border p-4">
             <h4 className="font-bold text-sm mb-3 flex items-center gap-1.5"><CalendarDays size={16} /> Attendance</h4>

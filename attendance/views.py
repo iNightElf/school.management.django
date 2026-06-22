@@ -1,4 +1,5 @@
 import calendar
+import logging
 from datetime import date
 from django.db import models
 from django.db import transaction as db_transaction
@@ -7,6 +8,8 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import NotFound
+
+logger = logging.getLogger(__name__)
 
 from .models import AttendanceRecord, Holiday
 from .serializers import (
@@ -302,12 +305,7 @@ class AttendanceViewSet(viewsets.GenericViewSet):
 
     @action(detail=False, methods=['get'], url_path='class-report')
     def class_report(self, request):
-        try:
-            return self._class_report_logic(request)
-        except Exception:
-            logger = __import__('logging').getLogger(__name__)
-            logger.exception('class_report failed')
-            return Response({'error': 'Failed to load report'}, status=500)
+        return self._class_report_logic(request)
 
     def _class_report_logic(self, request):
         class_id = request.query_params.get('class_id')
@@ -355,7 +353,8 @@ class AttendanceViewSet(viewsets.GenericViewSet):
                 {r['date'] for r in records},
                 key=lambda d: str(d),
             )
-        except Exception:
+        except TypeError:
+            logger.warning('class_report: failed to sort dates', exc_info=True)
             dates = []
 
         student_ids = [str(s['id']) for s in students]
@@ -369,7 +368,8 @@ class AttendanceViewSet(viewsets.GenericViewSet):
                 sid = str(rec['student_id'])
                 d = rec['date'].isoformat()
                 st = str(rec['status'])
-            except Exception:
+            except (KeyError, TypeError, ValueError):
+                logger.warning('class_report: skipping invalid record %r', rec, exc_info=True)
                 continue
 
             grid.setdefault(sid, {})[d] = st
@@ -407,12 +407,7 @@ class AttendanceViewSet(viewsets.GenericViewSet):
 
     @action(detail=False, methods=['get'], url_path='class-daily-report')
     def class_daily_report(self, request):
-        try:
-            return self._class_daily_report_logic(request)
-        except Exception:
-            logger = __import__('logging').getLogger(__name__)
-            logger.exception('class_daily_report failed')
-            return Response({'error': 'Failed to load daily report'}, status=500)
+        return self._class_daily_report_logic(request)
 
     def _class_daily_report_logic(self, request):
         class_id = request.query_params.get('class_id')
@@ -446,7 +441,8 @@ class AttendanceViewSet(viewsets.GenericViewSet):
         for r in records:
             try:
                 records_map[str(r['student_id'])] = str(r['status'])
-            except Exception:
+            except (KeyError, TypeError, ValueError):
+                logger.warning('class_daily_report: skipping invalid record %r', r, exc_info=True)
                 continue
 
         present = 0
@@ -477,12 +473,7 @@ class AttendanceViewSet(viewsets.GenericViewSet):
 
     @action(detail=False, methods=['get'], url_path='all-classes-daily')
     def all_classes_daily(self, request):
-        try:
-            return self._all_classes_daily_logic(request)
-        except Exception:
-            logger = __import__('logging').getLogger(__name__)
-            logger.exception('all_classes_daily failed')
-            return Response({'error': 'Failed to load daily report'}, status=500)
+        return self._all_classes_daily_logic(request)
 
     def _all_classes_daily_logic(self, request):
         date_param = request.query_params.get('date')
@@ -513,12 +504,7 @@ class AttendanceViewSet(viewsets.GenericViewSet):
 
     @action(detail=False, methods=['get'], url_path='monthly-report')
     def monthly_report(self, request):
-        try:
-            return self._monthly_report_logic(request)
-        except Exception:
-            logger = __import__('logging').getLogger(__name__)
-            logger.exception('monthly_report failed')
-            return Response({'error': 'Failed to load monthly report'}, status=500)
+        return self._monthly_report_logic(request)
 
     def _monthly_report_logic(self, request):
         class_id = request.query_params.get('class_id')
@@ -567,7 +553,8 @@ class AttendanceViewSet(viewsets.GenericViewSet):
         for r in records:
             try:
                 records_map.setdefault(str(r['student_id']), {})[r['date'].isoformat()] = str(r['status'])
-            except Exception:
+            except (KeyError, TypeError, ValueError):
+                logger.warning('monthly_report: skipping invalid record %r', r, exc_info=True)
                 continue
 
         days = []

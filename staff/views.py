@@ -27,6 +27,22 @@ class StaffViewSet(PhotoHandleMixin, AuditLogMixin, viewsets.ModelViewSet):
             qs = qs.filter(deleted_at__isnull=True)
         return qs
 
-    @action(detail=False, methods=['post'])
+    @action(detail=False, methods=['post'], url_path='import')
     def import_staff(self, request):
-        return Response({'status': 'not_implemented', 'detail': 'Import from file not yet implemented'})
+        staff_data = request.data.get('staff', [])
+        if not staff_data:
+            return Response({'error': 'No staff data provided'}, status=400)
+        created = 0
+        errors = []
+        for i, row in enumerate(staff_data):
+            try:
+                Staff.objects.create(
+                    name=row.get('name', '').strip(),
+                    role=row.get('role', '').strip(),
+                    email=row.get('email', '').strip(),
+                    contact=row.get('contact', '').strip(),
+                )
+                created += 1
+            except Exception as e:
+                errors.append({'row': i + 1, 'error': str(e)})
+        return Response({'created': created, 'errors': errors})
