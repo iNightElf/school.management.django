@@ -25,5 +25,5 @@ def sync_transaction_class_name(sender, instance, **kwargs):
 
 @receiver([post_save, post_delete], sender=BankAccount)
 def invalidate_internal_accounts_cache(sender, **kwargs):
-    from .views import _invalidate_internal_accounts_cache
+    from .views.base import _invalidate_internal_accounts_cache
     _invalidate_internal_accounts_cache()

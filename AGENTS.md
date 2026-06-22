@@ -68,3 +68,13 @@ Every table must support:
 4. Consider performance
 5. Implement
 6. Verify
+
+## Active Feature: AI Natural Language Query
+
+See `AI_QUERY_FEATURE.md` for full design, status, and build order.
+
+- Architecture: Gemini function calling (not local NN)
+- New `ai_query/` Django app (additive, no existing code changes)
+- 15 functions in v1, permission-filtered before Gemini call
+- Frontend: `client/src/ai/` (4 components + Zustand store)
+- Bandwidth: ~2MB/month at 1000 queries (negligible)

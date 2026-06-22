@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     'finance',
     'engagement',
     'attendance',
+    'ai_query',
 ]
 
 MIDDLEWARE = [
@@ -139,6 +140,7 @@ REST_FRAMEWORK = {
         'verify_email': '5/min',
         'password_reset': '3/hour',
         'pin_login': '5/min',
+        'ai_query': '30/hour',
     },
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',
@@ -201,6 +203,9 @@ if os.environ.get('CORS_ORIGINS'):
 
 
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
+
+AI_CONFIDENCE_THRESHOLD = float(os.environ.get('AI_CONFIDENCE_THRESHOLD', '0.6'))
+AI_QUERY_ENABLED = os.environ.get('AI_QUERY_ENABLED', 'True').lower() == 'true'
 
 # ── Production Security Headers ──
 if not DEBUG:
