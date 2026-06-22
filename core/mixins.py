@@ -102,7 +102,7 @@ class PhotoHandleMixin:
         if instance.photo_path:
             url = get_signed_url(instance.photo_path)
             if url:
-                if request.query_params.get('proxy'):
+                if request.query_params.get('proxy') or authenticated:
                     import urllib.request
                     from django.http import HttpResponse
                     try:
@@ -112,8 +112,7 @@ class PhotoHandleMixin:
                         return HttpResponse(resp.read(), content_type=content_type)
                     except Exception as e:
                         logger.error("Photo proxy failed for pk=%s: %s", pk, e)
-                else:
-                    return redirect(url)
+                return redirect(url)
         return Response({'error': 'No photo'}, status=404)
 
     @action(detail=True, methods=['post'])
