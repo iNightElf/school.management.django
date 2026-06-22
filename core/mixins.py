@@ -22,7 +22,7 @@ class PhotoUrlMixin:
         if obj.photo_path:
             from django.core import signing
             token = signing.dumps({'id': str(obj.id)}, salt='photo-access')
-            path = f"/api/{self.photo_url_prefix}/{obj.id}/photo/?token={token}"
+            path = f"/api/{self.photo_url_prefix}/{obj.id}/photo/?token={token}&proxy=1"
             request = self.context.get('request')
             if request:
                 return request.build_absolute_uri(path)
