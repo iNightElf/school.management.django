@@ -28,7 +28,7 @@ def teacher_search_handler(user, query=""):
             models.Q(email__icontains=query) |
             models.Q(designation__icontains=query)
         )
-    data = list(qs.values('name', 'designation', 'email', 'contact')[:50])
+    data = [{"Name": t.name, "Designation": t.designation or "", "Email": t.email or "", "Contact": t.contact or ""} for t in qs[:50]]
     return {
         "type": "table",
         "explanation": f"Found {len(data)} teacher(s)",

@@ -61,7 +61,7 @@ def attendance_summary_handler(user, class_name="", date_from=None, date_to=None
         )
         .order_by('date')
     )
-    data = list(recs)
+    data = [{"Date": str(r["date"]), "Present": r["present"], "Absent": r["absent"], "Late": r["late"], "Excused": r["excused"], "Total": r["total"]} for r in recs]
     return {
         "type": "table",
         "explanation": f"Attendance summary for {class_name} ({d_from} to {d_to})",
@@ -118,7 +118,7 @@ def attendance_detail_handler(user, student_id="", date_from=None, date_to=None)
         qs = qs.filter(date__gte=date_from)
     if date_to:
         qs = qs.filter(date__lte=date_to)
-    data = list(qs.values('date', 'status', 'term').order_by('-date')[:200])
+    data = [{"Date": str(r.date), "Status": r.status, "Term": r.term or ""} for r in qs.order_by('-date')[:200]]
     return {
         "type": "table",
         "explanation": f"Attendance for {student.name} ({student.student_id})",

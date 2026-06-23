@@ -38,11 +38,11 @@ def search_student_handler(user, query="", class_name=None):
             models.Q(student_id__icontains=query) |
             models.Q(roll__icontains=query)
         )
-    data = list(qs.select_related('school_class').values('student_id', 'name', 'school_class__name', 'roll', 'session')[:50])
-    count = len(data)
+    qs = qs.select_related('school_class')[:50]
+    data = [{"Student ID": s.student_id, "Name": s.name, "Class": s.school_class.name, "Roll": s.roll or "", "Session": s.session or ""} for s in qs]
     return {
         "type": "table",
-        "explanation": f"Found {count} student(s) matching '{query}'" if query else f"Showing {count} student(s)",
+        "explanation": f"Found {len(data)} student(s) matching '{query}'" if query else f"Showing {len(data)} student(s)",
         "data": data,
         "columns": ["Student ID", "Name", "Class", "Roll", "Session"],
     }
@@ -124,7 +124,7 @@ def class_list_handler(user, class_name=""):
                 "explanation": f"You don't have access to view students in {class_name}",
                 "data": [], "columns": [],
             }
-    data = list(qs.values('student_id', 'name', 'roll').order_by('roll')[:200])
+    data = [{"Student ID": s.student_id, "Name": s.name, "Roll": s.roll or ""} for s in qs.order_by('roll')[:200]]
     return {
         "type": "table",
         "explanation": f"Students in {class_name} ({len(data)} shown)",
