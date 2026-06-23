@@ -5,14 +5,14 @@ import { useAIQueryStore } from '../store';
 import AIResultPanel from './AIResultPanel';
 
 const SUGGESTIONS = [
-  'Show fee status of student ID 101',
-  'Class 7 attendance summary',
-  'Search student named Ahmed',
-  'Defaulters in Class 8',
-  'Teacher subjects for Ms. Fatima',
+  'List students in Class Five',
+  'Search student Atifa Asma Ohi',
+  'Attendance summary for Class Four',
+  'Show all teachers',
+  'Teacher subjects for Kurratul Jannat',
   'Dashboard summary',
   'Bank account balances',
-  'List students in Class 5',
+  'Show exam results for Class Five',
 ];
 
 const AICommandPalette = () => {

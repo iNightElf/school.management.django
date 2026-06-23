@@ -9,9 +9,9 @@
 | 3 | 15 handlers (students 3, teachers 3, attendance 2, finance 4, results 2, dashboard 1) | ✅ Done |
 | 4 | Frontend: `useAI` store, `AICommandPalette`, `AIResultPanel`, `AIResultTable`, `AIResultSummary` | ✅ Done |
 | 5 | Confidence heuristic, clarification flow, error handling | ✅ Done |
-| 6 | Prompt tuning + tests | 🔲 |
+| 6 | Prompt tuning + tests | ✅ Done |
 
-**Deployed:** 🔲 Not yet
+**Deployed:** ✅ Live on Alwaysdata (Jun 23)
 
 ---
 
