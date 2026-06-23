@@ -9,7 +9,7 @@ from rest_framework.permissions import IsAuthenticated
 from .serializers import QuerySerializer
 from .registry import REGISTRY
 from .permission_filter import filter_functions_for_user
-from .llm_service import call_gemini_with_functions, build_function_definitions
+from .llm_service import call_ai_function, build_function_definitions
 from .validator import validate_and_score
 from .resolver import resolve_slots, memory
 from .throttles import AIQueryRateThrottle
@@ -44,26 +44,26 @@ class AIQueryView(APIView):
         system_prompt = _build_system_prompt(allowed, session)
         fn_defs = build_function_definitions(allowed)
 
-        gemini_result = call_gemini_with_functions(system_prompt, query, fn_defs)
+        ai_result = call_ai_function(system_prompt, query, fn_defs)
         elapsed = int((time.time() - start) * 1000)
 
-        if gemini_result is None:
-            _log_query(user, query, '', {}, 0.0, elapsed, 0, False, 'Gemini API unavailable')
+        if ai_result is None:
+            _log_query(user, query, '', {}, 0.0, elapsed, 0, False, 'AI provider unavailable')
             return Response({
                 'type': 'error',
                 'explanation': 'The AI service is temporarily unavailable. Please try again.',
                 'data': [], 'columns': [], 'confidence': 0.0, 'meta': {},
             }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
-        if gemini_result['type'] == 'text':
+        if ai_result['type'] == 'text':
             return Response({
                 'type': 'clarification',
-                'explanation': gemini_result.get('text', 'I could not understand your query. Please rephrase.'),
+                'explanation': ai_result.get('text', 'I could not understand your query. Please rephrase.'),
                 'data': [], 'columns': [], 'confidence': 0.0, 'meta': {},
             })
 
-        fn_name = gemini_result['name']
-        fn_args = gemini_result['args']
+        fn_name = ai_result['name']
+        fn_args = ai_result['args']
         entry = REGISTRY.get(fn_name)
 
         if not entry:

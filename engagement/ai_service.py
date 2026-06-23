@@ -1,7 +1,6 @@
 import json
 import random
 import logging
-from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -204,27 +203,13 @@ STUB_CHALLENGES = [
 ]
 
 
-def _call_gemini(prompt):
-    """Call Google Gemini API via REST. Returns response text or None on failure."""
-    api_key = getattr(settings, 'GEMINI_API_KEY', '')
-    if not api_key:
-        return None
-    try:
-        import urllib.request
-        url = (
-            f"https://generativelanguage.googleapis.com/v1beta/"
-            f"models/gemini-2.0-flash:generateContent?key={api_key}"
-        )
-        payload = json.dumps({"contents": [{"parts": [{"text": prompt}]}]}).encode()
-        req = urllib.request.Request(
-            url, data=payload, headers={"Content-Type": "application/json"}
-        )
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            result = json.loads(resp.read())
-            return result["candidates"][0]["content"]["parts"][0]["text"]
-    except Exception as e:
-        logger.warning(f"Gemini API error: {e}")
-        return None
+def _call_ai(prompt):
+    from ai_query.provider import get_provider
+    provider = get_provider()
+    result = provider.execute('', prompt, [])
+    if result and result['type'] == 'text':
+        return result['text']
+    return None
 
 
 def _parse_json_response(text):
@@ -258,7 +243,7 @@ def generate_quiz(category='general'):
         f'"correct_answer": "a", "explanation": "..."}}. '
         f"Make it interesting but not too difficult."
     )
-    response_text = _call_gemini(prompt)
+    response_text = _call_ai(prompt)
     data = _parse_json_response(response_text)
     if data and all(k in data for k in ('question', 'option_a', 'option_b', 'option_c', 'option_d', 'correct_answer')):
         data['category'] = category
@@ -275,7 +260,7 @@ def generate_riddle():
         'Return ONLY valid JSON: {"question": "...", "hint": "...", "answer": "..."}. '
         "The riddle should be tricky but fair."
     )
-    response_text = _call_gemini(prompt)
+    response_text = _call_ai(prompt)
     data = _parse_json_response(response_text)
     if data and all(k in data for k in ('question', 'answer')):
         data.setdefault('hint', '')
@@ -291,7 +276,7 @@ def generate_tip(category='general'):
         f"Give one practical teaching tip about {category}. "
         f"Keep it under 2 sentences. Be specific and actionable."
     )
-    response_text = _call_gemini(prompt)
+    response_text = _call_ai(prompt)
     if response_text and len(response_text.strip()) > 10:
         return response_text.strip(), 'ai'
 
@@ -306,7 +291,7 @@ def generate_challenge():
         'Return ONLY valid JSON: {"title": "...", "description": "...", "challenge_type": "text"}. '
         "Make it engaging and easy to participate in."
     )
-    response_text = _call_gemini(prompt)
+    response_text = _call_ai(prompt)
     data = _parse_json_response(response_text)
     if data and all(k in data for k in ('title', 'description')):
         data.setdefault('challenge_type', 'text')

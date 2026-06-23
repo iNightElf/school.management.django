@@ -202,6 +202,10 @@ if os.environ.get('CORS_ORIGINS'):
         CSRF_TRUSTED_ORIGINS.append(get_origin(o))
 
 
+AI_PROVIDER = os.environ.get('AI_PROVIDER', 'gemini')
+AI_MODEL = os.environ.get('AI_MODEL', '')
+AI_API_KEY = os.environ.get('AI_API_KEY', '')
+AI_API_BASE_URL = os.environ.get('AI_API_BASE_URL', '')
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
 
 AI_CONFIDENCE_THRESHOLD = float(os.environ.get('AI_CONFIDENCE_THRESHOLD', '0.6'))

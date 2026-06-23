@@ -196,14 +196,14 @@ class AIQueryAPITests(TestCase):
             name='Jane Doe', student_id='STU002', school_class=self.klass, roll='2'
         )
 
-    def _mock_gemini(self, fn_name, args):
+    def _mock_ai(self, fn_name, args):
         return patch(
-            'ai_query.views.call_gemini_with_functions',
+            'ai_query.views.call_ai_function',
             return_value={'type': 'function_call', 'name': fn_name, 'args': args},
         )
 
     def test_successful_student_search(self):
-        with self._mock_gemini('search_student', {'query': 'John'}):
+        with self._mock_ai('search_student', {'query': 'John'}):
             res = self.client.post('/api/ai/query/', {'query': 'find John'})
         self.assertEqual(res.status_code, 200)
         data = res.json()
@@ -213,7 +213,7 @@ class AIQueryAPITests(TestCase):
         self.assertIn('explanation', data)
 
     def test_class_list(self):
-        with self._mock_gemini('class_list', {'class_name': 'Class 5'}):
+        with self._mock_ai('class_list', {'class_name': 'Class 5'}):
             res = self.client.post('/api/ai/query/', {'query': 'list class 5'})
         self.assertEqual(res.status_code, 200)
         data = res.json()
@@ -221,14 +221,14 @@ class AIQueryAPITests(TestCase):
         self.assertEqual(len(data['data']), 2)
 
     def test_gemini_unavailable_returns_503(self):
-        with patch('ai_query.views.call_gemini_with_functions', return_value=None):
+        with patch('ai_query.views.call_ai_function', return_value=None):
             res = self.client.post('/api/ai/query/', {'query': 'anything'})
         self.assertEqual(res.status_code, 503)
         self.assertEqual(res.json()['type'], 'error')
 
     def test_gemini_returns_text_clarification(self):
         with patch(
-            'ai_query.views.call_gemini_with_functions',
+            'ai_query.views.call_ai_function',
             return_value={'type': 'text', 'text': 'Please clarify your question'},
         ):
             res = self.client.post('/api/ai/query/', {'query': 'huh'})
@@ -241,14 +241,14 @@ class AIQueryAPITests(TestCase):
         from ai_query.views import CONFIDENCE_THRESHOLD
         low_args = {}
         with patch('ai_query.views.CONFIDENCE_THRESHOLD', 0.99):
-            with self._mock_gemini('search_student', low_args):
+            with self._mock_ai('search_student', low_args):
                 res = self.client.post('/api/ai/query/', {'query': 'vague'})
         self.assertEqual(res.status_code, 200)
         data = res.json()
         self.assertEqual(data['type'], 'clarification')
 
     def test_unknown_function_returns_error(self):
-        with self._mock_gemini('nonexistent_fn', {}):
+        with self._mock_ai('nonexistent_fn', {}):
             res = self.client.post('/api/ai/query/', {'query': 'do something'})
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.json()['type'], 'error')
@@ -275,7 +275,7 @@ class AIQueryAPITests(TestCase):
         orig = REGISTRY['search_student']['handler']
         REGISTRY['search_student']['handler'] = lambda user, **kw: (_ for _ in ()).throw(ValueError('DB error'))
         try:
-            with self._mock_gemini('search_student', {'query': 'John'}):
+            with self._mock_ai('search_student', {'query': 'John'}):
                 res = self.client.post('/api/ai/query/', {'query': 'find John'})
             self.assertEqual(res.status_code, 200)
             self.assertEqual(res.json()['type'], 'error')
@@ -284,7 +284,7 @@ class AIQueryAPITests(TestCase):
             REGISTRY['search_student']['handler'] = orig
 
     def test_dashboard_summary(self):
-        with self._mock_gemini('dashboard_summary', {}):
+        with self._mock_ai('dashboard_summary', {}):
             res = self.client.post('/api/ai/query/', {'query': 'dashboard'})
         self.assertEqual(res.status_code, 200)
         data = res.json()
@@ -293,7 +293,7 @@ class AIQueryAPITests(TestCase):
 
     def test_audit_log_created_on_success(self):
         self.assertEqual(AIQueryLog.objects.count(), 0)
-        with self._mock_gemini('search_student', {'query': 'John'}):
+        with self._mock_ai('search_student', {'query': 'John'}):
             self.client.post('/api/ai/query/', {'query': 'find John'})
         self.assertGreater(AIQueryLog.objects.count(), 0)
         log = AIQueryLog.objects.first()
@@ -304,7 +304,7 @@ class AIQueryAPITests(TestCase):
         orig = REGISTRY['search_student']['handler']
         REGISTRY['search_student']['handler'] = lambda user, **kw: (_ for _ in ()).throw(ValueError('fail'))
         try:
-            with self._mock_gemini('search_student', {'query': 'John'}):
+            with self._mock_ai('search_student', {'query': 'John'}):
                 self.client.post('/api/ai/query/', {'query': 'find John'})
             logs = AIQueryLog.objects.order_by('-created_at')
             self.assertFalse(logs[0].success)
@@ -317,7 +317,7 @@ class AIQueryAPITests(TestCase):
             email='t@test.com', name='Teacher', password='pass', role='teacher'
         )
         _auth(self.client, teacher)
-        with self._mock_gemini('search_student', {'query': 'John'}):
+        with self._mock_ai('search_student', {'query': 'John'}):
             res = self.client.post('/api/ai/query/', {'query': 'John'})
         self.assertEqual(res.status_code, 200)
         data = res.json()
@@ -325,7 +325,7 @@ class AIQueryAPITests(TestCase):
         self.assertEqual(len(data['data']), 0)
 
     def test_response_has_meta_timing(self):
-        with self._mock_gemini('search_student', {'query': 'John'}):
+        with self._mock_ai('search_student', {'query': 'John'}):
             res = self.client.post('/api/ai/query/', {'query': 'find John'})
         data = res.json()
         self.assertIn('execution_time_ms', data['meta'])

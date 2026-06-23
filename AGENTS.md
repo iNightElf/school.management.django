@@ -73,8 +73,11 @@ Every table must support:
 
 See `AI_QUERY_FEATURE.md` for full design, status, and build order.
 
-- Architecture: Gemini function calling (not local NN)
+- Architecture: `AIProvider` abstraction in `ai_query/provider.py`
+  - `GeminiProvider` — Google Gemini API
+  - `OpenAICompatibleProvider` — DeepSeek, OpenRouter, etc.
+  - Switched via `AI_PROVIDER` env var ('gemini' | 'openai')
 - New `ai_query/` Django app (additive, no existing code changes)
-- 15 functions in v1, permission-filtered before Gemini call
+- 15 functions in v1, permission-filtered before LLM call
 - Frontend: `client/src/ai/` (4 components + Zustand store)
 - Bandwidth: ~2MB/month at 1000 queries (negligible)
