@@ -1,4 +1,4 @@
-import { useEffect, Suspense, lazy } from 'react';
+import { useEffect, Suspense, lazy, useState } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -24,7 +24,25 @@ function PageLoader() {
 
 const App: React.FC = () => {
   const { user, loading, fetchSession } = useAuthStore();
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
   usePullToRefresh();
+
+  // Capture the install prompt event
+  useEffect(() => {
+    const handler = (e: Event) => { e.preventDefault(); setInstallPrompt(e); };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstall = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const result = await installPrompt.userChoice;
+    if (result.outcome === 'accepted') setInstallPrompt(null);
+  };
+
+  // Check if already installed
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
 
   useEffect(() => {
     const isPWA = window.location.search.includes('pwa=true') || 
@@ -63,6 +81,16 @@ const App: React.FC = () => {
       </Suspense>
       <AICommandPalette />
       </ErrorBoundary>
+
+      {installPrompt && !isStandalone && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-school-primary text-white px-4 py-3 flex items-center justify-between shadow-lg">
+          <p className="text-xs font-medium">Install <strong>AL RAWA</strong> for quick access</p>
+          <div className="flex gap-2">
+            <button onClick={() => setInstallPrompt(null)} className="px-3 py-1.5 text-xs text-white/70 hover:text-white">Not now</button>
+            <button id="pwa-install-btn" onClick={handleInstall} className="px-4 py-1.5 bg-school-accent text-white rounded-lg text-xs font-bold hover:opacity-90">Install</button>
+          </div>
+        </div>
+      )}
     </Router>
   );
 };
