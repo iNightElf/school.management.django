@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
 import { useAuthStore, useDarkMode } from '../store';
 import { Link, useNavigate } from 'react-router-dom';
-import { LogIn, ShieldAlert, School, BookOpen, Sun, Moon, Eye, EyeOff } from 'lucide-react';
+import { LogIn, ShieldAlert, School, BookOpen, Sun, Moon, Eye, EyeOff, Fingerprint } from 'lucide-react';
 import { SCHOOL_LOGO } from '../lib/logo';
 
 const Login = () => {
@@ -11,6 +11,8 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [hasCred, setHasCred] = useState(false);
+  const [bioLoading, setBioLoading] = useState(false);
   const login = useAuthStore((state) => state.login);
   const { dark, toggle: toggleDark } = useDarkMode();
   const navigate = useNavigate();
@@ -18,12 +20,49 @@ const Login = () => {
   useEffect(() => { document.title = 'Login - AL RAWA English School'; }, []);
   useEffect(() => { document.documentElement.classList.toggle('dark', dark); }, [dark]);
 
+  // Check for stored credentials on mount
+  useEffect(() => {
+    if (!navigator.credentials?.get) return;
+    navigator.credentials.get({ password: true, mediation: 'silent' })
+      .then(cred => { if (cred) { setHasCred(true); } })
+      .catch(() => {});
+  }, []);
+
+  // Try biometric auto-fill
+  const handleBioLogin = async () => {
+    if (!navigator.credentials?.get) return;
+    setBioLoading(true);
+    try {
+      const cred = await navigator.credentials.get({ password: true, mediation: 'optional' }) as any;
+      if (cred?.password) {
+        setEmail(cred.id || '');
+        setPassword(cred.password);
+        // Auto-submit after brief delay for state to settle
+        setTimeout(async () => {
+          try {
+            await login(cred.id, cred.password);
+            navigate('/', { replace: true });
+          } catch { setError('Biometric login failed. Try again.'); }
+        }, 100);
+      }
+    } catch { setError('Biometric authentication cancelled.'); }
+    finally { setBioLoading(false); }
+  };
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
       await login(email, password);
+      // Store credential for next biometric login
+      try {
+        if (navigator.credentials?.store && 'PasswordCredential' in window) {
+          const cred = new PasswordCredential({ id: email, password, name: email.split('@')[0] });
+          await navigator.credentials.store(cred);
+          setHasCred(true);
+        }
+      } catch {}
       navigate('/', { replace: true });
     } catch (err: any) {
       const msg = err.response?.data?.detail || err.response?.data?.error || 'Failed to login. Please try again.';
@@ -112,6 +151,17 @@ const Login = () => {
                 </div>
               </div>
             </div>
+
+            {hasCred && (
+              <button type="button" onClick={handleBioLogin} disabled={bioLoading}
+                className="w-full py-3 border border-school-border rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-school-paper transition-all disabled:opacity-50">
+                {bioLoading ? (
+                  <div className="w-5 h-5 border-2 border-school-primary/30 border-t-school-primary rounded-full animate-spin" />
+                ) : (
+                  <><Fingerprint size={18} className="text-school-accent" /> Sign in with Fingerprint</>
+                )}
+              </button>
+            )}
 
             <button type="submit" disabled={loading}
               className="w-full bg-gradient-to-r from-school-accent to-school-accent/90 hover:from-school-accent/90 hover:to-school-accent text-white font-bold py-3.5 rounded-xl shadow-[0_2px_8px_rgba(200,75,49,0.25)] hover:shadow-[0_4px_16px_rgba(200,75,49,0.35)] active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50 text-sm relative overflow-hidden group"
