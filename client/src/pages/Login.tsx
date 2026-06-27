@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
 import { useAuthStore, useDarkMode } from '../store';
 import { Link, useNavigate } from 'react-router-dom';
-import { LogIn, ShieldAlert, School, BookOpen, Sun, Moon } from 'lucide-react';
+import { LogIn, ShieldAlert, School, BookOpen, Sun, Moon, Eye, EyeOff } from 'lucide-react';
 import { SCHOOL_LOGO } from '../lib/logo';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const login = useAuthStore((state) => state.login);
@@ -41,17 +42,19 @@ const Login = () => {
       </div>
 
       <div className="w-full max-w-md relative animate-fade-in">
-        <div className="bg-school-paper rounded-3xl shadow-2xl overflow-hidden">
+        <div className="bg-school-paper rounded-3xl shadow-2xl overflow-hidden transition-shadow hover:shadow-[0_8px_30px_rgba(26,26,46,0.12)]">
           {/* Brand Header */}
           <div className="bg-gradient-to-r from-school-primary to-school-secondary p-8 text-white text-center relative overflow-hidden">
             <div className="absolute inset-0 bg-white/5 [mask-image:radial-gradient(ellipse_at_top,transparent_30%,black_70%)]" />
             <button
               onClick={toggleDark}
-              className="absolute top-3 right-3 p-2 hover:bg-white/10 rounded-full transition-colors group z-10"
+              className="absolute top-3 right-3 w-[52px] h-[28px] rounded-full bg-white/15 border border-white/20 flex items-center p-[3px] z-10 hover:bg-white/20 transition-colors"
               title={dark ? 'Light Mode' : 'Dark Mode'}
               aria-label={dark ? 'Light Mode' : 'Dark Mode'}
             >
-              {dark ? <Sun size={18} className="group-hover:scale-110 transition-transform" /> : <Moon size={18} className="group-hover:scale-110 transition-transform" />}
+              <div className={`w-5 h-5 rounded-full flex items-center justify-center transition-transform duration-300 ease-in-out ${dark ? 'translate-x-[24px] bg-school-accent' : 'translate-x-0 bg-white shadow-sm'}`}>
+                {dark ? <Sun size={12} className="text-white" /> : <Moon size={12} className="text-school-accent" />}
+              </div>
             </button>
             <div className="relative">
               <img src={SCHOOL_LOGO} alt="AL RAWA" className="w-16 h-16 rounded-full mx-auto mb-3 border-2 border-white/20 shadow-lg object-cover" />
@@ -83,29 +86,41 @@ const Login = () => {
                   id="login-email"
                   type="email" required value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-white border border-school-border p-3 rounded-xl focus:ring-2 focus:ring-school-accent focus:border-transparent outline-none transition-all text-sm"
+                  className="w-full bg-white border border-school-border p-3 rounded-xl focus:border-school-accent focus:ring-[3px] focus:ring-school-accent/15 outline-none transition-all text-sm"
                   placeholder="staff@alrawa.edu"
                 />
               </div>
               <div>
                 <label htmlFor="login-password" className="text-[10px] font-bold uppercase text-school-muted ml-1">Password</label>
-                <input
-                  id="login-password"
-                  type="password" required value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-white border border-school-border p-3 rounded-xl focus:ring-2 focus:ring-school-accent focus:border-transparent outline-none transition-all text-sm"
-                  placeholder="••••••••"
-                />
+                <div className="relative">
+                  <input
+                    id="login-password"
+                    type={showPassword ? 'text' : 'password'} required value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full bg-white border border-school-border p-3 pr-11 rounded-xl focus:border-school-accent focus:ring-[3px] focus:ring-school-accent/15 outline-none transition-all text-sm"
+                    placeholder="••••••••"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg hover:bg-school-accent/10 text-school-muted hover:text-school-accent transition-colors"
+                    tabIndex={-1}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
             </div>
 
             <button type="submit" disabled={loading}
-              className="w-full bg-gradient-to-r from-school-primary to-school-secondary hover:from-school-secondary hover:to-school-primary text-white font-bold py-3.5 rounded-xl shadow-lg hover:shadow-xl active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50 text-sm"
+              className="w-full bg-gradient-to-r from-school-accent to-school-accent/90 hover:from-school-accent/90 hover:to-school-accent text-white font-bold py-3.5 rounded-xl shadow-[0_2px_8px_rgba(200,75,49,0.25)] hover:shadow-[0_4px_16px_rgba(200,75,49,0.35)] active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50 text-sm relative overflow-hidden group"
             >
+              <span className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
               {loading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
-                <><LogIn size={18} /><span>Sign In</span></>
+                <><LogIn size={18} /><span className="relative">Sign In</span></>
               )}
             </button>
 

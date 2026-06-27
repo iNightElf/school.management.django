@@ -9,6 +9,17 @@
         "@playwright/mcp@latest"
       ],
       "enabled": true
+    },
+    "open-design": {
+      "type": "local",
+      "command": [
+        "node",
+        "C:\\Users\\Owner\\tools\\open-design\\apps\\daemon\\dist\\cli.js",
+        "mcp",
+        "--daemon-url",
+        "http://localhost:7456"
+      ],
+      "enabled": true
     }
   }
 }
