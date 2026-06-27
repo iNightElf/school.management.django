@@ -4,6 +4,7 @@ import { useUIStore, useSchoolStore, useAuthStore } from '../store';
 import { api } from '../store';
 import Layout from '../components/Layout';
 import Toast, { toast } from '../components/Toast';
+import Skeleton from '../components/Skeleton';
 import IdCardSection from './IdCardSection';
 import AccessoriesSection from './AccessoriesSection';
 import ResultSection from './ResultSection';
@@ -33,6 +34,7 @@ const Dashboard = () => {
   const [verifying, setVerifying] = useState(false);
   const [verifySent, setVerifySent] = useState(false);
   const [engagementPanel, setEngagementPanel] = useState<string | null>(null);
+  const [countsReady, setCountsReady] = useState(false);
 
   const handleResendVerification = async () => {
     setVerifying(true);
@@ -49,8 +51,7 @@ const Dashboard = () => {
 
   useEffect(() => { document.title = 'Dashboard - AL RAWA English School'; }, []);
   useEffect(() => {
-    fetchDashboardCounts();
-    fetchClasses();
+    Promise.all([fetchDashboardCounts(), fetchClasses()]).then(() => setCountsReady(true));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSetMode = (mode: ModeParam | null) => {
@@ -140,19 +141,22 @@ const Dashboard = () => {
           {/* Quick Stats */}
           {!isPendingViewer && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {[
-              { icon: GraduationCap, value: studentTotal, label: 'Students', color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-500/10' },
-              { icon: Users, value: teacherTotal, label: 'Teachers', color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-500/10' },
-              { icon: Building2, value: staffTotal, label: 'Staff', color: 'text-green-500', bg: 'bg-green-50 dark:bg-green-500/10' },
-            ].map((s) => (
-              <div key={s.label} className="bg-white dark:bg-[#1a1a2e] rounded-xl border border-school-border dark:border-[#2a2a3e] p-4 card-shadow">
-                <div className={`w-9 h-9 ${s.bg} rounded-xl flex items-center justify-center mb-2`}>
-                  <s.icon size={18} className={s.color} />
-                </div>
-                <div className="font-bold text-lg text-school-primary dark:text-[#e0e0e8]">{s.value}</div>
-                <div className="text-[10px] text-school-muted uppercase tracking-wider font-bold">{s.label}</div>
-              </div>
-            ))}
+            {countsReady
+              ? ([
+                  { icon: GraduationCap, value: studentTotal, label: 'Students', color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-500/10' },
+                  { icon: Users, value: teacherTotal, label: 'Teachers', color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-500/10' },
+                  { icon: Building2, value: staffTotal, label: 'Staff', color: 'text-green-500', bg: 'bg-green-50 dark:bg-green-500/10' },
+                ].map((s) => (
+                  <div key={s.label} className="bg-white dark:bg-[#1a1a2e] rounded-xl border border-school-border dark:border-[#2a2a3e] p-4 card-shadow">
+                    <div className={`w-9 h-9 ${s.bg} rounded-xl flex items-center justify-center mb-2`}>
+                      <s.icon size={18} className={s.color} />
+                    </div>
+                    <div className="font-bold text-lg text-school-primary dark:text-[#e0e0e8]">{s.value}</div>
+                    <div className="text-[10px] text-school-muted uppercase tracking-wider font-bold">{s.label}</div>
+                  </div>
+                )))
+              : <Skeleton type="card" rows={3} className="col-span-full grid-cols-3" />
+            }
           </div>
           )}
 

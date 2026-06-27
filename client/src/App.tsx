@@ -4,6 +4,7 @@ import { useAuthStore } from './store';
 import ErrorBoundary from './components/ErrorBoundary';
 import NotFound from './pages/NotFound';
 import AICommandPalette from './ai/AICommandPalette';
+import { usePullToRefresh } from './lib/usePullToRefresh';
 
 const Login = lazy(() => import('./pages/Login'));
 const Register = lazy(() => import('./pages/Register'));
@@ -23,6 +24,7 @@ function PageLoader() {
 
 const App: React.FC = () => {
   const { user, loading, fetchSession } = useAuthStore();
+  usePullToRefresh();
 
   useEffect(() => {
     const isPWA = window.location.search.includes('pwa=true') || 

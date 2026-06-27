@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import type { ReactNode, FormEvent } from 'react';
 import DOMPurify from 'dompurify';
 import { useSchoolStore, useAuthStore, useUIStore, api } from '../store';
+import { useFocusTrap } from '../lib/useFocusTrap';
 import { Clock, BarChart3, AlertTriangle, Users, Upload, Ban, ChevronLeft, ChevronRight, DollarSign, TrendingDown, RefreshCw, BookOpen, Shield, Lock, Scale } from 'lucide-react';
 import { toast } from '../components/Toast';
 import DatePicker from '../components/DatePicker';
@@ -53,6 +54,7 @@ function Ledger({ fmt, fetchFinance, fetchFeeSchedules, fetchDashboardSummary, r
   const [cancelId, setCancelId] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
+  const cancelRef = useFocusTrap(!!cancelId);
 
   const [data, setData] = useState<any[]>([]);
   const [totalRows, setTotalRows] = useState(0);
@@ -200,7 +202,7 @@ function Ledger({ fmt, fetchFinance, fetchFeeSchedules, fetchDashboardSummary, r
 
       {/* Table */}
       <div className="overflow-x-auto">
-        <table className="w-full text-sm" aria-label="Ledger entries">
+        <table className="w-full text-sm mobile-card-table" aria-label="Ledger entries">
           <thead className="bg-school-paper/50 text-[10px] uppercase tracking-widest text-school-muted font-bold">
             <tr>
               <th className="px-3 py-3 text-left w-[90px]">Voucher</th>
@@ -306,7 +308,7 @@ function Ledger({ fmt, fetchFinance, fetchFeeSchedules, fetchDashboardSummary, r
 
       {/* Cancel Modal */}
       {cancelId && (
-          <div role="dialog" aria-modal="true" aria-label="Cancel Transaction" className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setCancelId(null)} onKeyDown={e => { if (e.key === 'Escape') { setCancelId(null); setCancelReason(''); } }}>
+          <div ref={cancelRef} role="dialog" aria-modal="true" aria-label="Cancel Transaction" className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setCancelId(null)} onKeyDown={e => { if (e.key === 'Escape') { setCancelId(null); setCancelReason(''); } }}>
           <div className="bg-white rounded-xl border border-school-border p-6 w-full max-w-md space-y-4" onClick={e => e.stopPropagation()}>
             <h4 className="font-serif text-sm text-school-primary">Cancel Transaction</h4>
             <p className="text-xs text-school-muted">This will cancel the transaction and create a reversal. The cancelled row will remain in the ledger with a strikethrough.</p>
@@ -618,7 +620,7 @@ const FinanceSection = () => {
       )}
 
       {/* Main Tab Bar */}
-      <div className="flex gap-2 flex-wrap">
+      <div className="flex gap-2 overflow-x-auto scrollbar-hide">
         <button onClick={() => setMainTab('transactions')} className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold border transition-all ${mainTab === 'transactions' ? 'bg-school-primary text-white border-school-primary shadow-sm' : 'bg-white border-school-border text-school-muted hover:border-school-accent'}`}>
           <Clock size={14} /> Transactions
         </button>
@@ -657,7 +659,7 @@ const FinanceSection = () => {
 
       {mainTab === 'transactions' && (<div className="space-y-4">
           {/* Tab Bar */}
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex gap-2 overflow-x-auto scrollbar-hide">
             {( [
               { k: 'income' as TxTab, lbl: <><DollarSign size={14} /> Income</>, cls: 'text-emerald-700 bg-emerald-50 border-emerald-200' },
               { k: 'expense' as TxTab, lbl: <><TrendingDown size={14} /> Expense</>, cls: 'text-rose-700 bg-rose-50 border-rose-200' },
@@ -734,7 +736,7 @@ const FinanceSection = () => {
                     {feeStatusList.length > 0 ? (
                       <>
                         <div className="bg-school-paper/30 rounded-xl border border-school-border overflow-hidden">
-                          <table className="w-full text-sm">
+                          <table className="w-full text-sm mobile-card-table">
                             <thead className="bg-school-paper/50 text-[10px] uppercase tracking-widest text-school-muted font-bold">
                               <tr>
                                 <th className="px-4 py-2.5 w-10 text-center">✓</th>

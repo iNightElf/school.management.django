@@ -95,6 +95,7 @@ table thead { position: sticky; top: 0; z-index: 1; }
 .dark header.bg-school-primary { background-color: #0d0d1a; }
 .dark footer.bg-school-secondary { background-color: #0a0a18; }
 .dark input, .dark select, .dark textarea { background-color: #22223a; color: #e0e0e8; border-color: #3a3a5e; }
+@media (max-width: 640px) { input, select, textarea { font-size: 16px !important; } }
 .dark .bg-amber-50 { background-color: rgba(217, 119, 6, 0.15); }
 .dark .bg-green-50, .dark .bg-emerald-50 { background-color: rgba(16, 185, 129, 0.12); }
 .dark .bg-rose-50, .dark .bg-red-50 { background-color: rgba(239, 68, 68, 0.12); }
@@ -103,6 +104,9 @@ table thead { position: sticky; top: 0; z-index: 1; }
 .dark .bg-blue-50\/50 { background-color: rgba(59, 130, 246, 0.15); }
 
 /* ── Bottom nav safe area ── */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
 @media (max-width: 640px) {
   main { padding-bottom: 72px; }
 }

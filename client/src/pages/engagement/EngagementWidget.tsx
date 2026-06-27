@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../../store';
 import { toast } from '../../components/Toast';
+import { useFocusTrap } from '../../lib/useFocusTrap';
 import { Brain, Lightbulb, SmilePlus, Target, BookOpen, Flame } from 'lucide-react';
 
 const MOODS = [
@@ -73,6 +74,7 @@ export default function EngagementWidget({ onOpenPanel }: { onOpenPanel: (panel:
 }
 
 export function QuizPanel({ onClose }: { onClose: () => void }) {
+  const trapRef = useFocusTrap(true);
   const [quiz, setQuiz] = useState<any>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [result, setResult] = useState<any>(null);
@@ -116,7 +118,7 @@ export function QuizPanel({ onClose }: { onClose: () => void }) {
   if (loading) return <div className="p-6 text-center text-school-muted">Loading...</div>;
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div ref={trapRef} className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl w-full max-w-md max-h-[80vh] overflow-y-auto shadow-xl">
         <div className="sticky top-0 bg-white border-b border-school-border p-4 flex items-center justify-between rounded-t-2xl">
           <h3 className="font-bold text-school-primary">Daily Quiz</h3>
@@ -194,6 +196,7 @@ export function QuizPanel({ onClose }: { onClose: () => void }) {
 }
 
 export function RiddlePanel({ onClose }: { onClose: () => void }) {
+  const trapRef = useFocusTrap(true);
   const [riddle, setRiddle] = useState<any>(null);
   const [guess, setGuess] = useState('');
   const [result, setResult] = useState<any>(null);
@@ -225,7 +228,7 @@ export function RiddlePanel({ onClose }: { onClose: () => void }) {
   if (loading) return <div className="p-6 text-center text-school-muted">Loading...</div>;
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div ref={trapRef} className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl w-full max-w-md shadow-xl">
         <div className="p-4 border-b border-school-border flex items-center justify-between">
           <h3 className="font-bold text-school-primary">Daily Riddle</h3>
@@ -273,6 +276,7 @@ export function RiddlePanel({ onClose }: { onClose: () => void }) {
 }
 
 export function MoodPanel({ onClose }: { onClose: () => void }) {
+  const trapRef = useFocusTrap(true);
   const [selectedMood, setSelectedMood] = useState<number | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -291,7 +295,7 @@ export function MoodPanel({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div ref={trapRef} className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl">
         <div className="p-4 border-b border-school-border flex items-center justify-between">
           <h3 className="font-bold text-school-primary">How are you today?</h3>
@@ -327,6 +331,7 @@ export function MoodPanel({ onClose }: { onClose: () => void }) {
 }
 
 export function ChallengePanel({ onClose }: { onClose: () => void }) {
+  const trapRef = useFocusTrap(true);
   const [challenges, setChallenges] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [response, setResponse] = useState('');
@@ -355,7 +360,7 @@ export function ChallengePanel({ onClose }: { onClose: () => void }) {
   useEffect(() => { loadChallenges(); }, []);
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div ref={trapRef} className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl w-full max-w-md max-h-[80vh] overflow-y-auto shadow-xl">
         <div className="sticky top-0 bg-white border-b border-school-border p-4 flex items-center justify-between rounded-t-2xl">
           <h3 className="font-bold text-school-primary">Weekly Challenge</h3>
@@ -395,6 +400,7 @@ export function ChallengePanel({ onClose }: { onClose: () => void }) {
 }
 
 export function TipsPanel({ onClose }: { onClose: () => void }) {
+  const trapRef = useFocusTrap(true);
   const [tips, setTips] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -417,7 +423,7 @@ export function TipsPanel({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div ref={trapRef} className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl w-full max-w-md max-h-[80vh] overflow-y-auto shadow-xl">
         <div className="sticky top-0 bg-white border-b border-school-border p-4 flex items-center justify-between rounded-t-2xl">
           <h3 className="font-bold text-school-primary">Teaching Tips</h3>
@@ -438,6 +444,7 @@ export function TipsPanel({ onClose }: { onClose: () => void }) {
 }
 
 export function PlannerPanel({ onClose }: { onClose: () => void }) {
+  const trapRef = useFocusTrap(true);
   const [plans, setPlans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ className: '', subject: '', notes: '' });
@@ -480,7 +487,7 @@ export function PlannerPanel({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div ref={trapRef} className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl w-full max-w-md max-h-[80vh] overflow-y-auto shadow-xl">
         <div className="sticky top-0 bg-white border-b border-school-border p-4 flex items-center justify-between rounded-t-2xl">
           <h3 className="font-bold text-school-primary">Today's Lesson Plan</h3>

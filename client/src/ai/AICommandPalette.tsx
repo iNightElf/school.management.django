@@ -1,6 +1,6 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Command, ArrowRight, X, Sparkles } from 'lucide-react';
+import { Search, Command, ArrowRight, X, Sparkles, Info } from 'lucide-react';
 import { useAIQueryStore } from '../store';
 import AIResultPanel from './AIResultPanel';
 
@@ -18,6 +18,7 @@ const SUGGESTIONS = [
 const AICommandPalette = () => {
   const { open, query, loading, result, error, setOpen, setQuery, submit, close } = useAIQueryStore();
   const inputRef = useRef<HTMLInputElement>(null);
+  const [tipSeen, setTipSeen] = useState(() => localStorage.getItem('ai-palette-tip') === '1');
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -40,6 +41,8 @@ const AICommandPalette = () => {
   }, [open]);
 
   const handleSubmit = useCallback(() => {
+    localStorage.setItem('ai-palette-tip', '1');
+    setTipSeen(true);
     const q = query.trim();
     if (!q || loading) return;
     submit(q);
@@ -105,6 +108,13 @@ const AICommandPalette = () => {
                 <AIResultPanel loading={loading} result={result} error={error} />
               ) : (
                 <div className="space-y-2">
+                  {!tipSeen && (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20">
+                      <Info size={14} className="text-blue-500 shrink-0" />
+                      <p className="text-[11px] text-blue-700 dark:text-blue-300">Press <kbd className="px-1 py-0.5 rounded bg-blue-100 dark:bg-blue-500/20 text-[10px] font-mono font-bold">Ctrl+K</kbd> or <kbd className="px-1 py-0.5 rounded bg-blue-100 dark:bg-blue-500/20 text-[10px] font-mono font-bold">⌘K</kbd> anytime to ask questions about school data</p>
+                      <button onClick={() => { localStorage.setItem('ai-palette-tip', '1'); setTipSeen(true); }} className="text-blue-400 hover:text-blue-600 shrink-0" aria-label="Dismiss tip">✕</button>
+                    </div>
+                  )}
                   <p className="text-[10px] uppercase tracking-widest text-school-muted font-semibold">
                     Try asking…
                   </p>
