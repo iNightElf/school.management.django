@@ -126,11 +126,8 @@ def set_pin(request):
 
 
 @api_view(['GET'])
-@authentication_classes([PinAuthentication])
 @permission_classes([AllowAny])
 def mobile_teachers(request):
-    if not request.user.is_authenticated:
-        return Response({'error': 'Authentication required'}, status=401)
     teachers = Teacher.objects.filter(
         deleted_at__isnull=True,
     ).exclude(pin='').values('id', 'name', 'designation').order_by('name')
