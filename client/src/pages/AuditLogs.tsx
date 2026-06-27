@@ -275,7 +275,7 @@ const AuditLogs = () => {
 
       <Modal open={!!detailLog} onClose={() => setDetailLog(null)} title="Log Details" className="max-w-2xl">
         <div className="grid grid-cols-2 gap-4">
-          <div><div className="text-[10px] uppercase font-bold text-school-muted">Action</div><div className="text-sm font-bold text-school-primary">{ACTION_LABELS[detailLog?.action] || detailLog?.action}</div></div>
+          <div><div className="text-[10px] uppercase font-bold text-school-muted">Action</div><div className="text-sm font-bold text-school-primary">{ACTION_LABELS[detailLog?.action ?? ''] || detailLog?.action}</div></div>
           <div><div className="text-[10px] uppercase font-bold text-school-muted">Entity</div><div className="text-sm">{detailLog?.entityType} #{detailLog?.entityId}</div></div>
           <div><div className="text-[10px] uppercase font-bold text-school-muted">User</div><div className="text-sm font-bold text-school-primary">{detailLog?.userName || detailLog?.userId}</div></div>
           <div><div className="text-[10px] uppercase font-bold text-school-muted">Timestamp</div><div className="text-sm">{detailLog ? new Date(detailLog.createdAt).toLocaleString() : ''}</div></div>

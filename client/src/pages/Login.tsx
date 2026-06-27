@@ -23,8 +23,8 @@ const Login = () => {
   // Check for stored credentials on mount
   useEffect(() => {
     if (!navigator.credentials?.get) return;
-    navigator.credentials.get({ password: true, mediation: 'silent' })
-      .then(cred => { if (cred) { setHasCred(true); } })
+    (navigator.credentials.get as any)({ password: true, mediation: 'silent' })
+      .then((cred: any) => { if (cred) { setHasCred(true); } })
       .catch(() => {});
   }, []);
 
@@ -33,7 +33,7 @@ const Login = () => {
     if (!navigator.credentials?.get) return;
     setBioLoading(true);
     try {
-      const cred = await navigator.credentials.get({ password: true, mediation: 'optional' }) as any;
+      const cred = await (navigator.credentials.get as any)({ password: true, mediation: 'optional' });
       if (cred?.password) {
         setEmail(cred.id || '');
         setPassword(cred.password);
@@ -57,8 +57,8 @@ const Login = () => {
       await login(email, password);
       // Store credential for next biometric login
       try {
-        if (navigator.credentials?.store && 'PasswordCredential' in window) {
-          const cred = new PasswordCredential({ id: email, password, name: email.split('@')[0] });
+        if (navigator.credentials?.store) {
+          const cred = new (window as any).PasswordCredential({ id: email, password, name: email.split('@')[0] });
           await navigator.credentials.store(cred);
           setHasCred(true);
         }

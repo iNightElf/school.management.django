@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSchoolStore, useAuthStore } from '../../store';
 import { toast } from '../../components/Toast';
 import ClassSelect from '../../components/ClassSelect';
-import { Plus, Save, Trash2 } from 'lucide-react';
+import { Plus, Save, Trash2, X } from 'lucide-react';
 import Modal from '../../components/Modal';
 
 export default function SubjectManager() {

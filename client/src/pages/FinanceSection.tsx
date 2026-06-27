@@ -3,7 +3,7 @@ import type { ReactNode, FormEvent } from 'react';
 import DOMPurify from 'dompurify';
 import { useSchoolStore, useAuthStore, useUIStore, api } from '../store';
 import { useFocusTrap } from '../lib/useFocusTrap';
-import { Clock, BarChart3, AlertTriangle, Users, Upload, Ban, ChevronLeft, ChevronRight, DollarSign, TrendingDown, RefreshCw, BookOpen, Shield, Lock, Scale, Loader } from 'lucide-react';
+import { Clock, BarChart3, AlertTriangle, Users, Upload, Ban, ChevronLeft, ChevronRight, DollarSign, TrendingDown, RefreshCw, BookOpen, Shield, Lock, Scale } from 'lucide-react';
 import Skeleton from '../components/Skeleton';
 import { toast } from '../components/Toast';
 import DatePicker from '../components/DatePicker';
