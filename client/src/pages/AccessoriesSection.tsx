@@ -270,8 +270,8 @@ const AccessoriesSection = () => {
                         <div className="flex items-center gap-1">
                           <span className="text-xs text-school-muted">৳</span>
                           <input type="number" value={editFee.amount} onChange={e => setEditFee({ ...editFee, amount: e.target.value })} className="w-24 px-2 py-1 border border-school-accent rounded-lg text-sm text-right font-mono" autoFocus />
-                          <button onClick={() => handleUpdateFee(f.category)} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"><Check size={14} /></button>
-                          <button onClick={() => setEditFee(null)} className="p-1 text-red-500 hover:bg-red-50 rounded"><X size={14} /></button>
+                          <button onClick={() => handleUpdateFee(f.category)} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded" aria-label="Save"><Check size={14} /></button>
+                          <button onClick={() => setEditFee(null)} className="p-1 text-red-500 hover:bg-red-50 rounded" aria-label="Cancel"><X size={14} /></button>
                         </div>
                       ) : (
                         <>
@@ -307,14 +307,14 @@ const AccessoriesSection = () => {
                           <div className="flex items-center gap-1">
                             <span className="text-xs text-school-muted">৳</span>
                             <input type="number" value={editFee.amount} onChange={e => setEditFee({ ...editFee, amount: e.target.value })} className="w-24 px-2 py-1 border border-school-accent rounded-lg text-sm text-right font-mono" autoFocus />
-                            <button onClick={() => handleUpdateFee(f.category)} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"><Check size={14} /></button>
-                            <button onClick={() => setEditFee(null)} className="p-1 text-red-500 hover:bg-red-50 rounded"><X size={14} /></button>
+                            <button onClick={() => handleUpdateFee(f.category)} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded" aria-label="Save"><Check size={14} /></button>
+                            <button onClick={() => setEditFee(null)} className="p-1 text-red-500 hover:bg-red-50 rounded" aria-label="Cancel"><X size={14} /></button>
                           </div>
                         ) : (
                           <>
                             <span className="text-sm font-bold font-mono text-school-primary">৳ {fmt(f.amount)}</span>
                             {isAdmin && (
-                              <button onClick={() => setEditFee({ category: f.category, amount: String(f.amount) })} className="p-1 text-school-muted opacity-0 group-hover:opacity-100 hover:bg-school-paper rounded transition-all">
+                              <button onClick={() => setEditFee({ category: f.category, amount: String(f.amount) })} className="p-1 text-school-muted opacity-0 group-hover:opacity-100 hover:bg-school-paper rounded transition-all" aria-label="Edit">
                                 <Pencil size={12} />
                               </button>
                             )}
@@ -390,8 +390,8 @@ const AccessoriesSection = () => {
                         </td>
                         <td className="px-4 py-2">
                           <div className="flex gap-1 justify-center">
-                            <button onClick={handleAddBook} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"><Check size={14} /></button>
-                            <button onClick={() => setNewBook(false)} className="p-1 text-red-500 hover:bg-red-50 rounded"><X size={14} /></button>
+                            <button onClick={handleAddBook} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded" aria-label="Add book"><Check size={14} /></button>
+                            <button onClick={() => setNewBook(false)} className="p-1 text-red-500 hover:bg-red-50 rounded" aria-label="Cancel"><X size={14} /></button>
                           </div>
                         </td>
                       </tr>
@@ -419,13 +419,13 @@ const AccessoriesSection = () => {
                           <td className="px-4 py-2.5 text-center">
                             {isEditing ? (
                               <div className="flex gap-1 justify-center">
-                                <button onClick={() => handleUpdateBook(b.id)} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"><Check size={14} /></button>
-                                <button onClick={() => setEditBook(null)} className="p-1 text-red-500 hover:bg-red-50 rounded"><X size={14} /></button>
+                                <button onClick={() => handleUpdateBook(b.id)} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded" aria-label="Save"><Check size={14} /></button>
+                                <button onClick={() => setEditBook(null)} className="p-1 text-red-500 hover:bg-red-50 rounded" aria-label="Cancel"><X size={14} /></button>
                               </div>
                             ) : (
                               <div className="flex gap-1 justify-center opacity-0 group-hover:opacity-100 transition-all">
-                                <button onClick={() => setEditBook({ id: b.id, name: b.name, sell: String(Number(b.sell)) })} className="p-1 text-blue-500 hover:bg-blue-50 rounded"><Pencil size={12} /></button>
-                                <button onClick={() => setDeleteId(b.id)} className="p-1 text-red-400 hover:bg-red-50 rounded"><Trash2 size={12} /></button>
+                                <button onClick={() => setEditBook({ id: b.id, name: b.name, sell: String(Number(b.sell)) })} className="p-1 text-blue-500 hover:bg-blue-50 rounded" aria-label="Edit"><Pencil size={12} /></button>
+                                <button onClick={() => setDeleteId(b.id)} className="p-1 text-red-400 hover:bg-red-50 rounded" aria-label="Delete"><Trash2 size={12} /></button>
                               </div>
                             )}
                           </td>

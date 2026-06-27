@@ -3,7 +3,8 @@ import type { ReactNode, FormEvent } from 'react';
 import DOMPurify from 'dompurify';
 import { useSchoolStore, useAuthStore, useUIStore, api } from '../store';
 import { useFocusTrap } from '../lib/useFocusTrap';
-import { Clock, BarChart3, AlertTriangle, Users, Upload, Ban, ChevronLeft, ChevronRight, DollarSign, TrendingDown, RefreshCw, BookOpen, Shield, Lock, Scale } from 'lucide-react';
+import { Clock, BarChart3, AlertTriangle, Users, Upload, Ban, ChevronLeft, ChevronRight, DollarSign, TrendingDown, RefreshCw, BookOpen, Shield, Lock, Scale, Loader } from 'lucide-react';
+import Skeleton from '../components/Skeleton';
 import { toast } from '../components/Toast';
 import DatePicker from '../components/DatePicker';
 import FinanceReports from './FinanceReports';
@@ -201,7 +202,9 @@ function Ledger({ fmt, fetchFinance, fetchFeeSchedules, fetchDashboardSummary, r
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto">
+      {loading ? (
+        <Skeleton type="table" rows={5} />
+      ) : <div className="overflow-x-auto">
         <table className="w-full text-sm mobile-card-table" aria-label="Ledger entries">
           <thead className="bg-school-paper/50 text-[10px] uppercase tracking-widest text-school-muted font-bold">
             <tr>
@@ -267,7 +270,7 @@ function Ledger({ fmt, fetchFinance, fetchFeeSchedules, fetchDashboardSummary, r
                 );
               }) : (
               <tr><td colSpan={canWrite ? 12 : 11} className="px-4 py-12 text-center text-sm text-school-muted italic">
-                {loading ? 'Loading...' : totalRows > 0 ? 'No entries match filters.' : 'No entries yet.'}
+                {totalRows > 0 ? 'No entries match filters.' : 'No entries yet.'}
               </td></tr>
               )}
             <tr className="bg-school-primary/5 text-xs font-bold border-t-2 border-school-primary/20">
@@ -284,7 +287,7 @@ function Ledger({ fmt, fetchFinance, fetchFeeSchedules, fetchDashboardSummary, r
             </tr>
           </tbody>
         </table>
-      </div>
+      </div>}
 
       {/* Pagination */}
       {totalPages > 1 && (

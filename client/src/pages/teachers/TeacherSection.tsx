@@ -187,7 +187,7 @@ export default function TeacherSection() {
           <button onClick={() => handleEdit(t)} className="flex-1 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-medium hover:bg-blue-100 flex items-center justify-center gap-1"><Pencil size={14} /> Edit</button>
           <button onClick={() => setAssignmentTeacherId(t.id)} className="flex-1 py-1.5 bg-purple-50 text-purple-600 rounded-lg text-xs font-medium hover:bg-purple-100 flex items-center justify-center gap-1"><BookOpen size={14} /> Assign</button>
           <button onClick={() => { setPinTeacherId(t.id); setPinValue(''); }} className="flex-1 py-1.5 bg-amber-50 text-amber-600 rounded-lg text-xs font-medium hover:bg-amber-100 flex items-center justify-center gap-1"><Lock size={14} /> PIN</button>
-          <button onClick={() => setDeleteId(t.id)} className="flex-1 py-1.5 bg-red-50 text-red-500 rounded-lg text-xs font-medium hover:bg-red-100 flex items-center justify-center gap-1"><Trash2 size={14} /></button>
+          <button onClick={() => setDeleteId(t.id)} className="flex-1 py-1.5 bg-red-50 text-red-500 rounded-lg text-xs font-medium hover:bg-red-100 flex items-center justify-center gap-1" aria-label="Delete"><Trash2 size={14} /></button>
         </div>
       )}
     </div>
@@ -446,7 +446,7 @@ function AssignmentPanel({ teacher, classes, fetchTeachers, onClose }: {
             <h3 className="font-bold text-school-primary">{teacher.name}</h3>
             <p className="text-xs text-school-muted">Assign classes and subjects</p>
           </div>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg" aria-label="Close"><X size={20} /></button>
         </div>
 
         <div className="p-4 space-y-5">
@@ -458,7 +458,7 @@ function AssignmentPanel({ teacher, classes, fetchTeachers, onClose }: {
                 {classTeacherClasses.map((ct: any) => (
                   <div key={ct.classId} className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
                     <span className="text-sm font-medium text-emerald-700">{ct.className}</span>
-                    <button onClick={() => removeClassTeacher(ct.classId)} disabled={loading} className="text-red-500 hover:text-red-700 disabled:opacity-50"><X size={16} /></button>
+                    <button onClick={() => removeClassTeacher(ct.classId)} disabled={loading} className="text-red-500 hover:text-red-700 disabled:opacity-50" aria-label="Remove"><X size={16} /></button>
                   </div>
                 ))}
               </div>
@@ -484,7 +484,7 @@ function AssignmentPanel({ teacher, classes, fetchTeachers, onClose }: {
                 {subjectAssignments.map((sa: any) => (
                   <div key={`${sa.subjectId}-${sa.classId}`} className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
                     <span className="text-sm text-blue-700">{sa.subjectName} <span className="text-blue-400">({sa.className})</span></span>
-                    <button onClick={() => removeSubject(sa.subjectId, sa.classId)} disabled={loading} className="text-red-500 hover:text-red-700 disabled:opacity-50"><X size={16} /></button>
+                    <button onClick={() => removeSubject(sa.subjectId, sa.classId)} disabled={loading} className="text-red-500 hover:text-red-700 disabled:opacity-50" aria-label="Remove"><X size={16} /></button>
                   </div>
                 ))}
               </div>
@@ -498,7 +498,7 @@ function AssignmentPanel({ teacher, classes, fetchTeachers, onClose }: {
                 <option value="">Subject...</option>
                 {classSubjects.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
-              <button onClick={assignSubject} disabled={loading || !selectedClass || !selectedSubject} className="px-3 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium disabled:opacity-50 flex items-center gap-1"><Plus size={14} /></button>
+              <button onClick={assignSubject} disabled={loading || !selectedClass || !selectedSubject} className="px-3 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium disabled:opacity-50 flex items-center gap-1" aria-label="Assign subject"><Plus size={14} /></button>
             </div>
           </div>
         </div>

@@ -125,7 +125,7 @@ export function QuizPanel({ onClose }: { onClose: () => void }) {
           <div className="flex gap-1">
             <button onClick={() => setTab('quiz')} className={`px-3 py-1 rounded-lg text-xs font-medium ${tab === 'quiz' ? 'bg-purple-100 text-purple-700' : 'text-school-muted'}`}>Quiz</button>
             <button onClick={() => setTab('leaderboard')} className={`px-3 py-1 rounded-lg text-xs font-medium ${tab === 'leaderboard' ? 'bg-purple-100 text-purple-700' : 'text-school-muted'}`}>Leaderboard</button>
-            <button onClick={onClose} className="ml-2 px-2 py-1 hover:bg-gray-100 rounded-lg text-sm">X</button>
+            <button onClick={onClose} className="ml-2 px-2 py-1 hover:bg-gray-100 rounded-lg text-sm" aria-label="Close">X</button>
           </div>
         </div>
 
@@ -232,7 +232,7 @@ export function RiddlePanel({ onClose }: { onClose: () => void }) {
       <div className="bg-white rounded-2xl w-full max-w-md shadow-xl">
         <div className="p-4 border-b border-school-border flex items-center justify-between">
           <h3 className="font-bold text-school-primary">Daily Riddle</h3>
-          <button onClick={onClose} className="px-2 py-1 hover:bg-gray-100 rounded-lg text-sm">X</button>
+          <button onClick={onClose} className="px-2 py-1 hover:bg-gray-100 rounded-lg text-sm" aria-label="Close">X</button>
         </div>
         <div className="p-4">
           {riddle && (
@@ -299,7 +299,7 @@ export function MoodPanel({ onClose }: { onClose: () => void }) {
       <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl">
         <div className="p-4 border-b border-school-border flex items-center justify-between">
           <h3 className="font-bold text-school-primary">How are you today?</h3>
-          <button onClick={onClose} className="px-2 py-1 hover:bg-gray-100 rounded-lg text-sm">X</button>
+          <button onClick={onClose} className="px-2 py-1 hover:bg-gray-100 rounded-lg text-sm" aria-label="Close">X</button>
         </div>
         <div className="p-6">
           {submitted ? (
@@ -364,7 +364,7 @@ export function ChallengePanel({ onClose }: { onClose: () => void }) {
       <div className="bg-white rounded-2xl w-full max-w-md max-h-[80vh] overflow-y-auto shadow-xl">
         <div className="sticky top-0 bg-white border-b border-school-border p-4 flex items-center justify-between rounded-t-2xl">
           <h3 className="font-bold text-school-primary">Weekly Challenge</h3>
-          <button onClick={onClose} className="px-2 py-1 hover:bg-gray-100 rounded-lg text-sm">X</button>
+          <button onClick={onClose} className="px-2 py-1 hover:bg-gray-100 rounded-lg text-sm" aria-label="Close">X</button>
         </div>
         <div className="p-4 space-y-4">
           {loading && <p className="text-sm text-school-muted text-center">Loading...</p>}
@@ -427,7 +427,7 @@ export function TipsPanel({ onClose }: { onClose: () => void }) {
       <div className="bg-white rounded-2xl w-full max-w-md max-h-[80vh] overflow-y-auto shadow-xl">
         <div className="sticky top-0 bg-white border-b border-school-border p-4 flex items-center justify-between rounded-t-2xl">
           <h3 className="font-bold text-school-primary">Teaching Tips</h3>
-          <button onClick={onClose} className="px-2 py-1 hover:bg-gray-100 rounded-lg text-sm">X</button>
+          <button onClick={onClose} className="px-2 py-1 hover:bg-gray-100 rounded-lg text-sm" aria-label="Close">X</button>
         </div>
         <div className="p-4 space-y-3">
           {loading && <p className="text-sm text-school-muted text-center">Loading...</p>}
@@ -491,7 +491,7 @@ export function PlannerPanel({ onClose }: { onClose: () => void }) {
       <div className="bg-white rounded-2xl w-full max-w-md max-h-[80vh] overflow-y-auto shadow-xl">
         <div className="sticky top-0 bg-white border-b border-school-border p-4 flex items-center justify-between rounded-t-2xl">
           <h3 className="font-bold text-school-primary">Today's Lesson Plan</h3>
-          <button onClick={onClose} className="px-2 py-1 hover:bg-gray-100 rounded-lg text-sm">X</button>
+          <button onClick={onClose} className="px-2 py-1 hover:bg-gray-100 rounded-lg text-sm" aria-label="Close">X</button>
         </div>
         <div className="p-4 space-y-4">
           {loading && <p className="text-sm text-school-muted text-center">Loading...</p>}
@@ -504,7 +504,7 @@ export function PlannerPanel({ onClose }: { onClose: () => void }) {
                     <div className="text-xs font-bold text-indigo-700">{p.className} - {p.subject}</div>
                     {p.notes && <div className="text-[10px] text-indigo-500 mt-0.5">{p.notes}</div>}
                   </div>
-                  <button onClick={() => deletePlan(p.id)} className="text-red-400 hover:text-red-600 text-xs">X</button>
+                  <button onClick={() => deletePlan(p.id)} className="text-red-400 hover:text-red-600 text-xs" aria-label="Delete">X</button>
                 </div>
               ))}
             </div>

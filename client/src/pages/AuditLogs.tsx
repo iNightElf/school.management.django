@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { api } from '../store';
 import Layout from '../components/Layout';
-import { ClipboardList, X } from 'lucide-react';
+import { ClipboardList } from 'lucide-react';
+import Skeleton from '../components/Skeleton';
+import Modal from '../components/Modal';
 
 const ACTION_LABELS: Record<string, string> = {
   create: 'Create',
@@ -194,9 +196,7 @@ const AuditLogs = () => {
         </div>
 
         {loading ? (
-          <div className="flex justify-center py-12">
-            <div className="w-8 h-8 border-3 border-school-primary/20 border-t-school-primary rounded-full animate-spin" />
-          </div>
+          <Skeleton type="table" rows={8} />
         ) : logs.length === 0 ? (
           <div className="text-center py-12 text-school-muted text-sm">No audit log entries found.</div>
         ) : (
@@ -273,35 +273,26 @@ const AuditLogs = () => {
         )}
       </div>
 
-      {detailLog && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-school-border w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden shadow-2xl">
-            <div className="px-6 py-4 border-b border-school-border flex items-center justify-between">
-              <h3 className="font-serif text-lg text-school-primary">Log Details</h3>
-              <button onClick={() => setDetailLog(null)} className="p-2 hover:bg-gray-100 rounded-full transition-colors"><X size={20} /></button>
-            </div>
-            <div className="p-6 overflow-y-auto space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div><div className="text-[10px] uppercase font-bold text-school-muted">Action</div><div className="text-sm font-bold text-school-primary">{ACTION_LABELS[detailLog.action] || detailLog.action}</div></div>
-                <div><div className="text-[10px] uppercase font-bold text-school-muted">Entity</div><div className="text-sm">{detailLog.entityType} #{detailLog.entityId}</div></div>
-                <div><div className="text-[10px] uppercase font-bold text-school-muted">User</div><div className="text-sm font-bold text-school-primary">{detailLog.userName || detailLog.userId}</div></div>
-                <div><div className="text-[10px] uppercase font-bold text-school-muted">Timestamp</div><div className="text-sm">{new Date(detailLog.createdAt).toLocaleString()}</div></div>
-              </div>
-              <div>
-                <div className="text-[10px] uppercase font-bold text-school-muted mb-1">Changes / Details</div>
-                <pre className="bg-gray-50 p-4 rounded-xl text-xs font-mono whitespace-pre-wrap border border-gray-100 leading-relaxed overflow-x-auto">
-                  {(() => {
-                    try {
-                      const d = detailLog.details ? JSON.parse(detailLog.details) : null;
-                      return d ? JSON.stringify(d, null, 2) : (detailLog.details || 'No details recorded.');
-                    } catch { return detailLog.details || 'No details recorded.'; }
-                  })()}
-                </pre>
-              </div>
-            </div>
-          </div>
+      <Modal open={!!detailLog} onClose={() => setDetailLog(null)} title="Log Details" className="max-w-2xl">
+        <div className="grid grid-cols-2 gap-4">
+          <div><div className="text-[10px] uppercase font-bold text-school-muted">Action</div><div className="text-sm font-bold text-school-primary">{ACTION_LABELS[detailLog?.action] || detailLog?.action}</div></div>
+          <div><div className="text-[10px] uppercase font-bold text-school-muted">Entity</div><div className="text-sm">{detailLog?.entityType} #{detailLog?.entityId}</div></div>
+          <div><div className="text-[10px] uppercase font-bold text-school-muted">User</div><div className="text-sm font-bold text-school-primary">{detailLog?.userName || detailLog?.userId}</div></div>
+          <div><div className="text-[10px] uppercase font-bold text-school-muted">Timestamp</div><div className="text-sm">{detailLog ? new Date(detailLog.createdAt).toLocaleString() : ''}</div></div>
         </div>
-      )}
+        <div className="mt-4">
+          <div className="text-[10px] uppercase font-bold text-school-muted mb-1">Changes / Details</div>
+          <pre className="bg-gray-50 p-4 rounded-xl text-xs font-mono whitespace-pre-wrap border border-gray-100 leading-relaxed overflow-x-auto">
+            {(() => {
+              if (!detailLog?.details) return 'No details recorded.';
+              try {
+                const d = JSON.parse(detailLog.details);
+                return JSON.stringify(d, null, 2);
+              } catch { return detailLog.details; }
+            })()}
+          </pre>
+        </div>
+      </Modal>
     </Layout>
   );
 };

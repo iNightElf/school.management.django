@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useSchoolStore, useAuthStore } from '../../store';
 import { toast } from '../../components/Toast';
 import ClassSelect from '../../components/ClassSelect';
-import { Plus, Save, Trash2, X } from 'lucide-react';
+import { Plus, Save, Trash2 } from 'lucide-react';
+import Modal from '../../components/Modal';
 
 export default function SubjectManager() {
   const { fetchSubjects, subjects, createSubject, updateSubject, deleteSubject } = useSchoolStore();
@@ -105,8 +106,8 @@ export default function SubjectManager() {
                         </td>
                         <td className="px-3 py-2 text-center">
                           <div className="flex gap-1 justify-center">
-                            <button onClick={() => handleUpdate(s.id)} className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg" title="Save"><Save size={14} /></button>
-                            <button onClick={() => setEditingId(null)} className="p-1.5 text-school-muted hover:bg-school-border/30 rounded-lg" title="Cancel"><X size={14} /></button>
+                            <button onClick={() => handleUpdate(s.id)} className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg" title="Save" aria-label="Save"><Save size={14} /></button>
+                            <button onClick={() => setEditingId(null)} className="p-1.5 text-school-muted hover:bg-school-border/30 rounded-lg" title="Cancel" aria-label="Cancel"><X size={14} /></button>
                           </div>
                         </td>
                       </>
@@ -117,8 +118,8 @@ export default function SubjectManager() {
                         {isAdmin && (
                           <td className="px-3 py-2 text-center">
                             <div className="flex gap-1 justify-center">
-                              <button onClick={() => startEdit(s)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Edit"><Save size={14} /></button>
-                              <button onClick={() => setDeleteId(s.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg" title="Delete"><Trash2 size={14} /></button>
+                              <button onClick={() => startEdit(s)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Edit" aria-label="Edit"><Save size={14} /></button>
+                              <button onClick={() => setDeleteId(s.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg" title="Delete" aria-label="Delete"><Trash2 size={14} /></button>
                             </div>
                           </td>
                         )}
@@ -154,18 +155,13 @@ export default function SubjectManager() {
         </>
       )}
 
-      {deleteId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setDeleteId(null)}>
-          <div className="bg-white rounded-2xl p-6 max-w-sm mx-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="font-bold text-lg mb-2">Delete Subject</h3>
-            <p className="text-sm text-school-muted mb-4">Are you sure you want to delete "{subjects.find((s: any) => s.id === deleteId)?.name}"? All marks for this subject will be lost.</p>
-            <div className="flex gap-2 justify-end">
-              <button onClick={() => setDeleteId(null)} className="px-4 py-2 border border-school-border rounded-xl text-sm">Cancel</button>
-              <button onClick={() => handleDelete(deleteId)} className="px-4 py-2 bg-red-600 text-white rounded-xl text-sm font-bold hover:opacity-90">Delete</button>
-            </div>
-          </div>
+      <Modal open={!!deleteId} onClose={() => setDeleteId(null)} title="Delete Subject">
+        <p className="text-sm text-school-muted mb-4">Are you sure you want to delete "{subjects.find((s: any) => s.id === deleteId)?.name}"? All marks for this subject will be lost.</p>
+        <div className="flex gap-2 justify-end">
+          <button onClick={() => setDeleteId(null)} className="px-4 py-2 border border-school-border rounded-xl text-sm">Cancel</button>
+          <button onClick={() => handleDelete(deleteId!)} className="px-4 py-2 bg-red-600 text-white rounded-xl text-sm font-bold hover:opacity-90">Delete</button>
         </div>
-      )}
+      </Modal>
     </div>
   );
 }
