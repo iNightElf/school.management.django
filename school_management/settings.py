@@ -4,7 +4,7 @@ from datetime import timedelta
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(BASE_DIR / '.env')
+load_dotenv(BASE_DIR / '.env', override=True)
 
 DEBUG = os.environ.get('DJANGO_DEBUG', 'False').lower() == 'true'
 
