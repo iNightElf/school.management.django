@@ -57,10 +57,9 @@ const Login = () => {
       await login(email, password);
       // Store credential for next biometric login
       try {
-        if (navigator.credentials?.store) {
-          const cred = new (window as any).PasswordCredential({ id: email, password, name: email.split('@')[0] });
-          await navigator.credentials.store(cred);
-          setHasCred(true);
+        if (navigator.credentials?.store && navigator.credentials?.create) {
+          const cred = await (navigator.credentials.create as any)({ password: { id: email, password, name: email.split('@')[0] } });
+          if (cred) { await navigator.credentials.store(cred); setHasCred(true); }
         }
       } catch {}
       navigate('/', { replace: true });
