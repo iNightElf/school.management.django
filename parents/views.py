@@ -255,11 +255,10 @@ class PushSubscribeView(APIView):
 
 
 class VapidKeyView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = []
 
     def get(self, request):
         val = os.environ.get('VAPID_PUBLIC_KEY', '')
-        logger.info("VAPID_PUBLIC_KEY=%s", val)
         return Response({'publicKey': val})
 
 
