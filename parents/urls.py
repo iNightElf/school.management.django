@@ -1,6 +1,4 @@
-import os
 from django.urls import path
-from django.http import JsonResponse
 from . import views
 
 urlpatterns = [
@@ -9,6 +7,6 @@ urlpatterns = [
     path('parents/fees/<uuid:student_id>/', views.StudentFeesView.as_view(), name='parent-student-fees'),
     path('parents/results/<uuid:student_id>/', views.StudentResultsView.as_view(), name='parent-student-results'),
     path('parents/push/subscribe/', views.PushSubscribeView.as_view(), name='push-subscribe'),
-    path('parents/push/vapid-key/', lambda r: JsonResponse({'publicKey': os.environ.get('VAPID_PUBLIC_KEY', '')}), name='vapid-key'),
+    path('parents/push/vapid-key/', views.VapidKeyView.as_view(), name='vapid-key'),
     path('parents/announcements/', views.AnnouncementListView.as_view(), name='parent-announcements'),
 ]

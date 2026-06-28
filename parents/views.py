@@ -1,6 +1,7 @@
 import calendar
 import json
 import logging
+import os
 from datetime import date
 from decimal import Decimal
 from django.db.models import Sum, Count, Q
@@ -251,6 +252,15 @@ class PushSubscribeView(APIView):
         else:
             PushSubscription.objects.filter(user=request.user).delete()
         return Response({'status': 'unsubscribed'})
+
+
+class VapidKeyView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        val = os.environ.get('VAPID_PUBLIC_KEY', '')
+        logger.info("VAPID_PUBLIC_KEY=%s", val)
+        return Response({'publicKey': val})
 
 
 class AnnouncementListView(APIView):
