@@ -22,9 +22,10 @@ const Login = () => {
 
   // Check for stored credentials on mount
   useEffect(() => {
+    if (localStorage.getItem('bio_has_cred')) { setHasCred(true); return; }
     if (!navigator.credentials?.get) return;
     (navigator.credentials.get as any)({ password: true, mediation: 'silent' })
-      .then((cred: any) => { if (cred) { setHasCred(true); } })
+      .then((cred: any) => { if (cred) { setHasCred(true); localStorage.setItem('bio_has_cred', '1'); } })
       .catch(() => {});
   }, []);
 
@@ -37,7 +38,6 @@ const Login = () => {
       if (cred?.password) {
         setEmail(cred.id || '');
         setPassword(cred.password);
-        // Auto-submit after brief delay for state to settle
         setTimeout(async () => {
           try {
             await login(cred.id, cred.password);
@@ -59,9 +59,11 @@ const Login = () => {
       try {
         if (navigator.credentials?.store && navigator.credentials?.create) {
           const cred = await (navigator.credentials.create as any)({ password: { id: email, password, name: email.split('@')[0] } });
-          if (cred) { await navigator.credentials.store(cred); setHasCred(true); }
+          if (cred) { await navigator.credentials.store(cred); }
         }
       } catch {}
+      localStorage.setItem('bio_has_cred', '1');
+      setHasCred(true);
       navigate('/', { replace: true });
     } catch (err: any) {
       const msg = err.response?.data?.detail || err.response?.data?.error || 'Failed to login. Please try again.';
