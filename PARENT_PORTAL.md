@@ -155,7 +155,9 @@ All routes gated by `user.role === 'parent'`. Staff users are redirected away fr
 
 ## VAPID Keys
 
-Generated once, added to `.env`:
+Generated once, added to `.env`. The `/api/parents/push/vapid-key/` endpoint is public (no auth) — the public key is not sensitive.
+
+After adding/updating VAPID keys in `.env`, the uWSGI process must be restarted to pick them up. `git push deploy` updates the WSGI build timestamp, but if the endpoint still returns `""`, manually restart from Alwaysdata Web Admin → **Web** → **sites**.
 
 ```
 VAPID_PUBLIC_KEY=<base64url-encoded-public-key>

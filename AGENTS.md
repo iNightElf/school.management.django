@@ -74,11 +74,11 @@ Every table must support:
 See `PRIVATE_APP_INFO.md` for full details.
 
 - **Frontend:** GitHub Actions → GitHub Pages (`https://inightelf.github.io/school.management.django/`). Push to `origin main`, Actions auto-deploy if build passes.
-- **Backend:** Alwaysdata via `git push deploy main:main` (auto-runs `pip install`, `migrate`, `collectstatic`). WSGI restart: `touch /home/ares/school_management.wsgi`.
+- **Backend:** Alwaysdata via `git push deploy main:main` (auto-runs `pip install`, `migrate`, `collectstatic`). WSGI restart may need a manual **Restart** from Alwaysdata Web Admin → **Web** → **sites** if `touch /home/ares/school_management.wsgi` doesn't take effect.
 - **Remotes:** `origin` = GitHub, `deploy` = Alwaysdata.
 - **SSH:** `ares_ssh@ssh-ares.alwaysdata.net`
 - **DB:** PostgreSQL on Supabase (cold-starts after inactivity → hit `/api/wake-db/`).
-- **Env:** `.env` file on server. After updating it, touch WSGI to reload.
+- **Env:** `.env` file on server. After updating it, touch WSGI to reload; if unchanged, use admin panel Restart.
 
 ## Active Feature: AI Natural Language Query
 
