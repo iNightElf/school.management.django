@@ -1,5 +1,5 @@
-const CACHE = 'alrawa-v5';
-const PRECACHE_URLS = ['./', 'manifest.json'];
+const CACHE = 'alrawa-v6';
+const PRECACHE_URLS = ['manifest.json'];
 
 self.addEventListener('install', (e) => {
   self.skipWaiting();
@@ -21,23 +21,30 @@ self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET' || e.request.url.includes('/api/')) return;
   if (!e.request.url.startsWith('http')) return;
 
-  e.respondWith(
-    caches.match(e.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      return fetch(e.request).then((response) => {
-        if (!response || response.status !== 200) {
-          return response;
+  // ponytail: always fetch index.html from network first
+  if (e.request.mode === 'navigate') {
+    e.respondWith(
+      fetch(e.request).then((response) => {
+        if (response.status === 200) {
+          const clone = response.clone();
+          caches.open(CACHE).then((cache) => cache.put(e.request, clone));
         }
-        const responseToCache = response.clone();
-        caches.open(CACHE).then((cache) => {
-          cache.put(e.request, responseToCache);
-        });
         return response;
-      }).catch(() => {
-        return new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain' } });
-      });
-    })
+      }).catch(async () => {
+        const cached = await caches.match(e.request);
+        return cached || new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain' } });
+      })
+    );
+    return;
+  }
+
+  e.respondWith(
+    caches.match(e.request).then((cached) => cached || fetch(e.request).then((response) => {
+      if (response.status === 200) {
+        const clone = response.clone();
+        caches.open(CACHE).then((cache) => cache.put(e.request, clone));
+      }
+      return response;
+    }).catch(() => new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain' } })))
   );
 });
