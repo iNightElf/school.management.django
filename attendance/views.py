@@ -21,6 +21,7 @@ from students.models import Student
 from core.models import SchoolClass, SchoolSetting
 from accounts.permissions import require_permission, is_admin_or_superuser
 from core.audit import log_audit
+from parents.services import notify_parents_of_student
 
 
 WEEKEND_DAYS_DEFAULT = '4,5'
@@ -137,6 +138,22 @@ class AttendanceViewSet(viewsets.GenericViewSet):
             },
             request=request,
         )
+
+        absent_ids = [sid for sid, st in records.items() if st == 'absent']
+        if absent_ids:
+            name_map = {
+                str(k): v for k, v in
+                Student.objects.filter(id__in=absent_ids).values_list('id', 'name')
+            }
+            for sid in absent_ids:
+                sname = name_map.get(str(sid))
+                if sname:
+                    notify_parents_of_student(
+                        sid, 'attendance_marked',
+                        f'{sname} was marked absent',
+                        f'Date: {att_date}',
+                        url='/#/parent/attendance/' + str(sid),
+                    )
 
         return Response({'status': 'ok', 'count': len(records)})
 

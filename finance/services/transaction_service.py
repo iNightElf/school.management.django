@@ -1,7 +1,10 @@
+import logging
 from decimal import Decimal
 from django.db import transaction as db_transaction
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
+
+logger = logging.getLogger(__name__)
 
 from finance.models import (
     Transaction, FeeSchedule, FeeWaiver, PaymentAllocation,
@@ -13,6 +16,7 @@ from finance.views.base import (
     _waiver_expected_amount, _invalidate_dashboard_cache,
 )
 from core.audit import log_audit
+from parents.services import notify_parents_of_student
 
 
 def create_transaction(serializer, request):
@@ -195,4 +199,15 @@ def create_transaction(serializer, request):
                        'destination_account': tx.destination_account.name if tx.destination_account else None,
                        'student': tx.student.name if tx.student else None,
                        'fee_month': tx.fee_month}, request=request)
+
+    if tx_type == 'INCOME' and tx.student_id:
+        try:
+            notify_parents_of_student(
+                tx.student_id, 'fee_received',
+                f'Payment received for {tx.student.name}',
+                f'Amount: ${tx.amount:.2f} — {tx.category or "Fee"}',
+                url='/#/parent/fees/' + str(tx.student_id),
+            )
+        except Exception:
+            logger.exception('Failed to notify parents of fee payment')
     return tx

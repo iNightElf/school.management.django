@@ -1,3 +1,4 @@
+import logging
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -7,6 +8,9 @@ from students.models import Student
 from .serializers import ResultSerializer, SUBJECT_KEY_MAP
 from accounts.permissions import require_permission, can_teach_subject, is_admin_or_superuser
 from core.audit import log_audit
+from parents.services import notify_parents_of_student
+
+logger = logging.getLogger(__name__)
 
 
 class ResultViewSet(viewsets.ModelViewSet):
@@ -32,6 +36,17 @@ class ResultViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         obj = serializer.save()
         log_audit('create', 'result', entity_id=obj.pk, request=self.request)
+        try:
+            student = obj.student
+            term_label = {'1': '1st Term', '2': '2nd Term', '3': '3rd Term'}.get(obj.term, f'Term {obj.term}')
+            notify_parents_of_student(
+                student.id, 'result_published',
+                f'{student.name} — {term_label} results published',
+                f'Session: {obj.session}',
+                url='/#/parent/results/' + str(student.id),
+            )
+        except Exception:
+            logger.exception('Failed to notify parents of result')
 
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)

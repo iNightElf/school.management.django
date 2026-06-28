@@ -26,6 +26,7 @@ from .base import (
 from .ledger import LedgerActionsMixin
 from ..services.transaction_service import create_transaction
 from core.audit import log_audit, AuditLogMixin
+from parents.services import notify_parents_of_student
 
 
 class TransactionViewSet(AuditLogMixin, LedgerActionsMixin, PeriodClosedMixin, viewsets.ModelViewSet):

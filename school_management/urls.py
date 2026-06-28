@@ -55,6 +55,7 @@ urlpatterns = [
     path('api/engagement/', include('engagement.urls')),
     path('api/', include('attendance.urls')),
     path('api/ai/', include('ai_query.urls')),
+    path('api/', include('parents.urls')),
     path('api/m/', include('teachers.urls_mobile')),
     path('m/', mobile_redirect, name='mobile-home'),
 ]

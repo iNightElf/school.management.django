@@ -3,8 +3,17 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from .models import User, EmailVerification
 
 
+class ParentStudentLinkInline(admin.TabularInline):
+    from parents.models import ParentStudentLink
+    model = ParentStudentLink
+    extra = 1
+    autocomplete_fields = ['student']
+    fk_name = 'parent'
+
+
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
+    inlines = [ParentStudentLinkInline]
     model = User
     list_display = ('email', 'name', 'role', 'is_active', 'is_staff')
     list_filter = ('role', 'is_active', 'is_staff')

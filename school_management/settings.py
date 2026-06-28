@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     'engagement',
     'attendance',
     'ai_query',
+    'parents',
 ]
 
 MIDDLEWARE = [
@@ -210,6 +211,11 @@ GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
 
 AI_CONFIDENCE_THRESHOLD = float(os.environ.get('AI_CONFIDENCE_THRESHOLD', '0.6'))
 AI_QUERY_ENABLED = os.environ.get('AI_QUERY_ENABLED', 'True').lower() == 'true'
+
+# ── Web Push (VAPID) ──
+VAPID_PUBLIC_KEY = os.environ.get('VAPID_PUBLIC_KEY', '')
+VAPID_PRIVATE_KEY = os.environ.get('VAPID_PRIVATE_KEY', '')
+VAPID_CLAIM_EMAIL = os.environ.get('VAPID_CLAIM_EMAIL', 'admin@alrawa.edu')
 
 # ── Production Security Headers ──
 if not DEBUG:

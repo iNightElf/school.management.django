@@ -45,6 +45,10 @@ ROLE_PERMISSIONS = {
         'academic-years:read',
     ],
     'viewer': [],
+    'parent': [
+        'students:read',
+        'results:read',
+    ],
 }
 
 
