@@ -64,6 +64,7 @@ opencode.md
 # AI agent config
 .clinerules/
 .opencode/
+.cursor/
 opencode.json
 
 # Tooling artifacts
