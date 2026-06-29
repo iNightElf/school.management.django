@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useUIStore, useSchoolStore, useAuthStore } from '../store';
 import { api } from '../store';
 import Layout from '../components/Layout';
@@ -11,7 +11,7 @@ import ResultSection from './ResultSection';
 import FinanceSection from './FinanceSection';
 import AttendanceSection from './AttendanceSection';
 import EngagementWidget, { QuizPanel, RiddlePanel, MoodPanel, ChallengePanel, TipsPanel, PlannerPanel } from './engagement/EngagementWidget';
-import { CreditCard, BookOpen, BarChart3, Wallet, Users, GraduationCap, Building2, Sparkles, ArrowRight, Clock, MailCheck, CalendarCheck } from 'lucide-react';
+import { CreditCard, BookOpen, BarChart3, Wallet, Users, GraduationCap, Building2, Sparkles, ArrowRight, Clock, MailCheck, CalendarCheck, UserCheck } from 'lucide-react';
 import { SCHOOL_LOGO } from '../lib/logo';
 
 type ModeParam = 'idcard' | 'accessories' | 'result' | 'finance' | 'attendance';
@@ -26,6 +26,7 @@ function TodaysGreeting() {
 const Dashboard = () => {
   const { activeMode, setMode } = useUIStore();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { studentTotal, teacherTotal, staffTotal, fetchClasses, fetchDashboardCounts } = useSchoolStore();
   const user = useAuthStore((s) => s.user);
   const isTeacher = user?.role === 'teacher';
@@ -180,6 +181,20 @@ const Dashboard = () => {
               );
             })}
           </div>
+          )}
+
+          {/* Parent Portal — admins can preview */}
+          {isAdmin && (
+            <button onClick={() => navigate('/parent')}
+              className="w-full group relative bg-white dark:bg-[#1a1a2e] p-5 rounded-2xl border border-school-border dark:border-[#2a2a3e] text-left card-shadow overflow-hidden"
+            >
+              <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-indigo-700 text-white rounded-2xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform shadow-sm">
+                <UserCheck size={24} />
+              </div>
+              <div className="font-bold text-sm text-school-primary dark:text-[#e0e0e8]">Parent Portal</div>
+              <div className="text-[11px] text-school-muted mt-0.5">View as parent — attendance, fees, results</div>
+              <ArrowRight size={14} className="absolute bottom-4 right-4 text-school-muted opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0" />
+            </button>
           )}
 
           {/* Engagement Widget — teachers & admins */}

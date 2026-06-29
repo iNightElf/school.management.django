@@ -74,14 +74,14 @@ const App: React.FC = () => {
           <Route path="/m" element={<Navigate to="/?mode=attendance" replace />} />
 
           <Route path="/" element={user ? (user.role === 'parent' ? <Navigate to="/parent" /> : <Dashboard />) : (isPWA ? <Navigate to="/pin-attendance" /> : <Navigate to="/login" />)} />
-          <Route path="/parent" element={user?.role === 'parent' ? <ParentDashboard /> : <Navigate to="/" />} />
-          <Route path="/parent/attendance" element={user?.role === 'parent' ? <ParentAttendance /> : <Navigate to="/" />} />
-          <Route path="/parent/attendance/:studentId" element={user?.role === 'parent' ? <ParentAttendance /> : <Navigate to="/" />} />
-          <Route path="/parent/fees" element={user?.role === 'parent' ? <ParentFees /> : <Navigate to="/" />} />
-          <Route path="/parent/fees/:studentId" element={user?.role === 'parent' ? <ParentFees /> : <Navigate to="/" />} />
-          <Route path="/parent/results" element={user?.role === 'parent' ? <ParentResults /> : <Navigate to="/" />} />
-          <Route path="/parent/results/:studentId" element={user?.role === 'parent' ? <ParentResults /> : <Navigate to="/" />} />
-          <Route path="/parent/announcements" element={user?.role === 'parent' ? <ParentAnnouncements /> : <Navigate to="/" />} />
+          <Route path="/parent" element={user?.role === 'parent' || user?.role === 'admin' ? <ParentDashboard /> : <Navigate to="/" />} />
+          <Route path="/parent/attendance" element={user?.role === 'parent' || user?.role === 'admin' ? <ParentAttendance /> : <Navigate to="/" />} />
+          <Route path="/parent/attendance/:studentId" element={user?.role === 'parent' || user?.role === 'admin' ? <ParentAttendance /> : <Navigate to="/" />} />
+          <Route path="/parent/fees" element={user?.role === 'parent' || user?.role === 'admin' ? <ParentFees /> : <Navigate to="/" />} />
+          <Route path="/parent/fees/:studentId" element={user?.role === 'parent' || user?.role === 'admin' ? <ParentFees /> : <Navigate to="/" />} />
+          <Route path="/parent/results" element={user?.role === 'parent' || user?.role === 'admin' ? <ParentResults /> : <Navigate to="/" />} />
+          <Route path="/parent/results/:studentId" element={user?.role === 'parent' || user?.role === 'admin' ? <ParentResults /> : <Navigate to="/" />} />
+          <Route path="/parent/announcements" element={user?.role === 'parent' || user?.role === 'admin' ? <ParentAnnouncements /> : <Navigate to="/" />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>
