@@ -59,3 +59,4 @@ PRIVATE_APP_INFO.md
 # Tooling artifacts
 .playwright-mcp/
 .commandcode/
+login-page-snapshot.md
