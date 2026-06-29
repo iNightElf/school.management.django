@@ -46,19 +46,11 @@ const App: React.FC = () => {
     if (result.outcome === 'accepted') setInstallPrompt(null);
   };
 
-  // Check if already installed
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
-
-  useEffect(() => {
-    const isPWA = window.location.search.includes('pwa=true') || 
-                  window.location.search.includes('mode=pwa') || 
-                  window.matchMedia('(display-mode: standalone)').matches || 
-                  (navigator as any).standalone;
-    const currentHash = window.location.hash;
-    if (isPWA && (currentHash === '' || currentHash === '#/' || currentHash === '#/login')) {
-      window.location.hash = '#/pin-attendance';
-    }
-  }, []);
+  const isPWA = window.location.search.includes('pwa=true') || 
+                window.location.search.includes('mode=pwa') || 
+                isStandalone || 
+                (navigator as any).standalone;
 
   useEffect(() => {
     fetchSession();
@@ -81,7 +73,7 @@ const App: React.FC = () => {
           <Route path="/pin-attendance" element={<PinAttendance />} />
           <Route path="/m" element={<Navigate to="/?mode=attendance" replace />} />
 
-          <Route path="/" element={user ? (user.role === 'parent' ? <Navigate to="/parent" /> : <Dashboard />) : <Navigate to="/login" />} />
+          <Route path="/" element={user ? (user.role === 'parent' ? <Navigate to="/parent" /> : <Dashboard />) : (isPWA ? <Navigate to="/pin-attendance" /> : <Navigate to="/login" />)} />
           <Route path="/parent" element={user?.role === 'parent' ? <ParentDashboard /> : <Navigate to="/" />} />
           <Route path="/parent/attendance" element={user?.role === 'parent' ? <ParentAttendance /> : <Navigate to="/" />} />
           <Route path="/parent/attendance/:studentId" element={user?.role === 'parent' ? <ParentAttendance /> : <Navigate to="/" />} />
