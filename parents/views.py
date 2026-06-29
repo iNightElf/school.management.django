@@ -14,6 +14,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .permissions import IsParentOfStudent
+from .models import ParentStudentLink
 from accounts.permissions import require_permission
 from .serializers import (
     ParentStudentSerializer, ParentAttendanceSerializer,
@@ -295,3 +296,50 @@ class AnnouncementListView(APIView):
             'body': announcement.body,
             'createdAt': announcement.created_at.isoformat(),
         }, status=201)
+
+
+class ParentLinkView(APIView):
+    permission_classes = [require_permission('users:write')]
+
+    def get(self, request):
+        links = ParentStudentLink.objects.select_related('parent', 'student').all()
+        data = [{
+            'id': link.id,
+            'parentId': link.parent.id,
+            'parentName': link.parent.name,
+            'parentEmail': link.parent.email,
+            'studentId': link.student.id,
+            'studentName': link.student.name,
+            'studentRoll': link.student.roll,
+            'createdAt': link.created_at.isoformat(),
+        } for link in links]
+        return Response(data)
+
+    def post(self, request):
+        parent_id = request.data.get('parentId')
+        student_id = request.data.get('studentId')
+        if not parent_id or not student_id:
+            return Response({'error': 'parentId and studentId required'}, status=400)
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        try:
+            parent = User.objects.get(id=parent_id, role='parent')
+        except User.DoesNotExist:
+            return Response({'error': 'Parent not found'}, status=404)
+        try:
+            student = Student.objects.get(id=student_id)
+        except Student.DoesNotExist:
+            return Response({'error': 'Student not found'}, status=404)
+        link, created = ParentStudentLink.objects.get_or_create(parent=parent, student=student)
+        if not created:
+            return Response({'error': 'Link already exists'}, status=409)
+        return Response({'id': link.id, 'parentName': parent.name, 'studentName': student.name}, status=201)
+
+    def delete(self, request):
+        link_id = request.data.get('id')
+        if not link_id:
+            return Response({'error': 'id required'}, status=400)
+        deleted, _ = ParentStudentLink.objects.filter(id=link_id).delete()
+        if not deleted:
+            return Response({'error': 'Link not found'}, status=404)
+        return Response({'status': 'deleted'})
