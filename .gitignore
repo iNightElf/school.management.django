@@ -49,6 +49,8 @@ venv/
 .venv/
 env/
 
+*.zip
+
 # Old/temp directories
 school-system-temp/
 tmp/
