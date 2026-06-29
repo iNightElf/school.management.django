@@ -26,19 +26,23 @@ export default function ParentLayout({ children }: { children: React.ReactNode }
 
   const standalone = isStandalone();
   const prompt = getInstallPrompt();
-  const [showInstall, setShowInstall] = useState(false);
   const [installing, setInstalling] = useState(false);
-  useEffect(() => { setShowInstall(!!prompt && !standalone); }, [prompt, standalone]);
+  const [dismissed, setDismissed] = useState(false);
 
   const handleInstall = async () => {
     const p = getInstallPrompt();
-    if (!p) return;
-    setInstalling(true);
-    p.prompt();
-    const result = await p.userChoice;
-    if (result.outcome === 'accepted') setShowInstall(false);
-    setInstalling(false);
+    if (p) {
+      setInstalling(true);
+      p.prompt();
+      const result = await p.userChoice;
+      if (result.outcome === 'accepted') setDismissed(true);
+      setInstalling(false);
+    } else {
+      setDismissed(true);
+    }
   };
+
+  const canInstall = !standalone && !dismissed;
 
   const isActive = (path: string) =>
     path === '/parent' ? currentPath === '/parent' : currentPath.startsWith(path);
@@ -60,7 +64,7 @@ export default function ParentLayout({ children }: { children: React.ReactNode }
               <ArrowLeft size={18} />
             </button>
           )}
-          {showInstall && (
+          {canInstall && (
             <button onClick={handleInstall} disabled={installing} className="flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-bold bg-school-accent text-white rounded-lg hover:opacity-90 transition-opacity" title="Install Parent Portal">
               <Download size={14} /> {installing ? '...' : 'Install'}
             </button>
@@ -72,6 +76,14 @@ export default function ParentLayout({ children }: { children: React.ReactNode }
       </header>
 
       <main className="flex-1 p-4 max-w-3xl mx-auto w-full">{children}</main>
+
+      {!standalone && !prompt && (
+        <div className="px-4 pb-2">
+          <p className="text-[10px] text-school-muted text-center">
+            For quick access, open this page in Chrome → menu → Add to Home screen
+          </p>
+        </div>
+      )}
 
       <nav className="sticky bottom-0 z-50 bg-white dark:bg-school-primary border-t border-school-border flex items-center justify-around py-1 safe-area-bottom">
         {tabs.map((t) => {
