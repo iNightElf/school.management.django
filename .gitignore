@@ -17,11 +17,13 @@ build/
 # Django
 db.sqlite3
 media/
+staticfiles/
 
 # Node
 node_modules/
 client/.vite/
 client/dist/
+client/.env.local
 
 # IDE
 .vscode/
@@ -33,6 +35,19 @@ client/dist/
 .DS_Store
 Thumbs.db
 nul
+
+# Logs & caches
+*.log
+.pytest_cache/
+.ruff_cache/
+htmlcov/
+.coverage*
+.coverage
+
+# Python virtual environments
+venv/
+.venv/
+env/
 
 # Old/temp directories
 school-system-temp/
