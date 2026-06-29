@@ -64,7 +64,7 @@ const UserManagement: React.FC = () => {
 
   const fetchStudents = async () => {
     try {
-      const res = await api.get('/students/', { params: { page_size: 5000 } });
+      const res = await api.get('/students/', { params: { limit: 2000 } });
       const items = res.data.results || res.data.data || res.data;
       setStudents(items.map((s: any) => ({ id: s.id, name: s.name, student_id: s.studentId || s.student_id, roll: s.roll, className: s.className || '' })));
     } catch { /* noop */ }
