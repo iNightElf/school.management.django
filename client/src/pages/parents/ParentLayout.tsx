@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store';
 import { SCHOOL_LOGO } from '../../lib/logo';
 import { usePushSubscription } from '../../lib/usePushSubscription';
-import { Home, CalendarCheck, Wallet, BarChart3, Megaphone, LogOut } from 'lucide-react';
+import { Home, CalendarCheck, Wallet, BarChart3, Megaphone, LogOut, ArrowLeft } from 'lucide-react';
 
 const tabs = [
   { path: '/parent', label: 'Home', icon: Home },
@@ -33,6 +33,11 @@ export default function ParentLayout({ children }: { children: React.ReactNode }
         </div>
         <div className="flex items-center gap-2">
           <span className="text-[11px] font-medium opacity-80 hidden sm:inline">{user?.name}</span>
+          {user?.role === 'admin' && (
+            <button onClick={() => navigate('/')} className="p-2 hover:bg-white/10 rounded-full transition-colors" title="Back to Dashboard">
+              <ArrowLeft size={18} />
+            </button>
+          )}
           <button onClick={logout} className="p-2 hover:bg-white/10 rounded-full transition-colors" title="Logout">
             <LogOut size={18} />
           </button>
