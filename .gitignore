@@ -64,6 +64,7 @@ opencode.md
 # AI agent config
 .clinerules/
 .opencode/
+opencode.json
 
 # Tooling artifacts
 .playwright-mcp/
