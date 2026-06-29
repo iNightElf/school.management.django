@@ -1,8 +1,10 @@
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store';
 import { SCHOOL_LOGO } from '../../lib/logo';
 import { usePushSubscription } from '../../lib/usePushSubscription';
-import { Home, CalendarCheck, Wallet, BarChart3, Megaphone, LogOut, ArrowLeft } from 'lucide-react';
+import { getInstallPrompt, isStandalone, swapManifest } from '../../lib/pwa';
+import { Home, CalendarCheck, Wallet, BarChart3, Megaphone, LogOut, ArrowLeft, Download } from 'lucide-react';
 
 const tabs = [
   { path: '/parent', label: 'Home', icon: Home },
@@ -17,6 +19,26 @@ export default function ParentLayout({ children }: { children: React.ReactNode }
   const { user, logout } = useAuthStore();
   const currentPath = window.location.hash.replace('#', '');
   usePushSubscription();
+
+  useEffect(() => {
+    swapManifest('parent-manifest.json');
+  }, []);
+
+  const standalone = isStandalone();
+  const prompt = getInstallPrompt();
+  const [showInstall, setShowInstall] = useState(false);
+  const [installing, setInstalling] = useState(false);
+  useEffect(() => { setShowInstall(!!prompt && !standalone); }, [prompt, standalone]);
+
+  const handleInstall = async () => {
+    const p = getInstallPrompt();
+    if (!p) return;
+    setInstalling(true);
+    p.prompt();
+    const result = await p.userChoice;
+    if (result.outcome === 'accepted') setShowInstall(false);
+    setInstalling(false);
+  };
 
   const isActive = (path: string) =>
     path === '/parent' ? currentPath === '/parent' : currentPath.startsWith(path);
@@ -36,6 +58,11 @@ export default function ParentLayout({ children }: { children: React.ReactNode }
           {user?.role === 'admin' && (
             <button onClick={() => navigate('/')} className="p-2 hover:bg-white/10 rounded-full transition-colors" title="Back to Dashboard">
               <ArrowLeft size={18} />
+            </button>
+          )}
+          {showInstall && (
+            <button onClick={handleInstall} disabled={installing} className="flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-bold bg-school-accent text-white rounded-lg hover:opacity-90 transition-opacity" title="Install Parent Portal">
+              <Download size={14} /> {installing ? '...' : 'Install'}
             </button>
           )}
           <button onClick={logout} className="p-2 hover:bg-white/10 rounded-full transition-colors" title="Logout">

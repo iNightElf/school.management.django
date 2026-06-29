@@ -5,6 +5,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import NotFound from './pages/NotFound';
 import AICommandPalette from './ai/AICommandPalette';
 import { usePullToRefresh } from './lib/usePullToRefresh';
+import { setInstallPrompt as saveInstallEvent } from './lib/pwa';
 
 const Login = lazy(() => import('./pages/Login'));
 const Register = lazy(() => import('./pages/Register'));
@@ -32,9 +33,8 @@ const App: React.FC = () => {
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   usePullToRefresh();
 
-  // Capture the install prompt event
   useEffect(() => {
-    const handler = (e: Event) => { e.preventDefault(); setInstallPrompt(e); };
+    const handler = (e: Event) => { e.preventDefault(); saveInstallEvent(e); setInstallPrompt(e); };
     window.addEventListener('beforeinstallprompt', handler);
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
@@ -90,7 +90,7 @@ const App: React.FC = () => {
 
       {installPrompt && !isStandalone && (
         <div className="fixed bottom-0 left-0 right-0 z-50 bg-school-primary text-white px-4 py-3 flex items-center justify-between shadow-lg">
-          <p className="text-xs font-medium">Install <strong>AL RAWA</strong> for quick access</p>
+          <p className="text-xs font-medium">Install <strong>{window.location.hash.startsWith('#/parent') ? 'Parent Portal' : 'AL RAWA'}</strong> for quick access</p>
           <div className="flex gap-2">
             <button onClick={() => setInstallPrompt(null)} className="px-3 py-1.5 text-xs text-white/70 hover:text-white">Not now</button>
             <button id="pwa-install-btn" onClick={handleInstall} className="px-4 py-1.5 bg-school-accent text-white rounded-lg text-xs font-bold hover:opacity-90">Install</button>
