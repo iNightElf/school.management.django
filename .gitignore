@@ -53,8 +53,17 @@ env/
 school-system-temp/
 tmp/
 
-# Documentation
+# Internal docs (keep project internals off GitHub)
 PRIVATE_APP_INFO.md
+AGENTS.md
+AI_QUERY_FEATURE.md
+ISSUES.md
+PARENT_PORTAL.md
+opencode.md
+
+# AI agent config
+.clinerules/
+.opencode/
 
 # Tooling artifacts
 .playwright-mcp/
