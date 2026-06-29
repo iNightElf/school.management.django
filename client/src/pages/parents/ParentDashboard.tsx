@@ -10,7 +10,7 @@ interface Student {
   studentId: string;
   name: string;
   roll: string;
-  klass: string;
+  className: string;
   session: string;
   photoUrl: string | null;
 }
@@ -86,7 +86,7 @@ export default function ParentDashboard() {
               <div className="flex-1 min-w-0">
                 <h3 className="font-bold text-school-primary truncate">{s.name}</h3>
                 <p className="text-xs text-school-muted mt-0.5">
-                  {s.klass} · Roll: {s.roll} · ID: {s.studentId}
+                  {s.className} · Roll: {s.roll} · ID: {s.studentId}
                 </p>
               </div>
               <ChevronRight size={20} className="text-school-muted flex-shrink-0" />

@@ -6,7 +6,7 @@ class ParentStudentSerializer(serializers.Serializer):
     studentId = serializers.CharField()
     name = serializers.CharField()
     roll = serializers.CharField()
-    klass = serializers.CharField()
+    className = serializers.CharField(source='school_class.name', read_only=True, allow_null=True)
     session = serializers.CharField()
     photoUrl = serializers.URLField(allow_null=True)
 

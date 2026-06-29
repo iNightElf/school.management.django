@@ -9,7 +9,7 @@ class StudentSerializer(PhotoUrlMixin, serializers.ModelSerializer):
     photo_url_prefix = 'students'
     classId = serializers.UUIDField(source='school_class_id', read_only=True, allow_null=True)
     schoolClass = serializers.UUIDField(source='school_class', required=False, allow_null=True)
-    klass = serializers.CharField(source='school_class.name', read_only=True, allow_null=True)
+    className = serializers.CharField(source='school_class.name', read_only=True, allow_null=True)
     studentId = serializers.CharField(source='student_id', read_only=True)
     fatherName = serializers.CharField(source='father_name', read_only=True, allow_null=True)
     motherName = serializers.CharField(source='mother_name', read_only=True, allow_null=True)
@@ -21,7 +21,7 @@ class StudentSerializer(PhotoUrlMixin, serializers.ModelSerializer):
     class Meta:
         model = Student
         fields = [
-            'id', 'studentId', 'schoolClass', 'classId', 'klass', 'roll',
+            'id', 'studentId', 'schoolClass', 'classId', 'className', 'roll',
             'session', 'name', 'fatherName', 'motherName', 'contact',
             'hasPhoto', 'hasGraduated', 'photoUrl', 'createdAt',
         ]
@@ -29,11 +29,6 @@ class StudentSerializer(PhotoUrlMixin, serializers.ModelSerializer):
 
     def get_hasGraduated(self, obj):
         return obj.graduated_at is not None
-
-    def to_representation(self, instance):
-        ret = super().to_representation(instance)
-        ret['class'] = ret.pop('klass', None)
-        return ret
 
     def create(self, validated_data):
         with db_transaction.atomic():

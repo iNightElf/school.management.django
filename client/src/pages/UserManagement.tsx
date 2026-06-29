@@ -29,6 +29,7 @@ interface StudentOption {
   name: string;
   student_id: string;
   roll: string;
+  className: string;
 }
 
 const UserManagement: React.FC = () => {
@@ -43,6 +44,7 @@ const UserManagement: React.FC = () => {
   const [students, setStudents] = useState<StudentOption[]>([]);
   const [selectedParent, setSelectedParent] = useState('');
   const [selectedStudent, setSelectedStudent] = useState('');
+  const [selectedClass, setSelectedClass] = useState('');
   const [linking, setLinking] = useState(false);
   const [linksLoading, setLinksLoading] = useState(false);
 
@@ -64,7 +66,7 @@ const UserManagement: React.FC = () => {
     try {
       const res = await api.get('/students/', { params: { page_size: 5000 } });
       const items = res.data.results || res.data.data || res.data;
-      setStudents(items.map((s: any) => ({ id: s.id, name: s.name, student_id: s.studentId || s.student_id, roll: s.roll })));
+      setStudents(items.map((s: any) => ({ id: s.id, name: s.name, student_id: s.studentId || s.student_id, roll: s.roll, className: s.className || '' })));
     } catch { /* noop */ }
   };
 
@@ -341,7 +343,7 @@ const UserManagement: React.FC = () => {
           </div>
 
           <div className="bg-white rounded-xl border border-school-border p-4">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-4">
               <select value={selectedParent} onChange={(e) => setSelectedParent(e.target.value)}
                 className="border border-school-border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-school-accent">
                 <option value="">Select parent...</option>
@@ -349,10 +351,20 @@ const UserManagement: React.FC = () => {
                   <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
                 ))}
               </select>
+              <select value={selectedClass} onChange={(e) => { setSelectedClass(e.target.value); setSelectedStudent(''); }}
+                className="border border-school-border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-school-accent">
+                <option value="">All classes...</option>
+                {[...new Set(students.map(s => s.className).filter(Boolean))].sort().map((className) => (
+                  <option key={className} value={className}>{className}</option>
+                ))}
+              </select>
               <select value={selectedStudent} onChange={(e) => setSelectedStudent(e.target.value)}
                 className="border border-school-border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-school-accent">
                 <option value="">Select student...</option>
-                {students.sort((a, b) => a.name.localeCompare(b.name)).map((s) => (
+                {students
+                  .filter(s => !selectedClass || s.className === selectedClass)
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map((s) => (
                   <option key={s.id} value={s.id}>{s.name} ({s.student_id}){s.roll ? ` — Roll ${s.roll}` : ''}</option>
                 ))}
               </select>

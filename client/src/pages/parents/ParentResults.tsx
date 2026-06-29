@@ -122,7 +122,7 @@ export default function ParentResults() {
 }
 
 function StudentSelector({ onSelect }: { onSelect: (id: string) => void }) {
-  const [students, setStudents] = useState<Array<{ id: string; name: string; klass: string }>>([]);
+  const [students, setStudents] = useState<Array<{ id: string; name: string; className: string }>>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -145,7 +145,7 @@ function StudentSelector({ onSelect }: { onSelect: (id: string) => void }) {
             className="w-full bg-white rounded-xl border border-school-border p-4 text-left card-shadow hover:shadow-md transition-shadow"
           >
             <p className="font-bold text-school-primary">{s.name}</p>
-            <p className="text-xs text-school-muted">{s.klass}</p>
+            <p className="text-xs text-school-muted">{s.className}</p>
           </button>
         ))
       )}

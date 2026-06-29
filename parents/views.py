@@ -63,7 +63,7 @@ class MyStudentsView(APIView):
             'studentId': s.student_id,
             'name': s.name,
             'roll': s.roll,
-            'klass': s.school_class.name if s.school_class else '',
+            'className': s.school_class.name if s.school_class else '',
             'session': s.session,
             'photoUrl': None,
         } for s in students]
