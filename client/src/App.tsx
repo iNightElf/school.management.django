@@ -6,6 +6,7 @@ import NotFound from './pages/NotFound';
 import AICommandPalette from './ai/AICommandPalette';
 import { usePullToRefresh } from './lib/usePullToRefresh';
 import { setInstallPrompt as saveInstallEvent } from './lib/pwa';
+import IOSInstallPrompt from './components/IOSInstallPrompt';
 
 const Login = lazy(() => import('./pages/Login'));
 const Register = lazy(() => import('./pages/Register'));
@@ -91,6 +92,7 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
+      <IOSInstallPrompt />
     </Router>
   );
 };

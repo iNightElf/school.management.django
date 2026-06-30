@@ -1,4 +1,4 @@
-const CACHE = 'alrawa-v6';
+const CACHE = 'alrawa-v7';
 const PARENT_CACHE = 'parent-cache-v1';
 const PRECACHE_URLS = ['manifest.json'];
 
@@ -70,8 +70,8 @@ self.addEventListener('push', (e) => {
   } catch {}
   const options = {
     body: data.body || '',
-    icon: data.icon || '/icon-192.svg',
-    badge: '/icon-192.svg',
+    icon: data.icon || '/icon-192.png',
+    badge: '/icon-192.png',
     data: data.data || {},
     vibrate: [200, 100, 200],
   };
