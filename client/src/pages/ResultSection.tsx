@@ -6,9 +6,10 @@ import EnterByStudent from './results/EnterByStudent';
 import TabulationTab from './results/TabulationTab';
 import AllReportCardsTab from './results/AllReportCardsTab';
 import SubjectManager from './results/SubjectManager';
-import { PenLine, User, ClipboardList, FileSpreadsheet, BookOpen } from 'lucide-react';
+import { PenLine, User, ClipboardList, FileSpreadsheet, BookOpen, Send } from 'lucide-react';
+import PublishResultsTab from './results/PublishResultsTab';
 
-type Tab = 'subject' | 'student' | 'tabulation' | 'reports' | 'subjects';
+type Tab = 'subject' | 'student' | 'tabulation' | 'reports' | 'subjects' | 'publish';
 
 const TABS: { key: Tab; label: string; icon: ReactNode }[] = [
   { key: 'subject', label: 'Enter by Subject', icon: <PenLine size={14} /> },
@@ -16,6 +17,7 @@ const TABS: { key: Tab; label: string; icon: ReactNode }[] = [
   { key: 'tabulation', label: 'Tabulation', icon: <ClipboardList size={14} /> },
   { key: 'reports', label: 'Report Cards', icon: <FileSpreadsheet size={14} /> },
   { key: 'subjects', label: 'Manage Subjects', icon: <BookOpen size={14} /> },
+  { key: 'publish', label: 'Publish', icon: <Send size={14} /> },
 ];
 
 const ResultSection = () => {
@@ -39,6 +41,7 @@ const ResultSection = () => {
       {activeTab === 'tabulation' && <TabulationTab />}
       {activeTab === 'reports' && <AllReportCardsTab />}
       {activeTab === 'subjects' && <SubjectManager />}
+      {activeTab === 'publish' && <PublishResultsTab />}
     </div>
   );
 };

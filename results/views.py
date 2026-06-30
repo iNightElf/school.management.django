@@ -1,3 +1,4 @@
+import json
 import logging
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -8,9 +9,12 @@ from students.models import Student
 from .serializers import ResultSerializer, SUBJECT_KEY_MAP
 from accounts.permissions import require_permission, can_teach_subject, is_admin_or_superuser
 from core.audit import log_audit
+from core.models import SchoolSetting
 from parents.services import notify_parents_of_student
 
 logger = logging.getLogger(__name__)
+
+TERM_LABELS = {'1': '1st Term', '2': '2nd Term', '3': '3rd Term'}
 
 
 class ResultViewSet(viewsets.ModelViewSet):
@@ -36,17 +40,6 @@ class ResultViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         obj = serializer.save()
         log_audit('create', 'result', entity_id=obj.pk, request=self.request)
-        try:
-            student = obj.student
-            term_label = {'1': '1st Term', '2': '2nd Term', '3': '3rd Term'}.get(obj.term, f'Term {obj.term}')
-            notify_parents_of_student(
-                student.id, 'result_published',
-                f'{student.name} — {term_label} results published',
-                f'Session: {obj.session}',
-                url='/#/parent/results/' + str(student.id),
-            )
-        except Exception:
-            logger.exception('Failed to notify parents of result')
 
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
@@ -95,6 +88,8 @@ class ResultViewSet(viewsets.ModelViewSet):
             return [require_permission('results:read')()]
         if self.action in ['destroy', 'delete_class_results']:
             return [require_permission('results:admin')()]
+        if self.action in ['publish_terms', 'published_terms']:
+            return [require_permission('results:admin')()]
         return [require_permission('results:write')()]
 
     def get_queryset(self):
@@ -129,6 +124,68 @@ class ResultViewSet(viewsets.ModelViewSet):
         limit = int(request.query_params.get('limit', 200) if str(request.query_params.get('limit', '200')).isdigit() else 200)
         serializer = self.get_serializer(qs[:limit], many=True)
         return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def published_terms(self, request):
+        setting = SchoolSetting.objects.filter(key='published_terms').first()
+        if not setting or not setting.value:
+            return Response({})
+        try:
+            return Response(json.loads(setting.value))
+        except (json.JSONDecodeError, TypeError):
+            return Response({})
+
+    @action(detail=False, methods=['post'])
+    def publish_terms(self, request):
+        session = request.data.get('session', '')
+        terms = request.data.get('terms', [])
+        if not session or not isinstance(terms, list):
+            return Response({'error': 'session and terms required'}, status=400)
+
+        old = SchoolSetting.objects.filter(key='published_terms').first()
+        old_val = {}
+        if old and old.value:
+            try:
+                old_val = json.loads(old.value)
+            except (json.JSONDecodeError, TypeError):
+                old_val = {}
+        old_set = set(old_val.get(session, []))
+
+        new_terms = set(terms)
+        added = new_terms - old_set
+
+        setting, _ = SchoolSetting.objects.get_or_create(
+            key='published_terms',
+            defaults={'value': '{}'},
+        )
+        val = {}
+        if setting.value:
+            try:
+                val = json.loads(setting.value)
+            except (json.JSONDecodeError, TypeError):
+                val = {}
+        val[session] = terms
+        setting.value = json.dumps(val)
+        setting.save()
+
+        if added and request.data.get('notify', True):
+            for term in added:
+                student_ids = Result.objects.filter(
+                    session=session, term=str(term),
+                ).values_list('student_id', flat=True).distinct()
+                label = TERM_LABELS.get(str(term), f'Term {term}')
+                for sid in student_ids:
+                    try:
+                        notify_parents_of_student(
+                            sid, 'result_published',
+                            f'{label} results published — {session}',
+                            'Tap to view your child\'s results.',
+                            url='/parent/results',
+                        )
+                    except Exception:
+                        logger.exception('Failed to notify parent for student %s', sid)
+
+        return Response(val)
 
     @action(detail=False, methods=['delete'])
     def delete_class_results(self, request, class_id=None):

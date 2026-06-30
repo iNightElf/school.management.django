@@ -211,6 +211,19 @@ class StudentResultsView(APIView):
             results = results.filter(session=session)
         if term:
             results = results.filter(term=term)
+
+        setting = SchoolSetting.objects.filter(key='published_terms').first()
+        published = {}
+        if setting and setting.value:
+            try:
+                published = json.loads(setting.value)
+            except (json.JSONDecodeError, TypeError):
+                published = {}
+
+        published_sessions = list(published.keys())
+        if published_sessions:
+            results = results.filter(session__in=published_sessions)
+
         results = results.order_by('-created_at')
 
         data = [{
@@ -220,7 +233,7 @@ class StudentResultsView(APIView):
             'marks': r.marks,
             'comment': r.comment,
             'createdAt': r.created_at.isoformat(),
-        } for r in results]
+        } for r in results if str(r.term) in published.get(r.session, [])]
         return Response(ParentResultSerializer(data, many=True).data)
 
 
