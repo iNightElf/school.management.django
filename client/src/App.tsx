@@ -20,6 +20,16 @@ const ParentAttendance = lazy(() => import('./pages/parents/ParentAttendance'));
 const ParentFees = lazy(() => import('./pages/parents/ParentFees'));
 const ParentResults = lazy(() => import('./pages/parents/ParentResults'));
 const ParentAnnouncements = lazy(() => import('./pages/parents/ParentAnnouncements'));
+const ParentHomework = lazy(() => import('./pages/parents/ParentHomework'));
+const ParentDiary = lazy(() => import('./pages/parents/ParentDiary'));
+const ParentRoutine = lazy(() => import('./pages/parents/ParentRoutine'));
+const ParentExamRoutine = lazy(() => import('./pages/parents/ParentExamRoutine'));
+const TeacherLayout = lazy(() => import('./pages/teacher/TeacherLayout'));
+const TeacherDashboard = lazy(() => import('./pages/teacher/TeacherDashboard'));
+const WeeklyRoutine = lazy(() => import('./pages/teacher/WeeklyRoutine'));
+const AttendanceSection = lazy(() => import('./pages/AttendanceSection'));
+const HomeworkPage = lazy(() => import('./pages/teacher/HomeworkPage'));
+const DiaryPage = lazy(() => import('./pages/teacher/DiaryPage'));
 
 function PageLoader() {
   return (
@@ -60,15 +70,15 @@ const App: React.FC = () => {
       <ErrorBoundary>
       <Suspense fallback={<PageLoader />}>
         <Routes>
-          <Route path="/login" element={!user ? <Login /> : <Navigate to={user.role === 'parent' ? '/parent' : user.role === 'teacher' ? '/pin-attendance' : '/'} />} />
-          <Route path="/register" element={!user ? <Register /> : <Navigate to={user.role === 'parent' ? '/parent' : user.role === 'teacher' ? '/pin-attendance' : '/'} />} />
+          <Route path="/login" element={!user ? <Login /> : <Navigate to={user.role === 'parent' ? '/parent' : user.role === 'teacher' ? '/teacher' : '/'} />} />
+          <Route path="/register" element={!user ? <Register /> : <Navigate to={user.role === 'parent' ? '/parent' : user.role === 'teacher' ? '/teacher' : '/'} />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
           <Route path="/users" element={user?.role === 'admin' ? <UserManagement /> : <Navigate to="/" />} />
           <Route path="/audit" element={user?.role === 'admin' ? <AuditLogs /> : <Navigate to="/" />} />
           <Route path="/pin-attendance" element={<PinAttendance />} />
           <Route path="/m" element={<Navigate to="/?mode=attendance" replace />} />
 
-          <Route path="/" element={user ? (user.role === 'parent' ? <Navigate to="/parent" /> : user.role === 'teacher' ? <Navigate to="/pin-attendance" /> : <Dashboard />) : <Navigate to="/login" />} />
+          <Route path="/" element={user ? (user.role === 'parent' ? <Navigate to="/parent" /> : user.role === 'teacher' ? <Navigate to="/teacher" /> : <Dashboard />) : <Navigate to="/login" />} />
           <Route path="/parent" element={user?.role === 'parent' || user?.role === 'admin' ? <ParentDashboard /> : <Navigate to="/" />} />
           <Route path="/parent/attendance" element={user?.role === 'parent' || user?.role === 'admin' ? <ParentAttendance /> : <Navigate to="/" />} />
           <Route path="/parent/attendance/:studentId" element={user?.role === 'parent' || user?.role === 'admin' ? <ParentAttendance /> : <Navigate to="/" />} />
@@ -76,7 +86,18 @@ const App: React.FC = () => {
           <Route path="/parent/fees/:studentId" element={user?.role === 'parent' || user?.role === 'admin' ? <ParentFees /> : <Navigate to="/" />} />
           <Route path="/parent/results" element={user?.role === 'parent' || user?.role === 'admin' ? <ParentResults /> : <Navigate to="/" />} />
           <Route path="/parent/results/:studentId" element={user?.role === 'parent' || user?.role === 'admin' ? <ParentResults /> : <Navigate to="/" />} />
+          <Route path="/parent/homework" element={user?.role === 'parent' || user?.role === 'admin' ? <ParentHomework /> : <Navigate to="/" />} />
+          <Route path="/parent/diary" element={user?.role === 'parent' || user?.role === 'admin' ? <ParentDiary /> : <Navigate to="/" />} />
+          <Route path="/parent/routine" element={user?.role === 'parent' || user?.role === 'admin' ? <ParentRoutine /> : <Navigate to="/" />} />
+          <Route path="/parent/exam-routine" element={user?.role === 'parent' || user?.role === 'admin' ? <ParentExamRoutine /> : <Navigate to="/" />} />
           <Route path="/parent/announcements" element={user?.role === 'parent' || user?.role === 'admin' ? <ParentAnnouncements /> : <Navigate to="/" />} />
+
+          <Route path="/teacher" element={user?.role === 'teacher' || user?.role === 'admin' ? <TeacherLayout><TeacherDashboard /></TeacherLayout> : <Navigate to="/" />} />
+          <Route path="/teacher/routine" element={user?.role === 'teacher' || user?.role === 'admin' ? <TeacherLayout><WeeklyRoutine /></TeacherLayout> : <Navigate to="/" />} />
+          <Route path="/teacher/attendance" element={user?.role === 'teacher' || user?.role === 'admin' ? <TeacherLayout><AttendanceSection /></TeacherLayout> : <Navigate to="/" />} />
+          <Route path="/teacher/homework" element={user?.role === 'teacher' || user?.role === 'admin' ? <TeacherLayout><HomeworkPage /></TeacherLayout> : <Navigate to="/" />} />
+          <Route path="/teacher/diary" element={user?.role === 'teacher' || user?.role === 'admin' ? <TeacherLayout><DiaryPage /></TeacherLayout> : <Navigate to="/" />} />
+
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>

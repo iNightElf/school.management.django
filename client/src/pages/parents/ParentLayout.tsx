@@ -2,10 +2,17 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store';
 import { SCHOOL_LOGO } from '../../lib/logo';
 import { usePushSubscription } from '../../lib/usePushSubscription';
-import { Home, CalendarCheck, Wallet, BarChart3, Megaphone, LogOut, ArrowLeft } from 'lucide-react';
+import {
+  Home, CalendarCheck, Wallet, BarChart3, Megaphone,
+  BookOpen, BookText, ClipboardList, Calendar, LogOut, ArrowLeft,
+} from 'lucide-react';
 
 const tabs = [
   { path: '/parent', label: 'Home', icon: Home },
+  { path: '/parent/homework', label: 'Homework', icon: BookOpen },
+  { path: '/parent/diary', label: 'Diary', icon: BookText },
+  { path: '/parent/routine', label: 'Routine', icon: ClipboardList },
+  { path: '/parent/exam-routine', label: 'Exams', icon: Calendar },
   { path: '/parent/attendance', label: 'Attendance', icon: CalendarCheck },
   { path: '/parent/fees', label: 'Fees', icon: Wallet },
   { path: '/parent/results', label: 'Results', icon: BarChart3 },
@@ -46,23 +53,25 @@ export default function ParentLayout({ children }: { children: React.ReactNode }
 
       <main className="flex-1 p-4 max-w-3xl mx-auto w-full">{children}</main>
 
-      <nav className="sticky bottom-0 z-50 bg-white dark:bg-school-primary border-t border-school-border flex items-center justify-around py-1 safe-area-bottom">
-        {tabs.map((t) => {
-          const Icon = t.icon;
-          const active = isActive(t.path);
-          return (
-            <button
-              key={t.path}
-              onClick={() => navigate(t.path)}
-              className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors min-w-[56px] ${
-                active ? 'text-school-accent' : 'text-school-muted hover:text-school-primary dark:hover:text-white'
-              }`}
-            >
-              <Icon size={20} />
-              <span className="text-[9px] font-semibold uppercase tracking-wider">{t.label}</span>
-            </button>
-          );
-        })}
+      <nav className="sticky bottom-0 z-50 bg-white dark:bg-school-primary border-t border-school-border overflow-x-auto scrollbar-hide safe-area-bottom">
+        <div className="flex items-center px-1 py-1 min-w-max">
+          {tabs.map((t) => {
+            const Icon = t.icon;
+            const active = isActive(t.path);
+            return (
+              <button
+                key={t.path}
+                onClick={() => navigate(t.path)}
+                className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors min-w-[56px] ${
+                  active ? 'text-school-accent' : 'text-school-muted hover:text-school-primary dark:hover:text-white'
+                }`}
+              >
+                <Icon size={20} />
+                <span className="text-[9px] font-semibold uppercase tracking-wider whitespace-nowrap">{t.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </nav>
     </div>
   );

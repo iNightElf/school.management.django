@@ -13,6 +13,7 @@ ROLE_PERMISSIONS = {
         'users:read', 'users:write',
         'audit:read',
         'academic-years:read', 'academic-years:write',
+        'academic:read', 'academic:write', 'academic:admin',
     ],
     'teacher': [
         'students:read', 'students:write',
@@ -23,6 +24,7 @@ ROLE_PERMISSIONS = {
         'subjects:read',
         'results:read', 'results:write',
         'academic-years:read',
+        'academic:read', 'academic:write',
     ],
     'accountant': [
         'students:read',
@@ -48,6 +50,7 @@ ROLE_PERMISSIONS = {
     'parent': [
         'students:read',
         'results:read',
+        'academic:read',
     ],
 }
 
