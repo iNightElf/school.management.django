@@ -76,6 +76,36 @@ def notify_parents_of_student(student_id, event_type, title, body, url=None):
     return parents.count()
 
 
+def notify_parents_of_class(class_id, event_type, title, body, url=None):
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    from parents.models import ParentStudentLink
+    parent_ids = ParentStudentLink.objects.filter(
+        student__school_class_id=class_id,
+    ).values_list('parent_id', flat=True).distinct()
+    parents = User.objects.filter(id__in=parent_ids)
+
+    count = 0
+    for parent in parents:
+        sent = 0
+        err = None
+        try:
+            sent = notify(parent, title, body, url)
+        except Exception as e:
+            err = str(e)
+            logger.exception('Error notifying %s: %s', parent.email, e)
+        NotificationLog.objects.create(
+            user=parent,
+            event_type=event_type,
+            title=title,
+            body=body,
+            payload={'class_id': str(class_id), 'url': url},
+            error=err,
+        )
+        count += 1
+    return count
+
+
 def notify_all_parents(title, body, url=None):
     from django.contrib.auth import get_user_model
     User = get_user_model()

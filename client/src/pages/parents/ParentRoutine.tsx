@@ -9,6 +9,8 @@ interface Period {
   subject_name: string;
   teacher_name: string;
   class_name: string;
+  lesson_topic?: string;
+  lesson_completed?: boolean;
 }
 
 const DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday'];
@@ -71,6 +73,12 @@ export default function ParentRoutine() {
                         <div className="bg-white dark:bg-[#1a1a2e] rounded-xl p-2 border border-school-border dark:border-[#2a2a3e] min-h-[50px]">
                           <div className="font-bold text-school-primary dark:text-[#e0e0e8] text-[11px] leading-tight">{p.subject_name}</div>
                           <div className="text-[8px] text-school-muted mt-0.5">{p.teacher_name}</div>
+                          {p.lesson_topic && (
+                            <div className="flex items-center gap-1 mt-1">
+                              <span className="text-[8px] text-school-accent leading-tight line-clamp-2">{p.lesson_topic}</span>
+                              {p.lesson_completed && <span className="text-green-500 text-[8px]">✓</span>}
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <div className="min-h-[50px]" />

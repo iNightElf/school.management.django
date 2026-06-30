@@ -9,7 +9,8 @@ from accounts.permissions import (
     has_permission, require_permission, is_admin_or_superuser,
     is_class_teacher_of,
 )
-from core.models import SchoolSetting
+from core.models import SchoolSetting, SchoolClass
+from parents.services import notify_parents_of_class, notify_all_parents
 from .models import RoutineTemplate, LessonPlan, Homework, Diary, ExamRoutine
 from .serializers import (
     RoutineTemplateSerializer, LessonPlanSerializer,
@@ -70,6 +71,28 @@ class AdminRoutineTemplateViewSet(viewsets.ModelViewSet):
         if self.action in ['list', 'retrieve']:
             return [require_permission('academic:read')()]
         return [require_permission('academic:admin')()]
+
+    @action(detail=False, methods=['post'])
+    def publish(self, request):
+        class_id = request.data.get('class_id')
+        if class_id:
+            try:
+                cls = SchoolClass.objects.get(id=class_id)
+                notify_parents_of_class(
+                    class_id, 'routine_published',
+                    'Weekly Class Plan Updated',
+                    f'Tap to view the updated schedule and lesson topics for {cls.name}.',
+                    url='/parent/routine',
+                )
+                return Response({'notified': f'Parents of {cls.name}'})
+            except SchoolClass.DoesNotExist:
+                return Response({'error': 'Class not found'}, status=404)
+        notify_all_parents(
+            'Weekly Class Plan Updated',
+            'Tap to view the updated class schedule and lesson topics.',
+            url='/parent/routine',
+        )
+        return Response({'notified': 'All parents'})
 
 
 class AdminExamRoutineViewSet(viewsets.ModelViewSet):
@@ -290,7 +313,21 @@ def parent_routine(request):
         school_class_id__in=class_ids,
     ).select_related('school_class', 'subject', 'teacher').order_by('day', 'period_number')
 
-    return Response(RoutineTemplateSerializer(routines, many=True).data)
+    today = date.today()
+    week_start = today - timedelta(days=today.weekday())
+    lesson_plans = LessonPlan.objects.filter(
+        routine_template__in=routines,
+        week_start=week_start,
+    ).select_related('routine_template')
+    lp_map = {lp.routine_template_id: lp for lp in lesson_plans}
+
+    data = RoutineTemplateSerializer(routines, many=True).data
+    for item in data:
+        lp = lp_map.get(item['id'])
+        item['lesson_topic'] = lp.topic if lp else ''
+        item['lesson_completed'] = lp.completed if lp else False
+
+    return Response(data)
 
 
 @api_view(['GET'])
