@@ -80,6 +80,12 @@ class StudentViewSet(PhotoHandleMixin, viewsets.ModelViewSet):
         log_audit('ungraduate', 'student', entity_id=student.pk, request=request)
         return Response(StudentSerializer(student).data)
 
+    @action(detail=False, methods=['get'], url_path='all')
+    def all_students(self, request):
+        qs = self.get_queryset().filter(deleted_at__isnull=True).order_by('name')
+        serializer = self.get_serializer(qs, many=True)
+        return Response(serializer.data)
+
     @action(detail=False, methods=['post'], url_path='import')
     def import_students(self, request):
         students_data = request.data.get('students', [])
