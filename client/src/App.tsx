@@ -46,12 +46,6 @@ const App: React.FC = () => {
     if (result.outcome === 'accepted') setInstallPrompt(null);
   };
 
-  const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
-  const isPWA = window.location.search.includes('pwa=true') || 
-                window.location.search.includes('mode=pwa') || 
-                isStandalone || 
-                (navigator as any).standalone;
-
   useEffect(() => {
     fetchSession();
   }, [fetchSession]);
@@ -65,15 +59,15 @@ const App: React.FC = () => {
       <ErrorBoundary>
       <Suspense fallback={<PageLoader />}>
         <Routes>
-          <Route path="/login" element={!user ? <Login /> : <Navigate to={user.role === 'parent' ? '/parent' : '/'} />} />
-          <Route path="/register" element={!user ? <Register /> : <Navigate to={user.role === 'parent' ? '/parent' : '/'} />} />
+          <Route path="/login" element={!user ? <Login /> : <Navigate to={user.role === 'parent' ? '/parent' : user.role === 'teacher' ? '/pin-attendance' : '/'} />} />
+          <Route path="/register" element={!user ? <Register /> : <Navigate to={user.role === 'parent' ? '/parent' : user.role === 'teacher' ? '/pin-attendance' : '/'} />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
           <Route path="/users" element={user?.role === 'admin' ? <UserManagement /> : <Navigate to="/" />} />
           <Route path="/audit" element={user?.role === 'admin' ? <AuditLogs /> : <Navigate to="/" />} />
           <Route path="/pin-attendance" element={<PinAttendance />} />
           <Route path="/m" element={<Navigate to="/?mode=attendance" replace />} />
 
-          <Route path="/" element={user ? (user.role === 'parent' ? <Navigate to="/parent" /> : <Dashboard />) : (isPWA ? <Navigate to="/pin-attendance" /> : <Navigate to="/login" />)} />
+          <Route path="/" element={user ? (user.role === 'parent' ? <Navigate to="/parent" /> : user.role === 'teacher' ? <Navigate to="/pin-attendance" /> : <Dashboard />) : <Navigate to="/login" />} />
           <Route path="/parent" element={user?.role === 'parent' || user?.role === 'admin' ? <ParentDashboard /> : <Navigate to="/" />} />
           <Route path="/parent/attendance" element={user?.role === 'parent' || user?.role === 'admin' ? <ParentAttendance /> : <Navigate to="/" />} />
           <Route path="/parent/attendance/:studentId" element={user?.role === 'parent' || user?.role === 'admin' ? <ParentAttendance /> : <Navigate to="/" />} />
@@ -88,9 +82,9 @@ const App: React.FC = () => {
       <AICommandPalette />
       </ErrorBoundary>
 
-      {installPrompt && !isStandalone && (
+      {installPrompt && !window.matchMedia('(display-mode: standalone)').matches && (
         <div className="fixed bottom-0 left-0 right-0 z-50 bg-school-primary text-white px-4 py-3 flex items-center justify-between shadow-lg">
-          <p className="text-xs font-medium">Install <strong>{window.location.hash.startsWith('#/parent') ? 'Parent Portal' : 'AL RAWA'}</strong> for quick access</p>
+          <p className="text-xs font-medium">Install <strong>AL RAWA</strong> for quick access</p>
           <div className="flex gap-2">
             <button onClick={() => setInstallPrompt(null)} className="px-3 py-1.5 text-xs text-white/70 hover:text-white">Not now</button>
             <button id="pwa-install-btn" onClick={handleInstall} className="px-4 py-1.5 bg-school-accent text-white rounded-lg text-xs font-bold hover:opacity-90">Install</button>

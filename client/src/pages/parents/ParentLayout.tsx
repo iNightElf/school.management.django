@@ -1,10 +1,8 @@
-import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store';
 import { SCHOOL_LOGO } from '../../lib/logo';
 import { usePushSubscription } from '../../lib/usePushSubscription';
-import { getInstallPrompt, isStandalone, swapManifest } from '../../lib/pwa';
-import { Home, CalendarCheck, Wallet, BarChart3, Megaphone, LogOut, ArrowLeft, Download } from 'lucide-react';
+import { Home, CalendarCheck, Wallet, BarChart3, Megaphone, LogOut, ArrowLeft } from 'lucide-react';
 
 const tabs = [
   { path: '/parent', label: 'Home', icon: Home },
@@ -19,30 +17,6 @@ export default function ParentLayout({ children }: { children: React.ReactNode }
   const { user, logout } = useAuthStore();
   const currentPath = window.location.hash.replace('#', '');
   usePushSubscription();
-
-  useEffect(() => {
-    swapManifest('parent-manifest.json');
-  }, []);
-
-  const standalone = isStandalone();
-  const prompt = getInstallPrompt();
-  const [installing, setInstalling] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
-
-  const handleInstall = async () => {
-    const p = getInstallPrompt();
-    if (p) {
-      setInstalling(true);
-      p.prompt();
-      const result = await p.userChoice;
-      if (result.outcome === 'accepted') setDismissed(true);
-      setInstalling(false);
-    } else {
-      setDismissed(true);
-    }
-  };
-
-  const canInstall = !standalone && !dismissed;
 
   const isActive = (path: string) =>
     path === '/parent' ? currentPath === '/parent' : currentPath.startsWith(path);
@@ -64,11 +38,6 @@ export default function ParentLayout({ children }: { children: React.ReactNode }
               <ArrowLeft size={18} />
             </button>
           )}
-          {canInstall && (
-            <button onClick={handleInstall} disabled={installing} className="flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-bold bg-school-accent text-white rounded-lg hover:opacity-90 transition-opacity" title="Install Parent Portal">
-              <Download size={14} /> {installing ? '...' : 'Install'}
-            </button>
-          )}
           <button onClick={logout} className="p-2 hover:bg-white/10 rounded-full transition-colors" title="Logout">
             <LogOut size={18} />
           </button>
@@ -76,14 +45,6 @@ export default function ParentLayout({ children }: { children: React.ReactNode }
       </header>
 
       <main className="flex-1 p-4 max-w-3xl mx-auto w-full">{children}</main>
-
-      {!standalone && !prompt && (
-        <div className="px-4 pb-2">
-          <p className="text-[10px] text-school-muted text-center">
-            For quick access, open this page in Chrome → menu → Add to Home screen
-          </p>
-        </div>
-      )}
 
       <nav className="sticky bottom-0 z-50 bg-white dark:bg-school-primary border-t border-school-border flex items-center justify-around py-1 safe-area-bottom">
         {tabs.map((t) => {

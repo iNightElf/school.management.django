@@ -33,10 +33,10 @@ export const useAuthStore = create<AuthState>((set, get) => {
           refreshing = (async () => {
             try {
               const rt = getRefreshToken();
-              if (!rt) return false;
+              const payload = rt ? { refresh: rt } : {};
               const res = await axios.post(
                 `${api.defaults.baseURL}/auth/refresh/`,
-                { refresh: rt },
+                payload,
               );
               const { access, refresh: newRefresh } = res.data;
               setTokens(access, newRefresh || rt);
