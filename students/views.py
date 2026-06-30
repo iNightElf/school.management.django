@@ -17,6 +17,13 @@ class StudentViewSet(PhotoHandleMixin, viewsets.ModelViewSet):
     photo_prefix = 'students'
     filterset_fields = ['school_class_id', 'session']
 
+    def list(self, request, *args, **kwargs):
+        if request.query_params.get('all') == 'true':
+            qs = self.get_queryset().order_by('name')
+            serializer = self.get_serializer(qs, many=True)
+            return Response(serializer.data)
+        return super().list(request, *args, **kwargs)
+
     def get_permissions(self):
         if self.action == 'photo':
             return [require_photo_access('students:read')()]
@@ -79,12 +86,6 @@ class StudentViewSet(PhotoHandleMixin, viewsets.ModelViewSet):
         student.save(update_fields=['graduated_at'])
         log_audit('ungraduate', 'student', entity_id=student.pk, request=request)
         return Response(StudentSerializer(student).data)
-
-    @action(detail=False, methods=['get'], url_path='all')
-    def all_students(self, request):
-        qs = self.get_queryset().filter(deleted_at__isnull=True).order_by('name')
-        serializer = self.get_serializer(qs, many=True)
-        return Response(serializer.data)
 
     @action(detail=False, methods=['post'], url_path='import')
     def import_students(self, request):

@@ -64,10 +64,13 @@ const UserManagement: React.FC = () => {
 
   const fetchStudents = async () => {
     try {
-      const res = await api.get('/students/all/');
+      const res = await api.get('/students/', { params: { all: 'true' } });
       const items = res.data || [];
+      if (import.meta.env.DEV) console.log('[Parent Links] students fetched:', items.length);
       setStudents(items.map((s: any) => ({ id: s.id, name: s.name, student_id: s.studentId || s.student_id, roll: s.roll, className: s.className || '' })));
-    } catch { /* noop */ }
+    } catch (e: any) {
+      if (import.meta.env.DEV) console.warn('[Parent Links] fetch students error:', e.response?.status, e.response?.data);
+    }
   };
 
   useEffect(() => {
