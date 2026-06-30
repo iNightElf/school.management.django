@@ -1,3 +1,4 @@
+from datetime import date
 from django.db import models
 from ai_query.registry import ai_function
 from accounts.permissions import is_admin_or_superuser
@@ -174,6 +175,47 @@ def ledger_query_handler(user, account_name="", date_from=None, date_to=None):
         "data": data,
         "columns": ["Date", "Description", "Category", "In", "Out", "Type"],
     }
+
+
+@ai_function(
+    name="fee_collected",
+    description="Get total fee collection summary for current fiscal year, optionally filtered by class or month.",
+    permissions=["finance:read"],
+    parameters={
+        "type": "object",
+        "properties": {
+            "class_name": {
+                "type": "string",
+                "description": "Class name filter (e.g. 'Class 7', 'Seven')",
+            },
+            "month": {
+                "type": "string",
+                "description": "Month filter (YYYY-MM)",
+            },
+        },
+        "required": [],
+    },
+    result_columns=["Month", "Amount", "Count"],
+)
+def fee_collected_handler(user, class_name=None, month=None):
+    from finance.models import Transaction
+    from core.models import AcademicYear
+    yr = AcademicYear.objects.filter(is_active=True).first()
+    fy = yr.name if yr else str(date.today().year)
+    qs = Transaction.objects.filter(transaction_type='INCOME', is_cancelled=False, fiscal_year=fy, category__icontains='fee')
+    if class_name:
+        from core.models import SchoolClass
+        cls = SchoolClass.objects.filter(name__iexact=class_name).first()
+        if cls:
+            qs = qs.filter(school_class=cls)
+        else:
+            return {"type": "summary", "explanation": f"No class found with name '{class_name}'", "data": [], "columns": []}
+    if month:
+        qs = qs.filter(transaction_date__startswith=month)
+    from django.db.models import Sum, Count
+    agg = qs.values('transaction_date__startswith').annotate(total=Sum('amount'), cnt=Count('id')).order_by('-transaction_date__startswith')[:24]
+    data = [{"Month": str(a['transaction_date__startswith'])[:7], "Amount": str(a['total']), "Count": str(a['cnt'])} for a in agg]
+    return {"type": "table", "explanation": f"Fee collection for {fy}" + (f" — {class_name}" if class_name else ""), "data": data, "columns": ["Month", "Amount", "Count"]}
 
 
 @ai_function(

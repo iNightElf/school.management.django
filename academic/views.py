@@ -91,6 +91,7 @@ class AdminRoutineTemplateViewSet(viewsets.ModelViewSet):
             'Weekly Class Plan Updated',
             'Tap to view the updated class schedule and lesson topics.',
             url='/parent/routine',
+            event_type='routine_published',
         )
         return Response({'notified': 'All parents'})
 
@@ -211,9 +212,27 @@ class TeacherHomeworkViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         teacher = get_teacher_profile(self.request.user)
         if teacher:
-            serializer.save(teacher=teacher)
+            obj = serializer.save(teacher=teacher)
         else:
-            serializer.save()
+            obj = serializer.save()
+        if obj.published:
+            notify_parents_of_class(
+                obj.school_class_id, 'homework_published',
+                f'New homework: {obj.subject.name}',
+                f'{obj.topic} — Due: {obj.due_date}',
+                url='/parent/homework',
+            )
+
+    def perform_update(self, serializer):
+        was_published = serializer.instance.published if serializer.instance else False
+        obj = serializer.save()
+        if obj.published and not was_published:
+            notify_parents_of_class(
+                obj.school_class_id, 'homework_published',
+                f'New homework: {obj.subject.name}',
+                f'{obj.topic} — Due: {obj.due_date}',
+                url='/parent/homework',
+            )
 
 
 class TeacherDiaryViewSet(viewsets.ModelViewSet):
@@ -240,9 +259,15 @@ class TeacherDiaryViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         teacher = get_teacher_profile(self.request.user)
         if teacher:
-            serializer.save(teacher=teacher)
+            obj = serializer.save(teacher=teacher)
         else:
-            serializer.save()
+            obj = serializer.save()
+        notify_parents_of_class(
+            obj.school_class_id, 'diary_created',
+            f'Diary entry: {obj.subject.name}',
+            f'{obj.topic}',
+            url='/parent/diary',
+        )
 
 
 @api_view(['GET'])

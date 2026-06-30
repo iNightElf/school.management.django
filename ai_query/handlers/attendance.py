@@ -71,6 +71,34 @@ def attendance_summary_handler(user, class_name="", date_from=None, date_to=None
 
 
 @ai_function(
+    name="absent_today",
+    description="Get a list of students who are absent today in a specific class.",
+    permissions=["students:read"],
+    parameters={
+        "type": "object",
+        "properties": {
+            "class_name": {
+                "type": "string",
+                "description": "Class name (e.g. 'Class 7', 'Seven')",
+            },
+        },
+        "required": ["class_name"],
+    },
+    result_columns=["Student ID", "Name", "Roll"],
+)
+def absent_today_handler(user, class_name=""):
+    from core.models import SchoolClass
+    from django.utils import timezone
+    cls = SchoolClass.objects.filter(name__iexact=class_name).first()
+    if not cls:
+        return {"type": "summary", "explanation": f"No class found with name '{class_name}'", "data": [], "columns": []}
+    today = timezone.now().date()
+    absent = AttendanceRecord.objects.filter(date=today, school_class=cls, status='absent').select_related('student')
+    data = [{"Student ID": a.student.student_id, "Name": a.student.name, "Roll": a.student.roll or ""} for a in absent[:100]]
+    return {"type": "table", "explanation": f"Absent students in {class_name} today ({len(data)})", "data": data, "columns": ["Student ID", "Name", "Roll"]}
+
+
+@ai_function(
     name="attendance_detail",
     description="Get detailed attendance for a specific student by student ID or name.",
     permissions=["students:read"],

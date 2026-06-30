@@ -8,10 +8,19 @@ const SUGGESTIONS = [
   'List students in Class Five',
   'Search student Atifa Asma Ohi',
   'Attendance summary for Class Four',
+  'Who is absent today in Class Five',
   'Show all teachers',
   'Teacher subjects for Kurratul Jannat',
+  'Teacher schedule for Kurratul Jannat',
+  'Weekly routine for Class Five',
+  'Homework for Class Five',
+  'Diary entries for Class Five',
+  'Exam schedule for Class Five',
+  'Lesson plans for Class Five',
   'Dashboard summary',
   'Bank account balances',
+  'Fee collection this month',
+  'How many students in each class',
   'Show exam results for Class Five',
 ];
 
@@ -19,6 +28,17 @@ const AICommandPalette = () => {
   const { open, query, loading, result, error, setOpen, setQuery, submit, close } = useAIQueryStore();
   const inputRef = useRef<HTMLInputElement>(null);
   const [tipSeen, setTipSeen] = useState(() => localStorage.getItem('ai-palette-tip') === '1');
+  const [history, setHistory] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('ai-query-history') || '[]').slice(0, 5); } catch { return []; }
+  });
+
+  useEffect(() => {
+    if (result && !loading) {
+      const updated = [query, ...history.filter(h => h !== query)].slice(0, 5);
+      setHistory(updated);
+      localStorage.setItem('ai-query-history', JSON.stringify(updated));
+    }
+  }, [result, loading]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -113,6 +133,24 @@ const AICommandPalette = () => {
                       <Info size={14} className="text-blue-500 shrink-0" />
                       <p className="text-[11px] text-blue-700 dark:text-blue-300">Press <kbd className="px-1 py-0.5 rounded bg-blue-100 dark:bg-blue-500/20 text-[10px] font-mono font-bold">Ctrl+K</kbd> or <kbd className="px-1 py-0.5 rounded bg-blue-100 dark:bg-blue-500/20 text-[10px] font-mono font-bold">⌘K</kbd> anytime to ask questions about school data</p>
                       <button onClick={() => { localStorage.setItem('ai-palette-tip', '1'); setTipSeen(true); }} className="text-blue-400 hover:text-blue-600 shrink-0" aria-label="Dismiss tip">✕</button>
+                    </div>
+                  )}
+                  {history.length > 0 && (
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest text-school-muted font-semibold mb-1.5">
+                        Recent
+                      </p>
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {history.map((h) => (
+                          <button
+                            key={h}
+                            onClick={() => { setQuery(h); submit(h); }}
+                            className="px-2.5 py-1 rounded-full bg-school-border/40 hover:bg-school-border/70 text-[11px] text-school-ink/70 dark:text-[#c0c0c8] transition-colors"
+                          >
+                            {h.length > 40 ? h.slice(0, 40) + '…' : h}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   )}
                   <p className="text-[10px] uppercase tracking-widest text-school-muted font-semibold">

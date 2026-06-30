@@ -131,3 +131,26 @@ def class_list_handler(user, class_name=""):
         "data": data,
         "columns": ["Student ID", "Name", "Roll"],
     }
+
+
+@ai_function(
+    name="student_count_by_class",
+    description="Get student counts for each class or a specific class.",
+    permissions=["students:read"],
+    parameters={
+        "type": "object",
+        "properties": {},
+        "required": [],
+    },
+    result_columns=["Class", "Students"],
+)
+def student_count_handler(user, **kwargs):
+    from django.db.models import Count
+    qs = Student.objects.filter(deleted_at__isnull=True).values('school_class__name').annotate(count=Count('id')).order_by('school_class__name')
+    data = [{"Class": c['school_class__name'] or 'Unassigned', "Students": str(c['count'])} for c in qs]
+    return {
+        "type": "table",
+        "explanation": "Student count by class",
+        "data": data,
+        "columns": ["Class", "Students"],
+    }

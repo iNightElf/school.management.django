@@ -1,9 +1,23 @@
+import { useNavigate } from 'react-router-dom';
+
 interface AIResultTableProps {
   columns: string[];
   data: Record<string, string>[];
 }
 
-const AIResultTable = ({ columns, data }: AIResultTableProps) => {
+const NAV_COLUMNS = ['Student ID', 'Name', 'Student'];
+
+export default function AIResultTable({ columns, data }: AIResultTableProps) {
+  const navigate = useNavigate();
+
+  const hasNav = columns.some((c) => NAV_COLUMNS.includes(c));
+  const studentIdIdx = columns.indexOf('Student ID');
+
+  const handleRowClick = (row: Record<string, string>) => {
+    const sid = studentIdIdx >= 0 ? row[columns[studentIdIdx]] : '';
+    if (sid) navigate(`/students/${sid}`);
+  };
+
   if (!data.length) return null;
   return (
     <div className="max-h-64 overflow-auto rounded-xl border border-school-border">
@@ -17,7 +31,11 @@ const AIResultTable = ({ columns, data }: AIResultTableProps) => {
         </thead>
         <tbody>
           {data.map((row, i) => (
-            <tr key={i} className={i % 2 === 0 ? 'bg-white/50' : 'bg-transparent'}>
+            <tr
+              key={i}
+              onClick={hasNav ? () => handleRowClick(row) : undefined}
+              className={`${i % 2 === 0 ? 'bg-white/50' : 'bg-transparent'} ${hasNav ? 'cursor-pointer hover:bg-school-border/30' : ''}`}
+            >
               {columns.map((col) => (
                 <td key={col} className="px-3 py-1.5 border-t border-school-border/50">{row[col] ?? '—'}</td>
               ))}
@@ -27,6 +45,4 @@ const AIResultTable = ({ columns, data }: AIResultTableProps) => {
       </table>
     </div>
   );
-};
-
-export default AIResultTable;
+}

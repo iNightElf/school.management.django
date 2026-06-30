@@ -75,6 +75,32 @@ def teacher_subjects_handler(user, teacher_name=""):
 
 
 @ai_function(
+    name="teacher_schedule",
+    description="Show a teacher's weekly class schedule — what classes and subjects they teach on each day.",
+    permissions=["teachers:read"],
+    parameters={
+        "type": "object",
+        "properties": {
+            "teacher_name": {
+                "type": "string",
+                "description": "Teacher name to look up",
+            },
+        },
+        "required": ["teacher_name"],
+    },
+    result_columns=["Day", "Period", "Class", "Subject"],
+)
+def teacher_schedule_handler(user, teacher_name=""):
+    teacher = Teacher.objects.filter(deleted_at__isnull=True, name__icontains=teacher_name).first()
+    if not teacher:
+        return {"type": "summary", "explanation": f"No teacher found with name '{teacher_name}'", "data": [], "columns": []}
+    from academic.models import RoutineTemplate
+    qs = RoutineTemplate.objects.filter(teacher=teacher).select_related('school_class', 'subject').order_by('day', 'period_number')
+    data = [{"Day": r.get_day_display(), "Period": str(r.period_number), "Class": r.school_class.name, "Subject": r.subject.name} for r in qs[:100]]
+    return {"type": "table", "explanation": f"Schedule for {teacher.name}", "data": data, "columns": ["Day", "Period", "Class", "Subject"]}
+
+
+@ai_function(
     name="class_teachers",
     description="Show teachers assigned to a specific class (class teachers and subject teachers).",
     permissions=["teachers:read"],

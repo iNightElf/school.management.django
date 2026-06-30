@@ -106,7 +106,7 @@ def notify_parents_of_class(class_id, event_type, title, body, url=None):
     return count
 
 
-def notify_all_parents(title, body, url=None):
+def notify_all_parents(title, body, url=None, event_type='announcement'):
     from django.contrib.auth import get_user_model
     User = get_user_model()
     parents = User.objects.filter(role='parent')
@@ -122,7 +122,7 @@ def notify_all_parents(title, body, url=None):
             logger.exception('Error notifying %s: %s', parent.email, e)
         NotificationLog.objects.create(
             user=parent,
-            event_type='announcement',
+            event_type=event_type,
             title=title,
             body=body,
             payload={'url': url},

@@ -28,6 +28,7 @@ class RoutineTemplateAdmin(admin.ModelAdmin):
                 'Weekly Class Plan Updated',
                 'Tap to view the updated class schedule and lesson topics.',
                 url='/parent/routine',
+                event_type='routine_published',
             )
             self.message_user(request, 'Notification sent to all parents')
     publish_routine.short_description = 'Notify parents about routine update'

@@ -4,3 +4,4 @@ from . import attendance
 from . import finance
 from . import results
 from . import dashboard
+from . import academic
