@@ -197,6 +197,20 @@ const Dashboard = () => {
             </button>
           )}
 
+          {/* Teacher Portal — admins can preview */}
+          {isAdmin && (
+            <button onClick={() => navigate('/teacher')}
+              className="w-full group relative bg-white dark:bg-[#1a1a2e] p-5 rounded-2xl border border-school-border dark:border-[#2a2a3e] text-left card-shadow overflow-hidden"
+            >
+              <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-emerald-700 text-white rounded-2xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform shadow-sm">
+                <GraduationCap size={24} />
+              </div>
+              <div className="font-bold text-sm text-school-primary dark:text-[#e0e0e8]">Teacher Portal</div>
+              <div className="text-[11px] text-school-muted mt-0.5">View as teacher — routine, homework, diary</div>
+              <ArrowRight size={14} className="absolute bottom-4 right-4 text-school-muted opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0" />
+            </button>
+          )}
+
           {/* Engagement Widget — teachers & admins */}
           {(isTeacher || isAdmin) && !isPendingViewer && (
             <EngagementWidget onOpenPanel={(p) => setEngagementPanel(p)} />
