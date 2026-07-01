@@ -26,7 +26,7 @@ from accounts.permissions import is_admin_or_superuser
         },
         "required": ["student_id"],
     },
-    result_columns=["Category", "Amount", "Paid", "Due", "Waiver", "Status"],
+    result_columns=["Category", "Amount", "Months", "Expected Total", "Status"],
 )
 def fee_status_handler(user, student_id="", month_from=None, month_to=None):
     from students.models import Student
@@ -39,28 +39,28 @@ def fee_status_handler(user, student_id="", month_from=None, month_to=None):
             "data": [], "columns": [],
         }
     svc = FeeStatusService(str(student.id), month_from, month_to)
-    status_data = svc.get_status()
-    if not status_data:
+    # get_status() returns a list of fee items directly, not a dict.
+    status_list = svc.get_status()
+    if status_list is None:
         return {
             "type": "summary",
             "explanation": f"No fee data for {student.name}",
             "data": [], "columns": [],
         }
     data = []
-    for item in status_data.get('schedules', []):
+    for item in status_list:
         data.append({
             "Category": item.get('category', ''),
-            "Amount": str(item.get('expected', 0)),
-            "Paid": str(item.get('paid', 0)),
-            "Due": str(item.get('due', 0)),
-            "Waiver": str(item.get('waiver', 0)),
-            "Status": item.get('status', ''),
+            "Amount": str(item.get('amount', 0)),
+            "Months": str(item.get('numMonths', 0)),
+            "Expected Total": str(item.get('expectedTotal', 0)),
+            "Status": "Paid" if item.get('paid') else "Unpaid",
         })
     return {
         "type": "table",
         "explanation": f"Fee status for {student.name} ({student.student_id})",
         "data": data,
-        "columns": ["Category", "Amount", "Paid", "Due", "Waiver", "Status"],
+        "columns": ["Category", "Amount", "Months", "Expected Total", "Status"],
     }
 
 
@@ -86,7 +86,7 @@ def fee_status_handler(user, student_id="", month_from=None, month_to=None):
         },
         "required": [],
     },
-    result_columns=["Student", "Class", "Category", "Expected", "Paid", "Due"],
+    result_columns=["Student", "Class", "Category", "Amount", "Paid", "Balance"],
 )
 def defaulter_report_handler(user, class_name=None, month_from=None, month_to=None):
     from finance.services.defaulter_service import DefaulterService
@@ -106,22 +106,28 @@ def defaulter_report_handler(user, class_name=None, month_from=None, month_to=No
     result_list = svc.compute(students, student_ids)
     data = []
     for entry in result_list:
-        for fee_entry in entry.get('fee_details', []):
-            due = float(fee_entry.get('due', 0) or 0)
-            if due > 0:
-                data.append({
-                    "Student": entry.get('name', ''),
-                    "Class": entry.get('class_name', ''),
-                    "Category": fee_entry.get('category', ''),
-                    "Expected": str(fee_entry.get('expected', 0)),
-                    "Paid": str(fee_entry.get('paid', 0)),
-                    "Due": str(due),
-                })
+        # DefaulterService._build_result returns 'fees' (not 'fee_details')
+        # and 'class' (not 'class_name'). Each fee entry's 'paid' is a bool,
+        # not an amount, so we report the student-level balance instead.
+        student_balance = entry.get('balance', 0)
+        if student_balance <= 0:
+            continue
+        for fee_entry in entry.get('fees', []):
+            if fee_entry.get('paid'):
+                continue
+            data.append({
+                "Student": entry.get('name', ''),
+                "Class": entry.get('class', ''),
+                "Category": fee_entry.get('name', ''),
+                "Amount": str(fee_entry.get('amount', 0)),
+                "Paid": "No",
+                "Balance": str(student_balance),
+            })
     return {
         "type": "table",
         "explanation": f"Defaulter report — {len(data)} unpaid items found",
         "data": data[:200],
-        "columns": ["Student", "Class", "Category", "Expected", "Paid", "Due"],
+        "columns": ["Student", "Class", "Category", "Amount", "Paid", "Balance"],
     }
 
 
