@@ -54,7 +54,7 @@ const Login = () => {
     setError('');
     setLoading(true);
     try {
-      await login(email, password);
+      const { needsLinking } = await login(email, password);
       // Store credential for next biometric login
       try {
         if (navigator.credentials?.store && navigator.credentials?.create) {
@@ -64,7 +64,11 @@ const Login = () => {
       } catch {}
       localStorage.setItem('bio_has_cred', '1');
       setHasCred(true);
-      navigate('/', { replace: true });
+      if (needsLinking) {
+        navigate('/link-child', { replace: true });
+      } else {
+        navigate('/', { replace: true });
+      }
     } catch (err: any) {
       const msg = err.response?.data?.detail || err.response?.data?.error || 'Failed to login. Please try again.';
       setError(msg);

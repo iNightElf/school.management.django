@@ -85,7 +85,7 @@ class Homework(models.Model):
     )
     date = models.DateField()
     topic = models.CharField(max_length=500)
-    description = models.TextField()
+    description = models.TextField(blank=True, default='')
     due_date = models.DateField()
     attachment = models.TextField(blank=True, default='')
     published = models.BooleanField(default=False)
@@ -159,3 +159,42 @@ class ExamRoutine(models.Model):
 
     def __str__(self):
         return f"{self.exam_name} - {self.subject.name}"
+
+
+class Suggestion(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    parent = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='suggestions',
+    )
+    school_class = models.ForeignKey(
+        'core.SchoolClass', on_delete=models.CASCADE,
+        null=True, blank=True, related_name='suggestions',
+    )
+    text = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Suggestion by {self.parent_id}"
+
+
+class LeaveReason(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    student = models.ForeignKey(
+        'students.Student', on_delete=models.CASCADE, related_name='leave_reasons',
+    )
+    parent = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='leave_reasons',
+    )
+    reason = models.TextField()
+    start_date = models.DateField()
+    end_date = models.DateField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-start_date']
+
+    def __str__(self):
+        return f"Leave: {self.student_id} {self.start_date}"

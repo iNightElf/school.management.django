@@ -1,5 +1,7 @@
 from rest_framework import serializers
-from .models import RoutineTemplate, LessonPlan, Homework, Diary, ExamRoutine
+from .models import (
+    RoutineTemplate, LessonPlan, Homework, Diary, ExamRoutine, Suggestion, LeaveReason,
+)
 
 
 class RoutineTemplateSerializer(serializers.ModelSerializer):
@@ -80,3 +82,23 @@ class PeriodSettingSerializer(serializers.Serializer):
     period_number = serializers.IntegerField()
     start_time = serializers.CharField(max_length=10)
     end_time = serializers.CharField(max_length=10)
+
+
+class SuggestionSerializer(serializers.ModelSerializer):
+    parent_name = serializers.CharField(source='parent.name', read_only=True)
+    class_name = serializers.CharField(source='school_class.name', read_only=True)
+
+    class Meta:
+        model = Suggestion
+        fields = ['id', 'parent', 'parent_name', 'school_class', 'class_name', 'text', 'created_at']
+        read_only_fields = ['id', 'parent', 'created_at']
+
+
+class LeaveReasonSerializer(serializers.ModelSerializer):
+    student_name = serializers.CharField(source='student.name', read_only=True)
+    class_name = serializers.CharField(source='student.school_class.name', read_only=True)
+
+    class Meta:
+        model = LeaveReason
+        fields = ['id', 'student', 'student_name', 'class_name', 'parent', 'reason', 'start_date', 'end_date', 'created_at']
+        read_only_fields = ['id', 'parent', 'created_at']

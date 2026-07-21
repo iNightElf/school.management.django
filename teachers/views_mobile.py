@@ -7,7 +7,6 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from accounts.throttles import PinLoginRateThrottle
 from rest_framework_simplejwt.tokens import AccessToken
-from rest_framework_simplejwt.exceptions import TokenError
 
 from accounts.authentication import PinAuthentication
 
@@ -21,10 +20,15 @@ logger = logging.getLogger(__name__)
 WEEKEND_DAYS_DEFAULT = '4,5'
 
 
-from datetime import timedelta
+from datetime import timedelta, datetime
 
 class PinAccessToken(AccessToken):
     lifetime = timedelta(hours=24)
+
+
+def _parse_date(value):
+    """Parse a YYYY-MM-DD string into a date, raising ValueError if malformed."""
+    return datetime.strptime(value, '%Y-%m-%d').date()
 
 
 def _make_pin_token(teacher):
@@ -275,9 +279,11 @@ def mobile_class_daily_report(request):
 
     class_id = request.query_params.get('class_id')
     date_param = request.query_params.get('date')
+    from_param = request.query_params.get('from')
+    to_param = request.query_params.get('to')
 
-    if not class_id or not date_param:
-        return Response({'error': 'class_id and date are required'}, status=400)
+    if not class_id:
+        return Response({'error': 'class_id is required'}, status=400)
 
     try:
         school_class = SchoolClass.objects.get(id=class_id)
@@ -291,6 +297,60 @@ def mobile_class_daily_report(request):
         Student.objects.filter(school_class=school_class, deleted_at__isnull=True)
         .order_by('roll', 'name').values('id', 'name', 'roll')
     )
+
+    # Range mode: when both `from` and `to` are supplied, return a per-student
+    # grid across the date span (used for arbitrary-range attendance checks).
+    if from_param and to_param:
+        try:
+            from_date = _parse_date(from_param)
+            to_date = _parse_date(to_param)
+        except ValueError:
+            return Response({'error': 'Invalid from/to date (use YYYY-MM-DD)'}, status=400)
+        if from_date > to_date:
+            return Response({'error': 'from must be on or before to'}, status=400)
+
+        records = AttendanceRecord.objects.filter(
+            school_class=school_class, date__gte=from_date, date__lte=to_date,
+        ).values('student_id', 'date', 'status')
+
+        # student_id -> {iso_date: status}
+        rec_map = {}
+        for r in records:
+            try:
+                rec_map.setdefault(str(r['student_id']), {})[r['date'].isoformat()] = str(r['status'])
+            except (KeyError, TypeError, ValueError):
+                logger.warning('mobile_class_daily_report: skipping invalid record %r', r, exc_info=True)
+                continue
+
+        span_days = []
+        cur = from_date
+        while cur <= to_date:
+            span_days.append(cur.isoformat())
+            cur += timedelta(days=1)
+
+        rows = []
+        for s in students:
+            per_day = rec_map.get(str(s['id']), {})
+            present = sum(1 for st in per_day.values() if st == 'present')
+            absent = sum(1 for st in per_day.values() if st == 'absent')
+            rows.append({
+                'id': str(s['id']), 'name': s['name'], 'roll': s['roll'] or '',
+                'days': per_day,
+                'present': present, 'absent': absent,
+                'unmarked': len(span_days) - present - absent,
+            })
+
+        return Response({
+            'class': {'id': str(school_class.id), 'name': school_class.name},
+            'from': from_param, 'to': to_param,
+            'total_students': len(students),
+            'days': span_days,
+            'students': rows,
+        })
+
+    # Single-date mode (original contract): require `date`.
+    if not date_param:
+        return Response({'error': 'date is required (or supply from and to for a range)'}, status=400)
 
     records = list(
         AttendanceRecord.objects.filter(school_class=school_class, date=date_param)

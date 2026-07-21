@@ -116,6 +116,20 @@ class Category(models.Model):
         return f"{self.name} ({self.type})"
 
 
+class Program(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=255, unique=True)
+    active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'program'
+        verbose_name_plural = 'programs'
+
+    def __str__(self):
+        return self.name
+
+
 class StudentIdCounter(models.Model):
     id = models.CharField(primary_key=True, max_length=20, default='singleton')
     prefix = models.CharField(max_length=10, default='S')

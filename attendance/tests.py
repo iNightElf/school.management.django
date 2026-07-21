@@ -5,7 +5,7 @@ from rest_framework.test import APIClient
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 from students.models import Student
-from core.models import SchoolClass, SchoolSetting
+from core.models import SchoolClass
 from teachers.models import Teacher, ClassTeacher
 from .models import AttendanceRecord, Holiday
 
@@ -201,7 +201,14 @@ class AttendanceTests(TestCase):
         self.assertEqual(Holiday.objects.count(), 0)
 
 
-class MobileRangeReportTests(TestCase):
+class MobileDailyReportTests(TestCase):
+    """Tests for /api/m/attendance/class-daily-report/ against the REAL contract.
+
+    Two modes (source of truth = the view):
+      * single-date: ?class_id=&date=  -> {students:[{status}], present, absent, unmarked}
+      * range:       ?class_id=&from=&to= -> {days:[...], students:[{days:{date:status}, present, absent}]}
+    """
+
     def setUp(self):
         self.client = APIClient()
         self.klass = SchoolClass.objects.create(name='RR Class', order=2)
@@ -219,6 +226,9 @@ class MobileRangeReportTests(TestCase):
         while today.weekday() in (4, 5):
             today = today.replace(day=today.day - 1)
         self.at_day = today
+        self.other_day = today - timedelta(days=1)
+        while self.other_day.weekday() in (4, 5):
+            self.other_day = self.other_day.replace(day=self.other_day.day - 1)
 
     def _pin_token(self):
         tok = AccessToken()
@@ -227,62 +237,110 @@ class MobileRangeReportTests(TestCase):
         tok.set_exp('exp', lifetime=timedelta(hours=1))
         return str(tok)
 
-    def test_mobile_class_report_empty(self):
-        token = self._pin_token()
-        url = (
-            '/api/m/attendance/class-report/'
-            f'?class_id={self.klass.id}&from=2026-01-01&to=2026-12-31&term=1&session=2026'
-        )
-        res = self.client.get(url, HTTP_AUTHORIZATION=f'Bearer {token}')
-        self.assertEqual(res.status_code, 200, msg=res.content[:500])
-        self.assertIn('students', res.data)
-        self.assertIn('dates', res.data)
-        self.assertEqual(len(res.data['students']), 2)
-
-    def test_mobile_class_report_with_records(self):
-        AttendanceRecord.objects.create(
-            student=self.s1, school_class=self.klass,
-            date=self.at_day, term='1', session='2026', status='present',
-        )
-        AttendanceRecord.objects.create(
-            student=self.s2, school_class=self.klass,
-            date=self.at_day, term='1', session='2026', status='absent',
-        )
-        token = self._pin_token()
-        url = (
-            '/api/m/attendance/class-report/'
-            f'?class_id={self.klass.id}'
-            f'&from=2026-01-01&to={self.at_day.year + 1}-12-31&term=1&session=2026'
-        )
-        res = self.client.get(url, HTTP_AUTHORIZATION=f'Bearer {token}')
-        self.assertEqual(res.status_code, 200, msg=res.content[:500])
-        self.assertIn(str(self.s1.id), res.data['grid'])
-        self.assertEqual(res.data['grid'][str(self.s1.id)][str(self.at_day)], 'present')
-        self.assertEqual(res.data['grid'][str(self.s2.id)][str(self.at_day)], 'absent')
-
-    def test_mobile_batch_then_class_report(self):
-        token = self._pin_token()
-        batch_url = '/api/m/attendance/batch/'
-        batch_res = self.client.post(
-            batch_url,
+    def _batch(self, token, day, recs):
+        return self.client.post(
+            '/api/m/attendance/batch/',
             {
                 'school_class': str(self.klass.id),
-                'date': self.at_day.isoformat(),
+                'date': day.isoformat(),
                 'term': '1',
                 'session': '2026',
-                'records': {str(self.s1.id): 'present', str(self.s2.id): 'absent'},
+                'records': recs,
             },
             format='json',
             HTTP_AUTHORIZATION=f'Bearer {token}',
         )
-        self.assertEqual(batch_res.status_code, 200, msg=batch_res.content[:500])
-        report_url = (
-            '/api/m/attendance/class-report/'
-            f'?class_id={self.klass.id}'
-            f'&from=2026-01-01&to={self.at_day.year + 1}-12-31&term=1&session=2026'
+
+    # ── single-date mode ──────────────────────────────────────────────
+    def test_single_date_empty(self):
+        token = self._pin_token()
+        res = self.client.get(
+            f'/api/m/attendance/class-daily-report/?class_id={self.klass.id}&date={self.at_day.isoformat()}',
+            HTTP_AUTHORIZATION=f'Bearer {token}',
         )
-        report_res = self.client.get(report_url, HTTP_AUTHORIZATION=f'Bearer {token}')
-        self.assertEqual(report_res.status_code, 200, msg=report_res.content[:500])
-        self.assertEqual(report_res.data['summary'][str(self.s1.id)]['present'], 1)
-        self.assertEqual(report_res.data['summary'][str(self.s2.id)]['absent'], 1)
+        self.assertEqual(res.status_code, 200, msg=res.content[:500])
+        self.assertEqual(res.data['date'], self.at_day.isoformat())
+        self.assertEqual(res.data['total_students'], 2)
+        self.assertEqual(res.data['present'], 0)
+        self.assertEqual(res.data['absent'], 0)
+        self.assertEqual(res.data['unmarked'], 2)
+        names = {s['name'] for s in res.data['students']}
+        self.assertEqual(names, {'Alice', 'Bob'})
+        for s in res.data['students']:
+            self.assertEqual(s['status'], 'unmarked')
+
+    def test_single_date_with_records(self):
+        token = self._pin_token()
+        self._batch(token, self.at_day, {str(self.s1.id): 'present', str(self.s2.id): 'absent'})
+        res = self.client.get(
+            f'/api/m/attendance/class-daily-report/?class_id={self.klass.id}&date={self.at_day.isoformat()}',
+            HTTP_AUTHORIZATION=f'Bearer {token}',
+        )
+        self.assertEqual(res.status_code, 200, msg=res.content[:500])
+        self.assertEqual(res.data['present'], 1)
+        self.assertEqual(res.data['absent'], 1)
+        by_id = {s['id']: s for s in res.data['students']}
+        self.assertEqual(by_id[str(self.s1.id)]['status'], 'present')
+        self.assertEqual(by_id[str(self.s2.id)]['status'], 'absent')
+
+    def test_single_date_requires_class_id(self):
+        token = self._pin_token()
+        res = self.client.get(
+            f'/api/m/attendance/class-daily-report/?date={self.at_day.isoformat()}',
+            HTTP_AUTHORIZATION=f'Bearer {token}',
+        )
+        self.assertEqual(res.status_code, 400)
+
+    # ── range mode ────────────────────────────────────────────────────
+    def test_range_empty(self):
+        token = self._pin_token()
+        res = self.client.get(
+            f'/api/m/attendance/class-daily-report/?class_id={self.klass.id}'
+            f'&from={self.other_day.isoformat()}&to={self.at_day.isoformat()}',
+            HTTP_AUTHORIZATION=f'Bearer {token}',
+        )
+        self.assertEqual(res.status_code, 200, msg=res.content[:500])
+        self.assertEqual(res.data['from'], self.other_day.isoformat())
+        self.assertEqual(res.data['to'], self.at_day.isoformat())
+        self.assertEqual(res.data['days'], [self.other_day.isoformat(), self.at_day.isoformat()])
+        self.assertEqual(res.data['total_students'], 2)
+        for s in res.data['students']:
+            self.assertEqual(s['days'], {})
+            self.assertEqual(s['present'], 0)
+            self.assertEqual(s['absent'], 0)
+
+    def test_range_with_records(self):
+        token = self._pin_token()
+        self._batch(token, self.at_day, {str(self.s1.id): 'present', str(self.s2.id): 'absent'})
+        res = self.client.get(
+            f'/api/m/attendance/class-daily-report/?class_id={self.klass.id}'
+            f'&from={self.other_day.isoformat()}&to={self.at_day.isoformat()}',
+            HTTP_AUTHORIZATION=f'Bearer {token}',
+        )
+        self.assertEqual(res.status_code, 200, msg=res.content[:500])
+        by_id = {s['id']: s for s in res.data['students']}
+        s1 = by_id[str(self.s1.id)]
+        self.assertEqual(s1['days'].get(self.at_day.isoformat()), 'present')
+        self.assertEqual(s1['present'], 1)
+        self.assertEqual(s1['absent'], 0)
+        s2 = by_id[str(self.s2.id)]
+        self.assertEqual(s2['days'].get(self.at_day.isoformat()), 'absent')
+        self.assertEqual(s2['absent'], 1)
+
+    def test_range_invalid_date_format(self):
+        token = self._pin_token()
+        res = self.client.get(
+            f'/api/m/attendance/class-daily-report/?class_id={self.klass.id}&from=13-01-2026&to=2026-01-20',
+            HTTP_AUTHORIZATION=f'Bearer {token}',
+        )
+        self.assertEqual(res.status_code, 400)
+
+    def test_range_from_after_to(self):
+        token = self._pin_token()
+        res = self.client.get(
+            f'/api/m/attendance/class-daily-report/?class_id={self.klass.id}'
+            f'&from={self.at_day.isoformat()}&to={self.other_day.isoformat()}',
+            HTTP_AUTHORIZATION=f'Bearer {token}',
+        )
+        self.assertEqual(res.status_code, 400)
 

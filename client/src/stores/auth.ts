@@ -16,7 +16,7 @@ interface AuthState {
   loading: boolean;
   fetchSession: () => Promise<void>;
   logout: () => Promise<void>;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<{ needsLinking?: boolean }>;
 }
 
 let refreshing: Promise<boolean> | null = null;
@@ -66,9 +66,10 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
     login: async (email: string, password: string) => {
       const res = await api.post('/auth/login/', { email, password });
-      const { access, refresh } = res.data;
+      const { access, refresh, needsLinking } = res.data;
       setTokens(access, refresh);
       await get().fetchSession();
+      return { needsLinking: Boolean(needsLinking) };
     },
 
     fetchSession: async () => {

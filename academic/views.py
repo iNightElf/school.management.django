@@ -1,21 +1,20 @@
 from datetime import date, timedelta
-from django.db.models import Q
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
 from accounts.permissions import (
-    has_permission, require_permission, is_admin_or_superuser,
-    is_class_teacher_of,
+    require_permission, is_admin_or_superuser,
 )
 from core.models import SchoolSetting, SchoolClass
+from parents.models import ParentStudentLink
 from parents.services import notify_parents_of_class, notify_all_parents
-from .models import RoutineTemplate, LessonPlan, Homework, Diary, ExamRoutine
+from .models import RoutineTemplate, LessonPlan, Homework, Diary, ExamRoutine, Suggestion, LeaveReason
 from .serializers import (
     RoutineTemplateSerializer, LessonPlanSerializer,
     HomeworkSerializer, DiarySerializer, ExamRoutineSerializer,
-    PeriodSettingSerializer,
+    PeriodSettingSerializer, SuggestionSerializer, LeaveReasonSerializer,
 )
 
 
@@ -396,3 +395,102 @@ def parent_exam_routine(request):
     ).select_related('school_class', 'subject').order_by('date', 'start_time')
 
     return Response(ExamRoutineSerializer(exams, many=True).data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def exam_routine_notes(request):
+    setting = SchoolSetting.objects.filter(key='exam_routine_notes').first()
+    return Response({'notes': setting.value if setting else ''})
+
+
+# ─── Suggestions ──────────────────────────────────────────────────
+
+class ParentSuggestionViewSet(viewsets.ModelViewSet):
+    serializer_class = SuggestionSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = Suggestion.objects.filter(parent=self.request.user).order_by('-created_at')
+        return qs.select_related('school_class')
+
+    def perform_create(self, serializer):
+        school_class = serializer.validated_data.get('school_class')
+        if school_class:
+            child_classes = set(
+                ParentStudentLink.objects.filter(
+                    parent=self.request.user,
+                    student__school_class_id=school_class.id,
+                ).values_list('student__school_class_id', flat=True)
+            )
+            if school_class.id not in child_classes:
+                from rest_framework.exceptions import ValidationError
+                raise ValidationError({'school_class': "You can only send suggestions for your own children's classes."})
+        serializer.save(parent=self.request.user)
+
+
+class AdminSuggestionViewSet(viewsets.ModelViewSet):
+    serializer_class = SuggestionSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if is_admin_or_superuser(user):
+            return Suggestion.objects.select_related('parent', 'school_class').all().order_by('-created_at')
+        teacher_profile = getattr(user, 'teacher_profile', None)
+        if teacher_profile:
+            ct_class_ids = teacher_profile.class_teacher_of.values_list('school_class_id', flat=True)
+            if ct_class_ids:
+                return Suggestion.objects.filter(
+                    school_class_id__in=ct_class_ids,
+                ).select_related('parent', 'school_class').order_by('-created_at')
+        return Suggestion.objects.none()
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [require_permission('academic:read')()]
+        return [require_permission('academic:admin')()]
+
+
+# ─── Leave Reasons ────────────────────────────────────────────────
+
+class ParentLeaveReasonViewSet(viewsets.ModelViewSet):
+    serializer_class = LeaveReasonSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return LeaveReason.objects.filter(parent=self.request.user).select_related('student', 'student__school_class').order_by('-start_date')
+
+    def perform_create(self, serializer):
+        serializer.save(parent=self.request.user)
+
+
+class TeacherLeaveReasonViewSet(viewsets.GenericViewSet):
+    def get_permissions(self):
+        if self.action == 'by_class':
+            return [require_permission('academic:read')()]
+        return [require_permission('academic:write')()]
+
+    @action(detail=False, methods=['get'])
+    def by_class(self, request):
+        teacher = get_teacher_profile(request.user)
+        if not teacher and not is_admin_or_superuser(request.user):
+            return Response({'error': 'Teacher profile required'}, status=403)
+
+        if is_admin_or_superuser(request.user):
+            class_ids = SchoolClass.objects.values_list('id', flat=True)
+        else:
+            class_ids = get_teacher_assigned_class_ids(teacher)
+
+        leaves = LeaveReason.objects.filter(
+            student__school_class_id__in=class_ids,
+        ).select_related('student', 'student__school_class', 'parent').order_by('-start_date')
+
+        grouped = {}
+        for lr in leaves:
+            cls_name = lr.student.school_class.name
+            if cls_name not in grouped:
+                grouped[cls_name] = []
+            grouped[cls_name].append(LeaveReasonSerializer(lr).data)
+
+        return Response(grouped)

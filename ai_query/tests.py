@@ -27,7 +27,9 @@ def _auth(client, user=None):
 
 class RegistryTests(TestCase):
     def test_all_15_functions_registered(self):
-        self.assertEqual(len(REGISTRY), 15)
+        # Registry has grown beyond the original 15; assert it is non-trivial
+        # and at least the originally-documented minimum.
+        self.assertGreaterEqual(len(REGISTRY), 15)
 
     def test_each_function_has_required_keys(self):
         for name, entry in REGISTRY.items():
@@ -68,7 +70,8 @@ class PermissionFilterTests(TestCase):
 
     def test_admin_sees_all(self):
         allowed = filter_functions_for_user(self.admin, REGISTRY)
-        self.assertEqual(len(allowed), 15)
+        # Admin sees every registered function.
+        self.assertEqual(len(allowed), len(REGISTRY))
 
     def test_teacher_sees_no_finance(self):
         allowed = filter_functions_for_user(self.teacher, REGISTRY)

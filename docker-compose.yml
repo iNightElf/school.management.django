@@ -1,0 +1,39 @@
+# Local development database — mirrors Supabase (PostgreSQL 15) for dev/prod parity.
+# Usage:
+#   docker compose --env-file .env.dev up -d     # start Postgres (uses LOCAL dev creds)
+#   python manage.py migrate                       # create schema (also reads .env.dev)
+#   docker compose down                            # stop (keeps data in volume)
+#   docker compose down -v                        # stop AND wipe data
+#
+# IMPORTANT: Docker Compose auto-loads ./.env (your PROD Supabase creds). Always pass
+# --env-file .env.dev so the LOCAL container uses dev values, not prod ones.
+# (If you skip --env-file, the container will be named after prod and reuse the prod
+#  password — harmless locally but confusing. Prefer the explicit form above.)
+#
+# The Django settings read DB_* env vars, so no settings.py change is needed.
+# Keep this image's MAJOR version in sync with your Supabase Postgres version.
+
+services:
+  db:
+    image: postgres:15
+    container_name: alrawa_pg_dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-alrawa_dev}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    ports:
+      # Expose on localhost so `manage.py` (running on the host) can reach it.
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # Django needs the DB *ready*, not just the container *started*.
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-alrawa_dev}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  pgdata:

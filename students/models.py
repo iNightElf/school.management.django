@@ -8,6 +8,10 @@ class Student(models.Model):
         'core.SchoolClass', on_delete=models.SET_NULL,
         blank=True, null=True, related_name='students'
     )
+    program = models.ForeignKey(
+        'core.Program', on_delete=models.SET_NULL,
+        blank=True, null=True, related_name='students'
+    )
     student_id = models.CharField(max_length=20, unique=True)
     roll = models.CharField(max_length=255, blank=True, default='')
     session = models.CharField(max_length=255, blank=True, default='')

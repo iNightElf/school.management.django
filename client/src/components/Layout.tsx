@@ -3,7 +3,7 @@ import type { ReactNode, TouchEvent } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore, useUIStore, useDarkMode, useSchoolStore } from '../store';
-import { ChevronLeft, Lock, Users, Sun, Moon, ClipboardList, Sparkles } from 'lucide-react';
+import { ChevronLeft, Lock, Users, Sun, Moon, ClipboardList, Sparkles, KeyRound } from 'lucide-react';
 import { useAIQueryStore } from '../store';
 import { SCHOOL_LOGO } from '../lib/logo';
 import BottomNav from './BottomNav';
@@ -147,6 +147,14 @@ const Layout = ({ children }: LayoutProps) => {
             aria-label={dark ? 'Light Mode' : 'Dark Mode'}
           >
             {dark ? <Sun size={20} className="group-hover:scale-110 transition-transform" /> : <Moon size={20} className="group-hover:scale-110 transition-transform" />}
+          </button>
+          <button
+            onClick={() => navigate('/change-password')}
+            className="p-2 hover:bg-white/10 rounded-full transition-colors group"
+            title="Change Password"
+            aria-label="Change Password"
+          >
+            <KeyRound size={20} className="group-hover:scale-110 transition-transform" />
           </button>
           <button
             onClick={logout}

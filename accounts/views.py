@@ -16,6 +16,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .serializers import (
     UserSerializer, UserListSerializer, UserRoleSerializer, RegisterSerializer,
     RequestPasswordResetSerializer, ResetPasswordSerializer,
+    ChangePasswordSerializer, LinkChildSerializer,
 )
 from .permissions import require_permission
 from .throttles import (
@@ -121,8 +122,7 @@ class CustomTokenRefreshView(APIView):
                 )
             return response
         except Exception:
-            import logging
-            logging.getLogger(__name__).exception('Refresh token failed')
+            logger.exception('Refresh token failed')
             return Response({'detail': 'Invalid refresh token'}, status=status.HTTP_401_UNAUTHORIZED)
 
 
@@ -174,7 +174,16 @@ class LogoutView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        return Response({'detail': 'Logged out'}, status=status.HTTP_200_OK)
+        response = Response({'detail': 'Logged out'}, status=status.HTTP_200_OK)
+        response.delete_cookie(
+            settings.SIMPLE_JWT['ACCESS_COOKIE'],
+            samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
+        )
+        response.delete_cookie(
+            settings.SIMPLE_JWT['REFRESH_COOKIE'],
+            samesite=settings.SIMPLE_JWT['AUTH_COOKIE_SAMESITE'],
+        )
+        return response
 
 
 class GetAllUsersView(generics.ListAPIView):
@@ -347,3 +356,101 @@ class ResetPasswordView(APIView):
         reset.user.save(update_fields=['password'])
 
         return Response({'detail': 'Password reset successful.'})
+
+
+class ChangePasswordView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        serializer = ChangePasswordSerializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        request.user.set_password(serializer.validated_data['new_password'])
+        request.user.save(update_fields=['password'])
+        return Response({'detail': 'Password changed successfully.'})
+
+
+class LinkChildView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        from students.models import Student
+        from parents.models import ParentStudentLink
+        import json
+
+        if request.user.email:
+            from core.models import SchoolSetting
+            setting = SchoolSetting.objects.filter(key='blocked_parent_emails').first()
+            if setting:
+                blocked = json.loads(setting.value)
+                if request.user.email.lower() in [e.lower() for e in blocked]:
+                    return Response(
+                        {'error': 'Your email is not authorized to link children. Contact the school.'},
+                        status=403,
+                    )
+
+        serializer = LinkChildSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        student_id = data.get('student_id', '').strip()
+        if student_id:
+            student = Student.objects.filter(
+                student_id=student_id, deleted_at__isnull=True,
+            ).first()
+            if not student:
+                return Response({'error': 'Student not found with that ID'}, status=400)
+        elif data.get('child_name') and data.get('phone'):
+            filters = {
+                'name__iexact': data['child_name'],
+                'contact': data['phone'],
+                'deleted_at__isnull': True,
+            }
+            # Only narrow by optional fields the parent actually provided.
+            if data.get('roll'):
+                filters['roll'] = data['roll']
+            if data.get('father_name'):
+                filters['father_name__iexact'] = data['father_name']
+            if data.get('mother_name'):
+                filters['mother_name__iexact'] = data['mother_name']
+            student = Student.objects.filter(**filters).first()
+            if not student:
+                return Response(
+                    {'error': 'Student not found with these details. Check with the school.'},
+                    status=400,
+                )
+        else:
+            return Response(
+                {'error': 'Provide studentId OR child details (name + phone required)'},
+                status=400,
+            )
+
+        if ParentStudentLink.objects.filter(parent=request.user, student=student).exists():
+            return Response({'error': 'Already linked'}, status=409)
+
+        siblings = Student.objects.filter(
+            contact=student.contact, deleted_at__isnull=True,
+        )
+        for sib in siblings:
+            ParentStudentLink.objects.get_or_create(parent=request.user, student=sib)
+
+        return Response({
+            'status': 'linked',
+            'studentName': student.name,
+            'className': student.school_class.name if student.school_class else '',
+        }, status=201)
+
+
+class UnlinkChildView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        from parents.models import ParentStudentLink
+        student_id = request.data.get('studentId')
+        if not student_id:
+            return Response({'error': 'studentId required'}, status=400)
+        deleted, _ = ParentStudentLink.objects.filter(
+            parent=request.user, student_id=student_id,
+        ).delete()
+        if deleted:
+            return Response({'status': 'unlinked'})
+        return Response({'error': 'Link not found'}, status=404)

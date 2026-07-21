@@ -32,6 +32,14 @@ const Dashboard = () => {
   const isTeacher = user?.role === 'teacher';
   const isAdmin = user?.role === 'admin';
   const isPendingViewer = user?.role === 'viewer';
+  const urlMode = searchParams.get('mode') as ModeParam | null;
+  const effectiveMode: ModeParam | null =
+    isPendingViewer || (urlMode === 'finance' && isTeacher) ? null : (activeMode ?? urlMode);
+  const handleSetMode = (mode: ModeParam | null) => {
+    setMode(mode);
+    if (mode) setSearchParams({ mode }, { replace: false });
+    else setSearchParams({}, { replace: false });
+  };
   const [verifying, setVerifying] = useState(false);
   const [verifySent, setVerifySent] = useState(false);
   const [engagementPanel, setEngagementPanel] = useState<string | null>(null);
@@ -55,23 +63,6 @@ const Dashboard = () => {
     Promise.all([fetchDashboardCounts(), fetchClasses()]).then(() => setCountsReady(true));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleSetMode = (mode: ModeParam | null) => {
-    setMode(mode);
-    if (mode) setSearchParams({ mode }, { replace: false });
-    else setSearchParams({}, { replace: false });
-  };
-
-  useEffect(() => {
-    const urlMode = searchParams.get('mode') as ModeParam | null;
-    if (urlMode && urlMode !== activeMode) {
-      if (isPendingViewer || (urlMode === 'finance' && isTeacher)) {
-        handleSetMode(null);
-        return;
-      }
-      setMode(urlMode);
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
   const MODULES = [
     { key: 'idcard' as ModeParam, label: 'ID Card', desc: 'Students, Teachers & Staff', color: 'blue', icon: CreditCard },
     { key: 'accessories' as ModeParam, label: 'Fees & Books', desc: 'Fee structure & book list', color: 'amber', icon: BookOpen },
@@ -84,7 +75,7 @@ const Dashboard = () => {
     <Layout>
       <Toast />
 
-      {!activeMode ? (
+      {!effectiveMode ? (
         <div className="space-y-5 animate-fade-in">
           {/* Welcome Banner */}
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-school-primary via-school-secondary to-school-accent2 p-6 text-white">
@@ -218,11 +209,11 @@ const Dashboard = () => {
         </div>
       ) : (
         <div className="animate-fade-in">
-          {activeMode === 'idcard' && <IdCardSection />}
-          {activeMode === 'accessories' && <AccessoriesSection />}
-          {activeMode === 'result' && <ResultSection />}
-          {activeMode === 'finance' && <FinanceSection />}
-          {activeMode === 'attendance' && <AttendanceSection />}
+          {effectiveMode === 'idcard' && <IdCardSection />}
+          {effectiveMode === 'accessories' && <AccessoriesSection />}
+          {effectiveMode === 'result' && <ResultSection />}
+          {effectiveMode === 'finance' && <FinanceSection />}
+          {effectiveMode === 'attendance' && <AttendanceSection />}
         </div>
       )}
 

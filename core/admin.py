@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import SchoolClass, Subject, AcademicYear, SchoolSetting, AuditLog, Category
+from .models import SchoolClass, Subject, AcademicYear, SchoolSetting, AuditLog, Category, Program
 
 
 @admin.register(SchoolClass)

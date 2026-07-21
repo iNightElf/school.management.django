@@ -30,6 +30,8 @@ const WeeklyRoutine = lazy(() => import('./pages/teacher/WeeklyRoutine'));
 const AttendanceSection = lazy(() => import('./pages/AttendanceSection'));
 const HomeworkPage = lazy(() => import('./pages/teacher/HomeworkPage'));
 const DiaryPage = lazy(() => import('./pages/teacher/DiaryPage'));
+const LinkChild = lazy(() => import('./pages/LinkChild'));
+const ChangePassword = lazy(() => import('./pages/ChangePassword'));
 
 function PageLoader() {
   return (
@@ -77,6 +79,8 @@ const App: React.FC = () => {
           <Route path="/login" element={!user ? <Login /> : <Navigate to={user.role === 'parent' ? '/parent' : user.role === 'teacher' && teacherRoute !== '/' ? teacherRoute : '/'} />} />
           <Route path="/register" element={!user ? <Register /> : <Navigate to={user.role === 'parent' ? '/parent' : user.role === 'teacher' && teacherRoute !== '/' ? teacherRoute : '/'} />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
+          <Route path="/link-child" element={user?.role === 'parent' ? <LinkChild /> : <Navigate to="/" />} />
+          <Route path="/change-password" element={user ? <ChangePassword /> : <Navigate to="/login" />} />
           <Route path="/users" element={user?.role === 'admin' ? <UserManagement /> : <Navigate to="/" />} />
           <Route path="/audit" element={user?.role === 'admin' ? <AuditLogs /> : <Navigate to="/" />} />
           <Route path="/pin-attendance" element={<PinAttendance />} />
