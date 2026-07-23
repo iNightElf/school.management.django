@@ -1,22 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useSchoolStore, api } from '../store';
-import { Plus, Save, Trash2, BookOpen, ChevronDown, ChevronRight, Pencil, CalendarPlus, Copy, GraduationCap } from 'lucide-react';
+import { Plus, Save, Trash2, BookOpen, ChevronDown, ChevronRight, Pencil, Copy } from 'lucide-react';
 import { toast } from '../components/Toast';
-import PromoteModal from '../components/PromoteModal';
-
 const FREQUENCIES = ['MONTHLY', 'YEARLY', 'ONE_TIME'];
 const APPLICABILITIES = ['AUTO', 'ASSIGNED_ONLY'];
 
 const FeeScheduleTab = () => {
-  const { classes, feeSchedules: schedules, academicYears: years, fetchClasses, fetchFeeSchedules, fetchAcademicYears } = useSchoolStore();
+  const { classes, feeSchedules: schedules, academicYears: years, fetchClasses, fetchFeeSchedules } = useSchoolStore();
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ classId: '', category: '', amount: '', frequency: 'MONTHLY', applicability: 'AUTO' });
-  const [showYearForm, setShowYearForm] = useState(false);
-  const [yearForm, setYearForm] = useState({ name: '', startDate: '', endDate: '' });
-  const [showPromote, setShowPromote] = useState(false);
-  const [promoteTarget, setPromoteTarget] = useState<{ name: string; id: string } | null>(null);
 
   const activeYear = years.find((y: any) => y.isActive);
   const previousYear = years
@@ -28,7 +22,7 @@ const FeeScheduleTab = () => {
     ? schedules.filter((s: any) => s.academicYearId === previousYear.id)
     : [];
 
-  useEffect(() => { Promise.all([fetchClasses(), fetchFeeSchedules(), fetchAcademicYears()]).then(() => setLoading(false)); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { Promise.all([fetchClasses(), fetchFeeSchedules()]).then(() => setLoading(false)); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleEdit = (s: any) => {
     setEditingId(s.id);
@@ -44,7 +38,7 @@ const FeeScheduleTab = () => {
 
   const handleSave = async () => {
     if (!form.category || !form.amount) { toast('Category and amount required', 'error'); return; }
-    if (!activeYear) { toast('No active academic year. Create one first.', 'error'); return; }
+    if (!activeYear) { toast('No active academic year. Create one in Session Year first.', 'error'); return; }
     try {
       const payload = {
         classId: form.classId || null,
@@ -53,9 +47,9 @@ const FeeScheduleTab = () => {
         frequency: form.frequency,
         applicability: form.applicability,
       };
-      
+
       const store = useSchoolStore.getState();
-      
+
       if (editingId) {
         const res = await api.patch(`/finance/fee-schedules/${editingId}/`, payload);
         toast('Fee schedule updated', 'success');
@@ -83,29 +77,6 @@ const FeeScheduleTab = () => {
     } catch { toast('Failed to delete', 'error'); }
   };
 
-  const handleCreateYear = async () => {
-    if (!yearForm.name || !yearForm.startDate || !yearForm.endDate) {
-      toast('Name, start date, and end date required', 'error');
-      return;
-    }
-    if (new Date(yearForm.startDate).getFullYear() !== new Date(yearForm.endDate).getFullYear()) {
-      toast('Start and end date must be in the same year', 'error');
-      return;
-    }
-    try {
-      const res = await api.post('/academic-years/', { ...yearForm, isActive: true });
-      toast('Academic year created', 'success');
-      setShowYearForm(false);
-      setYearForm({ name: '', startDate: '', endDate: '' });
-      setShowPromote(true);
-      setPromoteTarget({ name: res.data.name, id: res.data.id });
-      fetchAcademicYears(true);
-    } catch (e: any) {
-      const msg = e?.response?.data?.error || (e?.response?.data ? Object.values(e.response.data).flat().join(', ') : 'Failed to create academic year');
-      toast(msg, 'error');
-    }
-  };
-
   const handleCopyFromPreviousYear = async () => {
     if (!activeYear || !previousYear) return;
     try {
@@ -116,17 +87,6 @@ const FeeScheduleTab = () => {
       toast(`${res.data.copied} schedules copied from ${previousYear.name} to ${activeYear.name}${res.data.skipped ? ` (${res.data.skipped} skipped)` : ''}`, 'success');
       fetchFeeSchedules();
     } catch { toast('Failed to copy schedules', 'error'); }
-  };
-
-  const handleSetActive = async (id: string) => {
-    try {
-      await api.patch(`/academic-years/${id}/`, { isActive: true });
-      toast('Active year changed', 'success');
-      fetchAcademicYears(true);
-    } catch (err: any) {
-      console.error('Failed to set active year:', err?.response?.data || err);
-      toast(err?.response?.data?.detail || 'Failed to update', 'error');
-    }
   };
 
   const grouped = schedules.reduce((acc: Record<string, any[]>, s: any) => {
@@ -161,77 +121,15 @@ const FeeScheduleTab = () => {
             </span>
           )}
         </div>
-        <div className="flex gap-2">
-          <button onClick={() => { setShowYearForm(!showYearForm); setShowForm(false); }} className="flex items-center gap-1.5 px-3 py-2 bg-amber-500 text-white rounded-xl text-xs font-bold">
-            <CalendarPlus size={14} /> {showYearForm ? 'Cancel' : 'Manage Years'}
-          </button>
-          <button onClick={() => { setShowForm(!showForm); setEditingId(null); setForm({ classId: '', category: '', amount: '', frequency: 'MONTHLY', applicability: 'AUTO' }); }} className="flex items-center gap-1.5 px-3 py-2 bg-school-primary text-white rounded-xl text-xs font-bold">
-            <Plus size={14} /> {showForm ? 'Cancel' : 'Add Schedule'}
-          </button>
-        </div>
+        <button onClick={() => { setShowForm(!showForm); setEditingId(null); setForm({ classId: '', category: '', amount: '', frequency: 'MONTHLY', applicability: 'AUTO' }); }} className="flex items-center gap-1.5 px-3 py-2 bg-school-primary text-white rounded-xl text-xs font-bold">
+          <Plus size={14} /> {showForm ? 'Cancel' : 'Add Schedule'}
+        </button>
       </div>
-
-      {showYearForm && (
-        <div className="bg-white rounded-xl border border-school-border p-4 space-y-3">
-          <h4 className="font-bold text-xs text-school-primary">Academic Years</h4>
-          {years.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-3">
-              {years.map((y: any) => (
-                <button
-                  key={y.id}
-                  onClick={() => handleSetActive(y.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${y.isActive ? 'bg-school-primary text-white border-school-primary' : 'bg-white text-school-muted border-school-border hover:border-school-accent'}`}
-                >
-                  {y.name} {y.isActive ? '✓' : '(set active)'}
-                </button>
-              ))}
-            </div>
-          )}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="text-[10px] font-bold uppercase text-school-muted block mb-1">Year Name</label>
-              <input value={yearForm.name} onChange={e => setYearForm({ ...yearForm, name: e.target.value })} placeholder="e.g. 2026-2027" className="w-full border border-school-border rounded-xl px-3 py-2 text-sm" />
-            </div>
-            <div>
-              <label className="text-[10px] font-bold uppercase text-school-muted block mb-1">Start Date</label>
-              <input type="date" value={yearForm.startDate} onChange={e => setYearForm({ ...yearForm, startDate: e.target.value })} className="w-full border border-school-border rounded-xl px-3 py-2 text-sm" />
-            </div>
-            <div>
-              <label className="text-[10px] font-bold uppercase text-school-muted block mb-1">End Date</label>
-              <input type="date" value={yearForm.endDate} onChange={e => setYearForm({ ...yearForm, endDate: e.target.value })} className="w-full border border-school-border rounded-xl px-3 py-2 text-sm" />
-            </div>
-          </div>
-          <button onClick={handleCreateYear} className="flex items-center gap-1.5 px-4 py-2 bg-school-primary text-white rounded-xl text-sm font-bold">
-            <Plus size={14} /> Create Academic Year
-          </button>
-        </div>
-      )}
-
-      {showPromote && promoteTarget && (
-        <div className="bg-gradient-to-r from-purple-600 to-indigo-700 rounded-xl p-4 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <h4 className="font-bold text-sm flex items-center gap-1.5"><GraduationCap size={16} /> New Academic Year Created</h4>
-              <p className="text-xs text-purple-200 mt-0.5">Session: <span className="font-bold text-white">{promoteTarget.name}</span></p>
-              <p className="text-xs text-purple-200 mt-1">Promote all students to the next class for the new session?</p>
-            </div>
-            <div className="flex gap-2">
-              <button onClick={() => { setShowPromote(true); }} className="px-4 py-2 bg-white text-purple-700 rounded-lg text-xs font-bold hover:bg-purple-50">
-                Promote All →
-              </button>
-              <button onClick={() => { setShowPromote(false); setPromoteTarget(null); }} className="px-3 py-2 border border-purple-400 text-purple-200 rounded-lg text-xs hover:bg-white/10">
-                Dismiss
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      <PromoteModal open={showPromote && !!promoteTarget} targetYearName={promoteTarget?.name || ''} targetAcademicYearId={promoteTarget?.id || ''} onClose={() => { setShowPromote(false); setPromoteTarget(null); }} onDone={() => { setShowPromote(false); setPromoteTarget(null); }} />
 
       {showForm && (
         <div className="bg-white rounded-xl border border-school-border p-4 space-y-3">
           {!activeYear && (
-            <p className="text-xs text-rose-600 font-bold">Create an academic year first using "Manage Years"</p>
+            <p className="text-xs text-rose-600 font-bold">Create an academic year first in Dashboard → Session Year</p>
           )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>

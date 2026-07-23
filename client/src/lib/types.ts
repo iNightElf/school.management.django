@@ -193,6 +193,8 @@ export interface AcademicYear {
   id: string;
   name: string;
   isActive: boolean;
+  startDate?: string;
+  endDate?: string;
 }
 
 export interface OpeningBalance {

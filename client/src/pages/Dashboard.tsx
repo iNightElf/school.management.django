@@ -12,11 +12,12 @@ import FinanceSection from './FinanceSection';
 import AttendanceSection from './AttendanceSection';
 import AdminRoutine from './AdminRoutine';
 import ExamRoutineAdmin from './ExamRoutineAdmin';
+import SessionYearSection from './SessionYearSection';
 import EngagementWidget, { QuizPanel, RiddlePanel, MoodPanel, ChallengePanel, TipsPanel, PlannerPanel } from './engagement/EngagementWidget';
-import { CreditCard, BookOpen, BarChart3, Wallet, Users, GraduationCap, Building2, Sparkles, ArrowRight, Clock, MailCheck, CalendarCheck, UserCheck, ClipboardList, Calendar } from 'lucide-react';
+import { CreditCard, BookOpen, BarChart3, Wallet, Users, GraduationCap, Building2, Sparkles, ArrowRight, Clock, MailCheck, CalendarCheck, UserCheck, ClipboardList, Calendar, CalendarDays } from 'lucide-react';
 import { SCHOOL_LOGO } from '../lib/logo';
 
-type ModeParam = 'idcard' | 'accessories' | 'result' | 'finance' | 'attendance' | 'routine' | 'exam-routine';
+type ModeParam = 'idcard' | 'accessories' | 'result' | 'finance' | 'attendance' | 'routine' | 'exam-routine' | 'session-year';
 
 function TodaysGreeting() {
   const h = new Date().getHours();
@@ -73,6 +74,7 @@ const Dashboard = () => {
     ...(!isTeacher && !isPendingViewer ? [{ key: 'finance' as ModeParam, label: 'Finance', desc: 'Accounting & fees', color: 'rose', icon: Wallet }] : []),
     ...(!isTeacher && !isPendingViewer ? [{ key: 'routine' as ModeParam, label: 'Routine', desc: 'Weekly class schedule', color: 'indigo', icon: ClipboardList }] : []),
     ...(!isTeacher && !isPendingViewer ? [{ key: 'exam-routine' as ModeParam, label: 'Exam Schedule', desc: 'Exam timetable management', color: 'cyan', icon: Calendar }] : []),
+    ...(!isTeacher && !isPendingViewer ? [{ key: 'session-year' as ModeParam, label: 'Session Year', desc: 'Manage academic years & promote students', color: 'amber', icon: CalendarDays }] : []),
   ];
 
   return (
@@ -220,6 +222,7 @@ const Dashboard = () => {
           {effectiveMode === 'attendance' && <AttendanceSection />}
           {effectiveMode === 'routine' && <AdminRoutine />}
           {effectiveMode === 'exam-routine' && <ExamRoutineAdmin />}
+          {effectiveMode === 'session-year' && <SessionYearSection />}
         </div>
       )}
 
