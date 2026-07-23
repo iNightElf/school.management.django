@@ -3,7 +3,7 @@ import type { ReactNode, TouchEvent } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore, useUIStore, useDarkMode, useSchoolStore } from '../store';
-import { ChevronLeft, Lock, Users, Sun, Moon, ClipboardList, Sparkles, KeyRound, Link2 } from 'lucide-react';
+import { ChevronLeft, Lock, Users, Sun, Moon, ClipboardList, Sparkles, KeyRound, Link2, CalendarDays } from 'lucide-react';
 import { useAIQueryStore } from '../store';
 import { SCHOOL_LOGO } from '../lib/logo';
 import BottomNav from './BottomNav';
@@ -27,6 +27,9 @@ const Layout = ({ children }: LayoutProps) => {
   const role = user?.role;
   const { activeMode, swipeBack, setMode } = useUIStore();
   const { dark, toggle: toggleDark } = useDarkMode();
+  const { academicYears, fetchAcademicYears } = useSchoolStore();
+  const [showYearDropdown, setShowYearDropdown] = useState(false);
+  const activeYear = academicYears.find((y: any) => y.isActive);
 
   useEffect(() => { document.documentElement.classList.toggle('dark', dark); }, [dark]);
 
@@ -51,6 +54,8 @@ const Layout = ({ children }: LayoutProps) => {
     window.addEventListener('offline', onOffline);
     return () => { clearInterval(interval); window.removeEventListener('online', onOnline); window.removeEventListener('offline', onOffline); };
   }, [checkHealth]);
+
+  useEffect(() => { fetchAcademicYears(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const connLabel = connState === 'connected' ? 'Connected' : connState === 'disconnected' ? 'Disconnected' : 'Checking…';
   const connDotClass = connState === 'connected' ? 'bg-green-500' : connState === 'disconnected' ? 'bg-red-500' : 'bg-yellow-500 animate-pulse';
@@ -134,6 +139,46 @@ const Layout = ({ children }: LayoutProps) => {
               >
                 <Link2 size={20} className="group-hover:scale-110 transition-transform" />
               </button>
+              {/* Session Year Switcher */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowYearDropdown(!showYearDropdown)}
+                  onBlur={() => setTimeout(() => setShowYearDropdown(false), 200)}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg transition-colors text-xs font-bold"
+                  title={activeYear ? `Active: ${activeYear.name}` : 'No active year'}
+                  aria-label="Switch academic year"
+                >
+                  <CalendarDays size={14} />
+                  <span className="hidden sm:inline">{activeYear?.name || 'Year'}</span>
+                </button>
+                {showYearDropdown && academicYears.length > 0 && (
+                  <div className="absolute right-0 top-full mt-1 bg-white dark:bg-[#1a1a2e] rounded-xl shadow-xl border border-school-border dark:border-[#2a2a3e] py-1 min-w-[160px] z-[100]">
+                    {[...academicYears]
+                      .sort((a: any, b: any) => new Date(b.startDate || 0).getTime() - new Date(a.startDate || 0).getTime())
+                      .map((y: any) => (
+                        <button
+                          key={y.id}
+                          onMouseDown={async () => {
+                            if (!y.isActive) {
+                              try {
+                                const { api } = await import('../stores/api');
+                                await api.patch(`/academic-years/${y.id}/`, { isActive: true });
+                                fetchAcademicYears(true);
+                              } catch { /* ignore */ }
+                            }
+                            setShowYearDropdown(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-school-paper/50 ${
+                            y.isActive ? 'font-bold text-school-primary' : 'text-school-muted'
+                          }`}
+                        >
+                          <span>{y.name}</span>
+                          {y.isActive && <span className="text-[9px] bg-school-primary/10 text-school-primary px-1.5 py-0.5 rounded font-bold">Active</span>}
+                        </button>
+                      ))}
+                  </div>
+                )}
+              </div>
             </>
           )}
           <button

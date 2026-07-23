@@ -4,51 +4,38 @@ import { Calendar, CalendarPlus, Plus, GraduationCap, Check } from 'lucide-react
 import { toast } from '../components/Toast';
 import PromoteModal from '../components/PromoteModal';
 
+function digitsOnly(v: string) { return v.replace(/\D/g, ''); }
+
 export default function SessionYearSection() {
   const { academicYears: years, fetchAcademicYears, fetchClasses } = useSchoolStore();
   const [loading, setLoading] = useState(true);
 
   const [showYearForm, setShowYearForm] = useState(false);
-  const [yearForm, setYearForm] = useState({ name: '', startDate: '', endDate: '' });
+  const [newDigits, setNewDigits] = useState('');
   const [creating, setCreating] = useState(false);
 
   const [showPromote, setShowPromote] = useState(false);
   const [promoteTarget, setPromoteTarget] = useState<{ name: string; id: string } | null>(null);
 
   const activeYear = years.find((y: any) => y.isActive);
+  const fullName = (digits: string) => digits ? `FY${digits}` : '';
 
   useEffect(() => {
     Promise.all([fetchAcademicYears(true), fetchClasses()]).then(() => setLoading(false));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-suggest year name when both dates are filled
-  useEffect(() => {
-    if (yearForm.startDate && yearForm.endDate) {
-      const startYear = new Date(yearForm.startDate).getFullYear();
-      const endYear = new Date(yearForm.endDate).getFullYear();
-      if (endYear > startYear) {
-        setYearForm(prev => ({ ...prev, name: `${startYear}-${endYear}` }));
-      } else {
-        setYearForm(prev => ({ ...prev, name: `${startYear}` }));
-      }
-    }
-  }, [yearForm.startDate, yearForm.endDate]);
-
   const handleCreateYear = async () => {
-    if (!yearForm.name || !yearForm.startDate || !yearForm.endDate) {
-      toast('Name, start date, and end date required', 'error');
-      return;
-    }
-    if (new Date(yearForm.startDate).getFullYear() !== new Date(yearForm.endDate).getFullYear()) {
-      toast('Start and end date must be in the same year', 'error');
-      return;
-    }
+    const name = fullName(newDigits);
+    if (!name) { toast('Enter a year (e.g. 2026)', 'error'); return; }
+    if (years.some((y: any) => y.name === name)) { toast('Year already exists', 'error'); return; }
     setCreating(true);
     try {
-      const res = await api.post('/academic-years/', { ...yearForm, isActive: true });
+      const startDate = `${newDigits}-01-01`;
+      const endDate = `${newDigits}-12-31`;
+      const res = await api.post('/academic-years/', { name, startDate, endDate, isActive: true });
       toast('Academic year created', 'success');
       setShowYearForm(false);
-      setYearForm({ name: '', startDate: '', endDate: '' });
+      setNewDigits('');
       setShowPromote(true);
       setPromoteTarget({ name: res.data.name, id: res.data.id });
       fetchAcademicYears(true);
@@ -127,38 +114,22 @@ export default function SessionYearSection() {
       {showYearForm && (
         <div className="bg-white dark:bg-[#1a1a2e] rounded-xl border border-school-border dark:border-[#2a2a3e] p-4 space-y-3">
           <h4 className="font-bold text-xs text-school-primary dark:text-[#e0e0e8]">Create New Academic Year</h4>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="text-[10px] font-bold uppercase text-school-muted block mb-1">Year Name</label>
-              <input
-                value={yearForm.name}
-                onChange={e => setYearForm({ ...yearForm, name: e.target.value })}
-                placeholder="e.g. 2026-2027"
-                className="w-full border border-school-border rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-school-accent"
-              />
-            </div>
-            <div>
-              <label className="text-[10px] font-bold uppercase text-school-muted block mb-1">Start Date</label>
-              <input
-                type="date"
-                value={yearForm.startDate}
-                onChange={e => setYearForm({ ...yearForm, startDate: e.target.value })}
-                className="w-full border border-school-border rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-school-accent"
-              />
-            </div>
-            <div>
-              <label className="text-[10px] font-bold uppercase text-school-muted block mb-1">End Date</label>
-              <input
-                type="date"
-                value={yearForm.endDate}
-                onChange={e => setYearForm({ ...yearForm, endDate: e.target.value })}
-                className="w-full border border-school-border rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-school-accent"
-              />
-            </div>
+          <p className="text-[11px] text-school-muted">Year runs from January 1st to December 31st.</p>
+          <div className="flex gap-2 items-center">
+            <span className="text-sm font-bold text-school-muted flex-shrink-0">FY</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={newDigits}
+              onChange={e => setNewDigits(digitsOnly(e.target.value))}
+              placeholder="2027"
+              className="flex-1 max-w-[160px] border border-school-border rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-school-accent"
+              onKeyDown={e => { if (e.key === 'Enter') handleCreateYear(); }}
+            />
           </div>
           <button
             onClick={handleCreateYear}
-            disabled={creating}
+            disabled={creating || !newDigits}
             className="flex items-center gap-1.5 px-4 py-2 bg-school-primary text-white rounded-xl text-sm font-bold hover:opacity-90 disabled:opacity-50 transition-opacity"
           >
             <Plus size={14} /> Create Academic Year
@@ -216,7 +187,11 @@ export default function SessionYearSection() {
         ) : (
           <div className="space-y-1">
             {[...years]
-              .sort((a: any, b: any) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime())
+              .sort((a: any, b: any) => {
+                const aNum = parseInt(a.name.replace(/^FY/, ''));
+                const bNum = parseInt(b.name.replace(/^FY/, ''));
+                return bNum - aNum;
+              })
               .map((y: any) => (
                 <div
                   key={y.id}
