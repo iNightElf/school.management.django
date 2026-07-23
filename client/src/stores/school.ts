@@ -145,8 +145,13 @@ export const useSchoolStore = create<SchoolState>((set, get) => ({
     set((s) => ({ loading: { ...s.loading, students: true } }));
     try {
       const res = await api.get('/students/', { params: { limit: '2000', ...params } });
+      const raw = res.data.results || res.data.data || res.data;
+      const normalized = Array.isArray(raw) ? raw.map((s: any) => ({
+        ...s,
+        class: s.schoolClass || s.className || s.class,
+      })) : [];
       set({
-        students: res.data.results || res.data.data || res.data,
+        students: normalized,
         studentTotal: res.data.count ?? res.data.total ?? 0,
         lastFetched: Date.now()
       });
