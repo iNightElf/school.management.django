@@ -15,6 +15,22 @@ export const toast = (msg: string, type: 'success' | 'error' | 'info' | '' = '',
   toastFn?.(msg, type, action);
 };
 
+export function getErrorMessage(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (typeof e === 'string') return e;
+  if (e && typeof e === 'object') {
+    const obj = e as any;
+    if (obj.response?.data) {
+      const d = obj.response.data;
+      if (typeof d === 'string') return d;
+      if (d.detail) return d.detail;
+      if (d.message) return d.message;
+      if (d.error) return d.error;
+    }
+  }
+  return 'An unexpected error occurred';
+}
+
 const Toast: React.FC = () => {
   const [state, setState] = useState<ToastState>({ message: '', type: '', visible: false });
 

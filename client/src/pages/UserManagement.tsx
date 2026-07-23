@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAuthStore, useUserManagementStore } from '../store';
 import { api } from '../stores/api';
-import { Users, Trash2, ChevronDown, AlertTriangle, Check, Clock, UserCheck, Link2, Unlink } from 'lucide-react';
+import { Users, Trash2, ChevronDown, AlertTriangle, Check, Clock, UserCheck } from 'lucide-react';
 import Layout from '../components/Layout';
 import { toast } from '../components/Toast';
 
@@ -13,25 +13,6 @@ const ROLE_BADGES: Record<string, string> = {
   viewer: 'bg-amber-50 text-amber-600 border-amber-200',
 };
 
-interface ParentLink {
-  id: string;
-  parentId: string;
-  parentName: string;
-  parentEmail: string;
-  studentId: string;
-  studentName: string;
-  studentRoll: string;
-  createdAt: string;
-}
-
-interface StudentOption {
-  id: string;
-  name: string;
-  student_id: string;
-  roll: string;
-  className: string;
-}
-
 const UserManagement: React.FC = () => {
   const { user: currentUser } = useAuthStore();
   const { users, roles, fetchUsers, fetchRoles, updateRole, deleteUser } = useUserManagementStore();
@@ -39,69 +20,10 @@ const UserManagement: React.FC = () => {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [assigning, setAssigning] = useState<string | null>(null);
 
-  // Parent links state
-  const [parentLinks, setParentLinks] = useState<ParentLink[]>([]);
-  const [students, setStudents] = useState<StudentOption[]>([]);
-  const [selectedParent, setSelectedParent] = useState('');
-  const [selectedStudent, setSelectedStudent] = useState('');
-  const [selectedClass, setSelectedClass] = useState('');
-  const [linking, setLinking] = useState(false);
-  const [linksLoading, setLinksLoading] = useState(false);
-
   useEffect(() => { document.title = 'User Management - AL RAWA English School'; }, []);
   useEffect(() => {
     Promise.all([fetchUsers(), fetchRoles()]).finally(() => setLoading(false));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const fetchParentLinks = async () => {
-    setLinksLoading(true);
-    try {
-      const res = await api.get('/parents/links/');
-      setParentLinks(res.data);
-    } catch { /* noop */ }
-    setLinksLoading(false);
-  };
-
-  const fetchStudents = async () => {
-    try {
-      const res = await api.get('/students/', { params: { all: 'true' } });
-      const items = res.data || [];
-      if (import.meta.env.DEV) console.log('[Parent Links] students fetched:', items.length);
-      setStudents(items.map((s: any) => ({ id: s.id, name: s.name, student_id: s.studentId || s.student_id, roll: s.roll, className: s.className || '' })));
-    } catch (e: any) {
-      if (import.meta.env.DEV) console.warn('[Parent Links] fetch students error:', e.response?.status, e.response?.data);
-    }
-  };
-
-  useEffect(() => {
-    if (currentUser?.role === 'admin') {
-      fetchParentLinks();
-      fetchStudents();
-    }
-  }, [currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleLink = async () => {
-    if (!selectedParent || !selectedStudent) return toast('Select a parent and student', 'error');
-    setLinking(true);
-    try {
-      await api.post('/parents/links/', { parentId: selectedParent, studentId: selectedStudent });
-      toast('Parent linked to student', 'success');
-      setSelectedParent('');
-      setSelectedStudent('');
-      fetchParentLinks();
-    } catch (err: any) {
-      toast(err.response?.data?.error || 'Failed to link', 'error');
-    }
-    setLinking(false);
-  };
-
-  const handleUnlink = async (id: string) => {
-    try {
-      await api.delete('/parents/links/', { data: { id } });
-      toast('Link removed', 'success');
-      fetchParentLinks();
-    } catch { toast('Failed to remove link', 'error'); }
-  };
 
   const handleRoleChange = async (userId: string, newRole: string) => {
     try {
@@ -331,98 +253,8 @@ const UserManagement: React.FC = () => {
           </table>
         </div>
       </div>
-
-      {/* Parent Links — admin only */}
-      {currentUser?.role === 'admin' && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-indigo-500 text-white rounded-xl flex items-center justify-center">
-              <Link2 size={20} />
-            </div>
-            <div>
-              <h2 className="font-serif text-xl text-school-primary">Parent Links</h2>
-              <p className="text-xs text-school-muted">Assign students to parent accounts</p>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl border border-school-border p-4">
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-4">
-              <select value={selectedParent} onChange={(e) => setSelectedParent(e.target.value)}
-                className="border border-school-border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-school-accent">
-                <option value="">Select parent...</option>
-                {users.filter((u) => u.role === 'parent').map((u) => (
-                  <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
-                ))}
-              </select>
-              <select value={selectedClass} onChange={(e) => { setSelectedClass(e.target.value); setSelectedStudent(''); }}
-                className="border border-school-border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-school-accent">
-                <option value="">All classes...</option>
-                {[...new Set(students.map(s => s.className).filter(Boolean))].sort().map((className) => (
-                  <option key={className} value={className}>{className}</option>
-                ))}
-              </select>
-              <select value={selectedStudent} onChange={(e) => setSelectedStudent(e.target.value)}
-                className="border border-school-border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-school-accent">
-                <option value="">Select student...</option>
-                {students
-                  .filter(s => !selectedClass || s.className === selectedClass)
-                  .sort((a, b) => a.name.localeCompare(b.name))
-                  .map((s) => (
-                  <option key={s.id} value={s.id}>{s.name} ({s.student_id}){s.roll ? ` — Roll ${s.roll}` : ''}</option>
-                ))}
-              </select>
-              <button onClick={handleLink} disabled={linking || !selectedParent || !selectedStudent}
-                className="bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 text-white rounded-lg px-4 py-2 text-sm font-semibold transition-colors">
-                {linking ? 'Linking...' : 'Link Parent & Student'}
-              </button>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-school-border">
-                    <th className="text-left px-4 py-2.5 text-[10px] font-bold uppercase text-school-muted">Parent</th>
-                    <th className="text-left px-4 py-2.5 text-[10px] font-bold uppercase text-school-muted">Student</th>
-                    <th className="text-left px-4 py-2.5 text-[10px] font-bold uppercase text-school-muted">Since</th>
-                    <th className="text-right px-4 py-2.5 text-[10px] font-bold uppercase text-school-muted">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {linksLoading ? (
-                    <tr><td colSpan={4} className="text-center py-8 text-sm text-school-muted">Loading...</td></tr>
-                  ) : parentLinks.length === 0 ? (
-                    <tr><td colSpan={4} className="text-center py-8 text-sm text-school-muted">No parent-student links yet</td></tr>
-                  ) : parentLinks.map((link) => (
-                    <tr key={link.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/50">
-                      <td className="px-4 py-2.5">
-                        <div className="font-medium text-school-primary">{link.parentName}</div>
-                        <div className="text-[11px] text-school-muted">{link.parentEmail}</div>
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <div className="font-medium text-school-primary">{link.studentName}</div>
-                        <div className="text-[11px] text-school-muted">Roll {link.studentRoll}</div>
-                      </td>
-                      <td className="px-4 py-2.5 text-xs text-school-muted">
-                        {new Date(link.createdAt).toLocaleDateString()}
-                      </td>
-                      <td className="px-4 py-2.5 text-right">
-                        <button onClick={() => handleUnlink(link.id)}
-                          className="p-1.5 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
-                          title="Remove link" aria-label="Remove link">
-                          <Unlink size={14} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
     </Layout>
-  );
-};
+    );
+  };
 
 export default UserManagement;

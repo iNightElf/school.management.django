@@ -32,6 +32,9 @@ const HomeworkPage = lazy(() => import('./pages/teacher/HomeworkPage'));
 const DiaryPage = lazy(() => import('./pages/teacher/DiaryPage'));
 const LinkChild = lazy(() => import('./pages/LinkChild'));
 const ChangePassword = lazy(() => import('./pages/ChangePassword'));
+const AdminRoutine = lazy(() => import('./pages/AdminRoutine'));
+const ExamRoutineAdmin = lazy(() => import('./pages/ExamRoutineAdmin'));
+const Connections = lazy(() => import('./pages/admin/Connections'));
 
 function PageLoader() {
   return (
@@ -105,6 +108,10 @@ const App: React.FC = () => {
           <Route path="/teacher/attendance" element={user?.role === 'teacher' || user?.role === 'admin' ? <TeacherLayout><AttendanceSection /></TeacherLayout> : <Navigate to="/" />} />
           <Route path="/teacher/homework" element={user?.role === 'teacher' || user?.role === 'admin' ? <TeacherLayout><HomeworkPage /></TeacherLayout> : <Navigate to="/" />} />
           <Route path="/teacher/diary" element={user?.role === 'teacher' || user?.role === 'admin' ? <TeacherLayout><DiaryPage /></TeacherLayout> : <Navigate to="/" />} />
+
+          <Route path="/admin/routine" element={user?.role === 'admin' ? <AdminRoutine /> : <Navigate to="/" />} />
+          <Route path="/admin/exam-routine" element={user?.role === 'admin' ? <ExamRoutineAdmin /> : <Navigate to="/" />} />
+          <Route path="/connections" element={user?.role === 'admin' ? <Connections /> : <Navigate to="/" />} />
 
           <Route path="*" element={<NotFound />} />
         </Routes>

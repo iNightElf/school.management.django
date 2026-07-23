@@ -10,11 +10,13 @@ import AccessoriesSection from './AccessoriesSection';
 import ResultSection from './ResultSection';
 import FinanceSection from './FinanceSection';
 import AttendanceSection from './AttendanceSection';
+import AdminRoutine from './AdminRoutine';
+import ExamRoutineAdmin from './ExamRoutineAdmin';
 import EngagementWidget, { QuizPanel, RiddlePanel, MoodPanel, ChallengePanel, TipsPanel, PlannerPanel } from './engagement/EngagementWidget';
-import { CreditCard, BookOpen, BarChart3, Wallet, Users, GraduationCap, Building2, Sparkles, ArrowRight, Clock, MailCheck, CalendarCheck, UserCheck } from 'lucide-react';
+import { CreditCard, BookOpen, BarChart3, Wallet, Users, GraduationCap, Building2, Sparkles, ArrowRight, Clock, MailCheck, CalendarCheck, UserCheck, ClipboardList, Calendar, Link2 } from 'lucide-react';
 import { SCHOOL_LOGO } from '../lib/logo';
 
-type ModeParam = 'idcard' | 'accessories' | 'result' | 'finance' | 'attendance';
+type ModeParam = 'idcard' | 'accessories' | 'result' | 'finance' | 'attendance' | 'routine' | 'exam-routine' | 'connections';
 
 function TodaysGreeting() {
   const h = new Date().getHours();
@@ -69,6 +71,9 @@ const Dashboard = () => {
     { key: 'attendance' as ModeParam, label: 'Attendance', desc: 'Daily marking & monthly view', color: 'purple', icon: CalendarCheck },
     { key: 'result' as ModeParam, label: 'Result', desc: 'Marks & report cards', color: 'green', icon: BarChart3 },
     ...(!isTeacher && !isPendingViewer ? [{ key: 'finance' as ModeParam, label: 'Finance', desc: 'Accounting & fees', color: 'rose', icon: Wallet }] : []),
+    ...(!isTeacher && !isPendingViewer ? [{ key: 'routine' as ModeParam, label: 'Routine', desc: 'Weekly class schedule', color: 'indigo', icon: ClipboardList }] : []),
+    ...(!isTeacher && !isPendingViewer ? [{ key: 'exam-routine' as ModeParam, label: 'Exam Schedule', desc: 'Exam timetable management', color: 'cyan', icon: Calendar }] : []),
+    ...(!isTeacher && !isPendingViewer ? [{ key: 'connections' as ModeParam, label: 'Parent Links', desc: 'Link parents to students', color: 'indigo', icon: Link2 }] : []),
   ];
 
   return (
@@ -214,6 +219,9 @@ const Dashboard = () => {
           {effectiveMode === 'result' && <ResultSection />}
           {effectiveMode === 'finance' && <FinanceSection />}
           {effectiveMode === 'attendance' && <AttendanceSection />}
+          {effectiveMode === 'routine' && <AdminRoutine />}
+          {effectiveMode === 'exam-routine' && <ExamRoutineAdmin />}
+          {effectiveMode === 'connections' && (() => { navigate('/connections'); return null; })()}
         </div>
       )}
 

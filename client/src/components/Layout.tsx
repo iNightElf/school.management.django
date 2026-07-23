@@ -3,7 +3,7 @@ import type { ReactNode, TouchEvent } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore, useUIStore, useDarkMode, useSchoolStore } from '../store';
-import { ChevronLeft, Lock, Users, Sun, Moon, ClipboardList, Sparkles, KeyRound } from 'lucide-react';
+import { ChevronLeft, Lock, Users, Sun, Moon, ClipboardList, Sparkles, KeyRound, Link2 } from 'lucide-react';
 import { useAIQueryStore } from '../store';
 import { SCHOOL_LOGO } from '../lib/logo';
 import BottomNav from './BottomNav';
@@ -125,6 +125,14 @@ const Layout = ({ children }: LayoutProps) => {
                 aria-label="User Management"
               >
                 <Users size={20} className="group-hover:scale-110 transition-transform" />
+              </button>
+              <button
+                onClick={() => navigate('/connections')}
+                className="p-2 hover:bg-white/10 rounded-full transition-colors group"
+                title="Connections"
+                aria-label="Connections"
+              >
+                <Link2 size={20} className="group-hover:scale-110 transition-transform" />
               </button>
             </>
           )}
