@@ -19,6 +19,9 @@ db.sqlite3
 media/
 staticfiles/
 
+# Hermes agent workspace
+.hermes/
+
 # Node
 node_modules/
 client/.vite/
