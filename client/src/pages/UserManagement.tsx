@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useAuthStore, useUserManagementStore } from '../store';
-import { api } from '../stores/api';
 import { Users, Trash2, ChevronDown, AlertTriangle, Check, Clock, UserCheck } from 'lucide-react';
 import Layout from '../components/Layout';
 import { toast } from '../components/Toast';

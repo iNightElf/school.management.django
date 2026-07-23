@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSchoolStore } from '../store';
 import { api } from '../stores/api';
 import { toast, getErrorMessage } from '../components/Toast';
-import { Calendar, Plus, Trash2, Printer, X } from 'lucide-react';
+import { Calendar, Plus, Trash2, X } from 'lucide-react';
 
 export default function ExamRoutineAdmin() {
   const { classes, fetchClasses } = useSchoolStore();
