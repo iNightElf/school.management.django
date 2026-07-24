@@ -34,7 +34,7 @@ export default function AdminAnnouncements() {
     ])
       .then(([annRes, clsRes]) => {
         setItems(annRes.data);
-        setClasses(clsRes.data ?? []);
+        setClasses(clsRes.data?.results || clsRes.data || []);
       })
       .catch(() => toast('Failed to load announcements', 'error'))
       .finally(() => setLoading(false));
