@@ -280,12 +280,13 @@ class AnnouncementListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        announcements = Announcement.objects.all()[:20]
+        announcements = Announcement.objects.select_related('school_class').all()[:20]
         data = [{
             'id': a.id,
             'title': a.title,
             'body': a.body,
             'author': a.author.name if a.author else 'Admin',
+            'school_class': {'id': a.school_class.id, 'name': a.school_class.name} if a.school_class else None,
             'createdAt': a.created_at.isoformat(),
         } for a in announcements]
         return Response(data)
@@ -296,17 +297,20 @@ class AnnouncementListView(APIView):
             return Response({'error': 'Permission denied'}, status=403)
         title = request.data.get('title')
         body = request.data.get('body', '')
+        school_class_id = request.data.get('school_class_id')
         if not title:
             return Response({'error': 'Title required'}, status=400)
-        announcement = Announcement.objects.create(
-            author=request.user, title=title, body=body,
-        )
+        kwargs = {'author': request.user, 'title': title, 'body': body}
+        if school_class_id:
+            kwargs['school_class_id'] = school_class_id
+        announcement = Announcement.objects.create(**kwargs)
         from .services import notify_all_parents
         notify_all_parents(title, body, url='/#/parent/announcements')
         return Response({
             'id': announcement.id,
             'title': announcement.title,
             'body': announcement.body,
+            'school_class': {'id': announcement.school_class.id, 'name': announcement.school_class.name} if announcement.school_class else None,
             'createdAt': announcement.created_at.isoformat(),
         }, status=201)
 

@@ -95,6 +95,10 @@ class Announcement(models.Model):
     )
     title = models.CharField(max_length=255)
     body = models.TextField(blank=True, default='')
+    school_class = models.ForeignKey(
+        'core.SchoolClass', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='announcements',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
