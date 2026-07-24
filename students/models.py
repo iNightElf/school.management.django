@@ -32,6 +32,9 @@ class Student(models.Model):
             models.Index(fields=['school_class_id', 'deleted_at'], name='student_class_active_idx'),
             models.Index(fields=['deleted_at', 'session'], name='student_session_active_idx'),
         ]
+        constraints = [
+            models.UniqueConstraint(fields=['roll', 'school_class'], name='unique_roll_per_class', condition=models.Q(roll__gt='')),
+        ]
 
     def __str__(self):
         return f"{self.name} ({self.student_id})"

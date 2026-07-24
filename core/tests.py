@@ -202,9 +202,9 @@ class PromoteAllTests(TestCase):
         self.c1 = SchoolClass.objects.create(name='Test Class 1', order=8)
         self.c2 = SchoolClass.objects.create(name='Test Class 2', order=9)
         self.c3 = SchoolClass.objects.create(name='Test Class 3', order=10)
-        self.s1 = Student.objects.create(name='Alice', student_id='r9998001', school_class=self.c1, session='old')
-        self.s2 = Student.objects.create(name='Bob', student_id='r9998101', school_class=self.c2, session='old')
-        self.s3 = Student.objects.create(name='Charlie', student_id='r9998201', school_class=self.c3, session='old')
+        self.s1 = Student.objects.create(name='Alice', student_id='r9998001', roll='01', school_class=self.c1, session='old')
+        self.s2 = Student.objects.create(name='Bob', student_id='r9998101', roll='01', school_class=self.c2, session='old')
+        self.s3 = Student.objects.create(name='Charlie', student_id='r9998201', roll='01', school_class=self.c3, session='old')
 
     def tearDown(self):
         Student.objects.filter(id__in=[self.s1.id, self.s2.id, self.s3.id]).delete()
@@ -215,6 +215,7 @@ class PromoteAllTests(TestCase):
         self.s1.refresh_from_db()
         self.assertEqual(self.s1.school_class, self.c1)
         self.assertEqual(self.s1.student_id, 'r9998001')
+        self.assertEqual(self.s1.roll, '01')
 
     def test_promote_moves_students(self):
         self.client.post('/api/classes/promote-all/', {'targetYearName': '2027'}, format='json')
@@ -223,8 +224,9 @@ class PromoteAllTests(TestCase):
         self.s3.refresh_from_db()
         self.assertEqual(self.s1.school_class, self.c2)
         self.assertEqual(self.s2.school_class, self.c3)
-        self.assertEqual(self.s3.school_class.order, 11)
-        self.assertIsNone(self.s3.graduated_at)
+        # s3 at max_class_order=10 graduates
+        self.assertIsNone(self.s3.school_class)
+        self.assertIsNotNone(self.s3.graduated_at)
 
     def test_session_updated(self):
         self.client.post('/api/classes/promote-all/', {'targetYearName': '2027'}, format='json')
@@ -235,8 +237,13 @@ class PromoteAllTests(TestCase):
         self.client.post('/api/classes/promote-all/', {'targetYearName': '2027'}, format='json')
         self.s1.refresh_from_db()
         self.s2.refresh_from_db()
-        self.assertEqual(self.s1.student_id, 'r20270101')
-        self.assertEqual(self.s2.student_id, 'r20270201')
+        # roll = {year}{classCode:02d}{roll}; classCode = next_class.order + 1
+        # s1: c1(order=8)→c2(order=9) → 2027 + 10 + 01
+        # s2: c2(order=9)→c3(order=10) → 2027 + 11 + 01
+        self.assertEqual(self.s1.roll, '20271001')
+        self.assertEqual(self.s2.roll, '20271101')
+        # student_id is permanent and never rewritten by promotion
+        self.assertEqual(self.s1.student_id, 'r9998001')
 
     def test_empty_body_rejected(self):
         res = self.client.post('/api/classes/promote-all/', {}, format='json')
@@ -247,15 +254,16 @@ class PromoteAllTests(TestCase):
         self.assertEqual(res.status_code, 200)
 
     def test_auto_create_class(self):
-        SchoolClass.objects.filter(order__gte=8).delete()
-        c = SchoolClass.objects.create(name='Test Eleven', order=11)
-        s = Student.objects.create(name='AutoTest', student_id='r9998301', school_class=c, session='old')
+        # Leave a gap at order 8 so the move c7(order7)→order8 triggers auto-create.
+        SchoolClass.objects.filter(order__gte=7).delete()
+        c7 = SchoolClass.objects.create(name='Class Seven', order=7)
+        SchoolClass.objects.create(name='Class Nine', order=9)
+        s = Student.objects.create(name='AutoTest', student_id='r9998301', roll='01', school_class=c7, session='old')
         res = self.client.post('/api/classes/promote-all/?dryRun=true', {'targetYearName': '2027'}, format='json')
         self.assertEqual(res.status_code, 200)
         created = res.data.get('classesCreated', [])
         self.assertTrue(any('Class' in c for c in created))
         s.delete()
-        c.delete()
 
     def test_graduation_at_max_class(self):
         SchoolClass.objects.filter(order__gte=8).delete()
@@ -267,6 +275,12 @@ class PromoteAllTests(TestCase):
         s.refresh_from_db()
         self.assertIsNone(s.school_class)
         self.assertIsNotNone(s.graduated_at)
+
+    def test_new_roll_for_promotion(self):
+        from core.services import _new_roll_for_promotion
+        # classCode = order + 1; roll is the bare 2-digit roll number
+        self.assertEqual(_new_roll_for_promotion('2027', 9, '01'), '20271001')
+        self.assertEqual(_new_roll_for_promotion('2026', 0, '01'), '20260101')
 
 
 class DashboardCacheTests(TestCase):
