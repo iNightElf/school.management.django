@@ -30,7 +30,10 @@ export default function StudentSection() {
   const [showCamera, setShowCamera] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showGraduated, setShowGraduated] = useState(false);
-  const [sessionFilter, setSessionFilter] = useState('2026');
+  const [sessionFilter, setSessionFilter] = useState(() => {
+    const activeYear = academicYears.find((y: any) => y.isActive);
+    return activeYear ? activeYear.name.replace(/^FY/, '') : '2026';
+  });
   const [showPromote, setShowPromote] = useState(false);
   const [promoteYear, setPromoteYear] = useState<{ name: string; id: string } | null>(null);
   const [search, setSearch] = useState('');
@@ -286,7 +289,7 @@ export default function StudentSection() {
           <span className="bg-school-primary text-white text-xs font-bold px-2 py-0.5 rounded-full">{filtered.length}</span>
           <select value={sessionFilter} onChange={e => setSessionFilter(e.target.value)} className="ml-2 px-2 py-1 border border-school-border rounded-lg text-xs bg-white">
             {academicYears.map((y: any) => (
-              <option key={y.id} value={y.name}>{y.name} {y.isActive ? '✓' : ''}</option>
+              <option key={y.id} value={y.name.replace(/^FY/, '')}>{y.name} {y.isActive ? '✓' : ''}</option>
             ))}
           </select>
         </div>
